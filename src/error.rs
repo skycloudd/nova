@@ -35,20 +35,6 @@ impl Error {
     }
 
     pub fn spans(&self) -> Vec<Spanned<String>> {
-        match self {
-            Error::ExpectedFound {
-                expected: _,
-                found,
-                span,
-            } => vec![(
-                format!("Found {}", found.as_ref().unwrap_or(&"EOF".into())),
-                *span,
-            )],
-            Error::Custom { message: _, span } => vec![(String::new(), *span)],
-        }
-    }
-
-    pub fn fixed_spans(&self) -> Vec<Spanned<String>> {
         let spans = match self {
             Error::ExpectedFound {
                 expected: _,

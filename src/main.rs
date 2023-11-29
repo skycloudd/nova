@@ -8,9 +8,7 @@ mod lexer;
 mod parser;
 
 fn main() {
-    // let input = read_to_string(std::env::args().nth(1).unwrap()).unwrap();
-
-    let input = "- ";
+    let input = read_to_string(std::env::args().nth(1).unwrap()).unwrap();
 
     run(&input);
 }
@@ -49,7 +47,6 @@ fn print_error(input: &str, error: error::Error) {
     let mut color_generator = ColorGenerator::new();
 
     let message = error.message();
-    // let spans = error.fixed_spans();
     let spans = error.spans();
     let note = error.note();
 
