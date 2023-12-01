@@ -8,13 +8,17 @@ mod interpret;
 mod lexer;
 mod parser;
 
-fn main() {
-    let input = read_to_string(std::env::args().nth(1).unwrap()).unwrap();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let input = read_to_string(
+        std::env::args()
+            .nth(1)
+            .ok_or_else(|| format!("must pass a file name as argument"))?,
+    )?;
 
-    run(&input);
+    Ok(run(&input)?)
 }
 
-fn run(input: &str) {
+fn run(input: &str) -> std::io::Result<()> {
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer().parse(input).into_output_errors();
@@ -32,17 +36,19 @@ fn run(input: &str) {
     if errors.is_empty() {
         if let Some(ast) = &ast {
             if let Err(error) = interpret::interpret(ast) {
-                print_error(input, error);
+                print_error(input, error)?;
             }
         }
     } else {
         for e in errors {
-            print_error(input, e);
+            print_error(input, e)?;
         }
-    }
+    };
+
+    Ok(())
 }
 
-fn print_error(input: &str, error: error::Error) {
+fn print_error(input: &str, error: error::Error) -> std::io::Result<()> {
     let mut color_generator = ColorGenerator::new();
 
     let message = error.message();
@@ -67,7 +73,7 @@ fn print_error(input: &str, error: error::Error) {
         report.set_note(note);
     }
 
-    report.finish().eprint(Source::from(input)).unwrap();
+    report.finish().eprint(Source::from(input))
 }
 
 fn map_errors<T: Clone + Display>(errors: Vec<Rich<'_, T, Span>>) -> Vec<error::Error> {

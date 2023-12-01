@@ -22,7 +22,9 @@ pub enum Statement<'src> {
 #[derive(Clone, Debug)]
 pub enum Expr<'src> {
     Variable(Spanned<&'src str>),
-    Number(Spanned<i32>),
+    Boolean(Spanned<bool>),
+    Integer(Spanned<i32>),
+    Null,
     Binary(
         Box<Spanned<Expr<'src>>>,
         Spanned<BinaryOp>,
@@ -42,9 +44,30 @@ pub enum BinaryOp {
     Minus,
 }
 
+impl std::fmt::Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOp::Multiply => write!(f, "*"),
+            BinaryOp::Divide => write!(f, "/"),
+            BinaryOp::Equals => write!(f, "=="),
+            BinaryOp::NotEquals => write!(f, "!="),
+            BinaryOp::Plus => write!(f, "+"),
+            BinaryOp::Minus => write!(f, "-"),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum UnaryOp {
     Negate,
+}
+
+impl std::fmt::Display for UnaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOp::Negate => write!(f, "-"),
+        }
+    }
 }
 
 type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
@@ -144,17 +167,27 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         }
         .map_with(|variable, e| (Expr::Variable((variable, e.span())), e.span()));
 
-        let number = select! {
-            Token::Number(n) => n
+        let boolean = select! {
+            Token::Boolean(b) => b
         }
-        .map_with(|number, e| (Expr::Number((number, e.span())), e.span()));
+        .map_with(|boolean, e| (Expr::Boolean((boolean, e.span())), e.span()));
+
+        let integer = select! {
+            Token::Integer(n) => n
+        }
+        .map_with(|integer, e| (Expr::Integer((integer, e.span())), e.span()));
+
+        let null = just(Token::Null)
+            .ignored()
+            .map_with(|_, e| (Expr::Null, e.span()))
+            .boxed();
 
         let parenthesized_expr = expression.clone().delimited_by(
             just(Token::Ctrl(Ctrl::LeftParen)),
             just(Token::Ctrl(Ctrl::RightParen)),
         );
 
-        let atom = choice((variable, number, parenthesized_expr)).boxed();
+        let atom = choice((variable, boolean, integer, null, parenthesized_expr)).boxed();
 
         let call = atom
             .foldl(

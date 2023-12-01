@@ -1,68 +1,120 @@
 use crate::{
     error::Error,
     parser::{BinaryOp, Expr, Statement, UnaryOp},
-    Spanned,
+    Span, Spanned,
 };
 use std::{collections::HashMap, hash::Hash};
 
 #[derive(Clone, Debug)]
 enum Value<'ast, 'src> {
     Null,
-    Number(i32),
+    Boolean(bool),
+    Integer(i32),
     Function {
+        name: &'src str,
         parameters: Vec<&'src str>,
         body: &'ast [Spanned<Statement<'src>>],
     },
 }
 
 impl<'ast, 'src> Value<'ast, 'src> {
-    fn add(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (Value::Number(lhs), Value::Number(rhs)) => Value::Number(lhs + rhs),
-            _ => panic!(),
-        }
-    }
-
-    fn sub(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (Value::Number(lhs), Value::Number(rhs)) => Value::Number(lhs - rhs),
-            _ => panic!(),
-        }
-    }
-
-    fn mul(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (Value::Number(lhs), Value::Number(rhs)) => Value::Number(lhs * rhs),
-            _ => panic!(),
-        }
-    }
-
-    fn div(self, rhs: Self) -> Option<Self> {
-        match (self, rhs) {
-            (Value::Number(lhs), Value::Number(rhs)) if rhs != 0 => Some(Value::Number(lhs / rhs)),
-            (Value::Number(_), Value::Number(_)) => None,
-            _ => panic!(),
-        }
-    }
-
-    fn neg(self) -> Self {
+    fn ty(&self) -> String {
         match self {
-            Value::Number(n) => Value::Number(-n),
-            _ => panic!(),
+            Value::Null => "null",
+            Value::Boolean(_) => "boolean",
+            Value::Integer(_) => "integer",
+            Value::Function { .. } => "function",
+        }
+        .to_owned()
+    }
+
+    fn add(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs + rhs)),
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::Plus.to_string(),
+                left: (lhs.ty(), span),
+                right: (rhs.0.ty(), rhs.1),
+            }),
         }
     }
 
-    fn eq(self, rhs: Self) -> Self {
+    fn sub(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
         match (self, rhs) {
-            (Value::Number(lhs), Value::Number(rhs)) => Value::Number((lhs == rhs) as i32),
-            _ => panic!(),
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs - rhs)),
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::Minus.to_string(),
+                left: (lhs.ty(), span),
+                right: (rhs.0.ty(), rhs.1),
+            }),
         }
     }
 
-    fn neq(self, rhs: Self) -> Self {
+    fn mul(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
         match (self, rhs) {
-            (Value::Number(lhs), Value::Number(rhs)) => Value::Number((lhs != rhs) as i32),
-            _ => panic!(),
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs * rhs)),
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::Multiply.to_string(),
+                left: (lhs.ty(), span),
+                right: (rhs.0.ty(), rhs.1),
+            }),
+        }
+    }
+
+    fn div(self, span: Span, rhs: Spanned<Self>) -> Result<Option<Self>, Error> {
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Some(Value::Integer(lhs / rhs))),
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::Divide.to_string(),
+                left: (lhs.ty(), span),
+                right: (rhs.0.ty(), rhs.1),
+            }),
+        }
+    }
+
+    fn neg(self, span: Span) -> Result<Self, Error> {
+        match self {
+            Value::Integer(n) => Ok(Value::Integer(-n)),
+            value => Err(Error::UnaryExpressionTypeMismatch {
+                op: UnaryOp::Negate.to_string(),
+                operand: (value.ty(), span),
+            }),
+        }
+    }
+
+    fn eq(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        match (self, rhs) {
+            (Value::Null, (Value::Null, _)) => Ok(Value::Boolean(true)),
+
+            (Value::Boolean(lhs), (Value::Boolean(rhs), _)) => Ok(Value::Boolean(lhs == rhs)),
+
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs == rhs)),
+
+            (Value::Null, (Value::Boolean(_), _)) => Ok(Value::Boolean(false)),
+            (Value::Null, (Value::Integer(_), _)) => Ok(Value::Boolean(false)),
+
+            (Value::Boolean(_), (Value::Null, _)) => Ok(Value::Boolean(false)),
+            (Value::Integer(_), (Value::Null, _)) => Ok(Value::Boolean(false)),
+
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::Equals.to_string(),
+                left: (lhs.ty(), span),
+                right: (rhs.0.ty(), rhs.1),
+            }),
+        }
+    }
+
+    fn neq(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        Ok(self.eq(span, rhs)?.not(span)?)
+    }
+
+    fn not(self, span: Span) -> Result<Self, Error> {
+        match self {
+            Value::Boolean(b) => Ok(Value::Boolean(!b)),
+            value => Err(Error::UnaryExpressionTypeMismatch {
+                op: UnaryOp::Negate.to_string(),
+                operand: (value.ty(), span),
+            }),
         }
     }
 }
@@ -71,8 +123,15 @@ impl std::fmt::Display for Value<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Null => write!(f, "null"),
-            Value::Number(n) => write!(f, "{}", n),
-            Value::Function { .. } => write!(f, "<function>"),
+            Value::Boolean(b) => write!(f, "{}", b),
+            Value::Integer(n) => write!(f, "{}", n),
+            Value::Function {
+                name,
+                parameters,
+                body: _,
+            } => {
+                write!(f, "func {} |{}|", name, parameters.join(", "))
+            }
         }
     }
 }
@@ -125,6 +184,7 @@ fn eval_statement<'ast, 'src>(
             variables.insert(
                 name.0,
                 Value::Function {
+                    name: name.0,
                     parameters: parameters.0.iter().map(|p| p.0).collect(),
                     body: &body.0,
                 },
@@ -180,35 +240,41 @@ fn eval_expr<'ast, 'src>(
             message: "Undefined variable".into(),
             span: expr.1,
         })?,
-        Expr::Number(n) => Value::Number(n.0),
+        Expr::Boolean(b) => Value::Boolean(b.0),
+        Expr::Integer(n) => Value::Integer(n.0),
+        Expr::Null => Value::Null,
         Expr::Binary(lhs, op, rhs) => {
-            let lhs = eval_expr(variables, lhs)?;
-            let rhs = eval_expr(variables, rhs)?;
+            let lhs = (eval_expr(variables, lhs)?, lhs.1);
+            let rhs = (eval_expr(variables, rhs)?, rhs.1);
 
             match op.0 {
-                BinaryOp::Multiply => lhs.mul(rhs),
-                BinaryOp::Divide => lhs.div(rhs).ok_or(Error::Custom {
+                BinaryOp::Multiply => lhs.0.mul(lhs.1, rhs)?,
+                BinaryOp::Divide => lhs.0.div(lhs.1, rhs)?.ok_or(Error::Custom {
                     message: "Division by zero".into(),
                     span: expr.1,
                 })?,
-                BinaryOp::Equals => lhs.eq(rhs),
-                BinaryOp::NotEquals => lhs.neq(rhs),
-                BinaryOp::Plus => lhs.add(rhs),
-                BinaryOp::Minus => lhs.sub(rhs),
+                BinaryOp::Equals => lhs.0.eq(lhs.1, rhs)?,
+                BinaryOp::NotEquals => lhs.0.neq(lhs.1, rhs)?,
+                BinaryOp::Plus => lhs.0.add(lhs.1, rhs)?,
+                BinaryOp::Minus => lhs.0.sub(lhs.1, rhs)?,
             }
         }
         Expr::Unary(op, expr) => {
             let rhs = eval_expr(variables, expr)?;
 
             match op.0 {
-                UnaryOp::Negate => rhs.neg(),
+                UnaryOp::Negate => rhs.neg(expr.1)?,
             }
         }
         Expr::Call(func_expr, args) => {
             let func = eval_expr(variables, func_expr)?;
 
             match func {
-                Value::Function { parameters, body } => {
+                Value::Function {
+                    name: _,
+                    parameters,
+                    body,
+                } => {
                     if parameters.len() != args.0.len() {
                         return Err(Error::Custom {
                             message: "Incorrect number of arguments".into(),

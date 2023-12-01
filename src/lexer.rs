@@ -4,7 +4,9 @@ use chumsky::prelude::*;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token<'src> {
     Variable(&'src str),
-    Number(i32),
+    Boolean(bool),
+    Integer(i32),
+    Null,
     Kw(Kw),
     Ctrl(Ctrl),
     Op(Op),
@@ -44,7 +46,9 @@ impl std::fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Variable(v) => write!(f, "{}", v),
-            Token::Number(n) => write!(f, "{}", n),
+            Token::Boolean(b) => write!(f, "{}", b),
+            Token::Integer(n) => write!(f, "{}", n),
+            Token::Null => write!(f, "null"),
             Token::Kw(k) => write!(f, "{}", k),
             Token::Ctrl(c) => write!(f, "{}", c),
             Token::Op(o) => write!(f, "{}", o),
@@ -95,11 +99,14 @@ pub fn lexer<'src>(
 ) -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char, Span>>> {
     let variable = text::ident().map(Token::Variable);
 
-    let number = text::int(10)
+    let integer = text::int(10)
         .map(|n: &str| n.parse().unwrap())
-        .map(Token::Number);
+        .map(Token::Integer);
 
     let keyword = choice((
+        text::keyword("true").to(Token::Boolean(true)),
+        text::keyword("false").to(Token::Boolean(false)),
+        text::keyword("null").to(Token::Null),
         text::keyword("print").to(Token::Kw(Kw::Print)),
         text::keyword("func").to(Token::Kw(Kw::Func)),
         text::keyword("end").to(Token::Kw(Kw::End)),
@@ -126,7 +133,7 @@ pub fn lexer<'src>(
         just('/').to(Token::Op(Op::Divide)),
     ));
 
-    let token = choice((keyword, variable, number, ctrl, operator));
+    let token = choice((keyword, variable, integer, ctrl, operator));
 
     token
         .map_with(|tok, e| (tok, e.span()))

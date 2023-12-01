@@ -12,6 +12,15 @@ pub enum Error {
         message: String,
         span: Span,
     },
+    BinaryExpressionTypeMismatch {
+        op: String,
+        left: Spanned<String>,
+        right: Spanned<String>,
+    },
+    UnaryExpressionTypeMismatch {
+        op: String,
+        operand: Spanned<String>,
+    },
 }
 
 impl Error {
@@ -46,6 +55,17 @@ impl Error {
                 }
             }
             Error::Custom { message, span: _ } => message.clone(),
+            Error::BinaryExpressionTypeMismatch { op, left, right } => format!(
+                "Cannot apply operator {} to {} and {}",
+                op,
+                left.0.clone().fg(Color::Yellow),
+                right.0.clone().fg(Color::Yellow)
+            ),
+            Error::UnaryExpressionTypeMismatch { op, operand } => format!(
+                "Cannot apply operator {} to {}",
+                op,
+                operand.0.clone().fg(Color::Yellow)
+            ),
         }
     }
 
@@ -60,6 +80,14 @@ impl Error {
                 *span,
             )],
             Error::Custom { message: _, span } => vec![(String::new(), *span)],
+            Error::BinaryExpressionTypeMismatch { op: _, left, right } => vec![
+                (format!("{}", left.0.clone()), left.1),
+                (format!("{}", right.0.clone()), right.1),
+            ],
+            Error::UnaryExpressionTypeMismatch { op, operand } => vec![(
+                format!("Cannot apply operator {} to {}", op, operand.0.clone()),
+                operand.1,
+            )],
         };
 
         spans
@@ -81,6 +109,8 @@ impl Error {
         match self {
             Error::ExpectedFound { .. } => None,
             Error::Custom { .. } => None,
+            Error::BinaryExpressionTypeMismatch { .. } => None,
+            Error::UnaryExpressionTypeMismatch { .. } => None,
         }
     }
 }
