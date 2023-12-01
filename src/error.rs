@@ -1,4 +1,5 @@
 use crate::{Span, Spanned};
+use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
 
 pub enum Error {
@@ -21,14 +22,28 @@ impl Error {
                 found,
                 span: _,
             } => {
-                let expected = expected.join(", ");
-
                 let found = found
                     .as_ref()
                     .map(|f| f.to_string())
-                    .unwrap_or_else(|| "EOF".into());
+                    .unwrap_or("end of input".into())
+                    .fg(Color::Yellow);
 
-                format!("Expected one of {}, found {}", expected, found,)
+                if expected.is_empty() {
+                    format!("Found {}, expected something else", found)
+                } else {
+                    let expected_string = expected
+                        .iter()
+                        .map(|expected| expected.fg(Color::Yellow).to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    format!(
+                        "Expected {}{}, found {}",
+                        if expected.len() > 1 { "one of " } else { "" },
+                        expected_string,
+                        found
+                    )
+                }
             }
             Error::Custom { message, span: _ } => message.clone(),
         }

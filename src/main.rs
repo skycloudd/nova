@@ -4,6 +4,7 @@ use error::convert_error;
 use std::{fmt::Display, fs::read_to_string};
 
 mod error;
+mod interpret;
 mod lexer;
 mod parser;
 
@@ -16,30 +17,28 @@ fn main() {
 fn run(input: &str) {
     let mut errors = vec![];
 
-    let tokens = lexer::lexer().parse(input).into_output_errors();
+    let (tokens, lex_errors) = lexer::lexer().parse(input).into_output_errors();
 
-    println!("tokens: {:#?}", tokens);
+    errors.extend(map_errors(lex_errors));
 
-    errors.extend(map_errors(tokens.1));
-
-    let ast = tokens.0.as_ref().map_or((None, vec![]), |tokens| {
+    let (ast, parse_errors) = tokens.as_ref().map_or((None, vec![]), |tokens| {
         parser::parser()
             .parse(tokens.spanned((input.len()..input.len()).into()))
             .into_output_errors()
     });
 
-    println!("parsing errors: {:#?}", ast.1);
+    errors.extend(map_errors(parse_errors));
 
-    errors.extend(map_errors(ast.1));
-
-    if !errors.is_empty() {
-        print_errors(input, errors);
-    }
-}
-
-fn print_errors(input: &str, errors: Vec<error::Error>) {
-    for e in errors {
-        print_error(input, e);
+    if errors.is_empty() {
+        if let Some(ast) = &ast {
+            if let Err(error) = interpret::interpret(ast) {
+                print_error(input, error);
+            }
+        }
+    } else {
+        for e in errors {
+            print_error(input, e);
+        }
     }
 }
 
