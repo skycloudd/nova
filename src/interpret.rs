@@ -31,6 +31,7 @@ impl<'ast, 'src> Value<'ast, 'src> {
     fn add(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
         match (self, rhs) {
             (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs + rhs)),
+
             (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Plus.to_string(),
                 left: (lhs.ty(), span),
@@ -42,6 +43,7 @@ impl<'ast, 'src> Value<'ast, 'src> {
     fn sub(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
         match (self, rhs) {
             (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs - rhs)),
+
             (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Minus.to_string(),
                 left: (lhs.ty(), span),
@@ -53,6 +55,7 @@ impl<'ast, 'src> Value<'ast, 'src> {
     fn mul(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
         match (self, rhs) {
             (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs * rhs)),
+
             (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Multiply.to_string(),
                 left: (lhs.ty(), span),
@@ -64,6 +67,7 @@ impl<'ast, 'src> Value<'ast, 'src> {
     fn div(self, span: Span, rhs: Spanned<Self>) -> Result<Option<Self>, Error> {
         match (self, rhs) {
             (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Some(Value::Integer(lhs / rhs))),
+
             (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Divide.to_string(),
                 left: (lhs.ty(), span),
@@ -75,6 +79,7 @@ impl<'ast, 'src> Value<'ast, 'src> {
     fn neg(self, span: Span) -> Result<Self, Error> {
         match self {
             Value::Integer(n) => Ok(Value::Integer(-n)),
+
             value => Err(Error::UnaryExpressionTypeMismatch {
                 op: UnaryOp::Negate.to_string(),
                 operand: (value.ty(), span),
@@ -111,6 +116,7 @@ impl<'ast, 'src> Value<'ast, 'src> {
     fn not(self, span: Span) -> Result<Self, Error> {
         match self {
             Value::Boolean(b) => Ok(Value::Boolean(!b)),
+
             value => Err(Error::UnaryExpressionTypeMismatch {
                 op: UnaryOp::Negate.to_string(),
                 operand: (value.ty(), span),
