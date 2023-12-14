@@ -88,23 +88,23 @@ impl<'ast, 'src> Value<'ast, 'src> {
     }
 
     fn eq(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs) {
-            (Value::Null, (Value::Null, _)) => Ok(Value::Boolean(true)),
+        match (self, rhs.0) {
+            (Value::Null, Value::Null) => Ok(Value::Boolean(true)),
 
-            (Value::Boolean(lhs), (Value::Boolean(rhs), _)) => Ok(Value::Boolean(lhs == rhs)),
+            (Value::Boolean(lhs), Value::Boolean(rhs)) => Ok(Value::Boolean(lhs == rhs)),
 
-            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs == rhs)),
+            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Boolean(lhs == rhs)),
 
-            (Value::Null, (Value::Boolean(_), _)) => Ok(Value::Boolean(false)),
-            (Value::Null, (Value::Integer(_), _)) => Ok(Value::Boolean(false)),
+            (Value::Null, Value::Boolean(_)) => Ok(Value::Boolean(false)),
+            (Value::Null, Value::Integer(_)) => Ok(Value::Boolean(false)),
 
-            (Value::Boolean(_), (Value::Null, _)) => Ok(Value::Boolean(false)),
-            (Value::Integer(_), (Value::Null, _)) => Ok(Value::Boolean(false)),
+            (Value::Boolean(_), Value::Null) => Ok(Value::Boolean(false)),
+            (Value::Integer(_), Value::Null) => Ok(Value::Boolean(false)),
 
-            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Equals.to_string(),
                 left: (lhs.ty(), span),
-                right: (rhs.0.ty(), rhs.1),
+                right: (rhs_.ty(), rhs.1),
             }),
         }
     }
