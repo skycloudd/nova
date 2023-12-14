@@ -29,49 +29,49 @@ impl<'ast, 'src> Value<'ast, 'src> {
     }
 
     fn add(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs) {
-            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs + rhs)),
+        match (self, rhs.0) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs + rhs)),
 
-            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Plus.to_string(),
                 left: (lhs.ty(), span),
-                right: (rhs.0.ty(), rhs.1),
+                right: (rhs_.ty(), rhs.1),
             }),
         }
     }
 
     fn sub(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs) {
-            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs - rhs)),
+        match (self, rhs.0) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs - rhs)),
 
-            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Minus.to_string(),
                 left: (lhs.ty(), span),
-                right: (rhs.0.ty(), rhs.1),
+                right: (rhs_.ty(), rhs.1),
             }),
         }
     }
 
     fn mul(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs) {
-            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs * rhs)),
+        match (self, rhs.0) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs * rhs)),
 
-            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Multiply.to_string(),
                 left: (lhs.ty(), span),
-                right: (rhs.0.ty(), rhs.1),
+                right: (rhs_.ty(), rhs.1),
             }),
         }
     }
 
     fn div(self, span: Span, rhs: Spanned<Self>) -> Result<Option<Self>, Error> {
-        match (self, rhs) {
-            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Some(Value::Integer(lhs / rhs))),
+        match (self, rhs.0) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Some(Value::Integer(lhs / rhs))),
 
-            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Divide.to_string(),
                 left: (lhs.ty(), span),
-                right: (rhs.0.ty(), rhs.1),
+                right: (rhs_.ty(), rhs.1),
             }),
         }
     }
