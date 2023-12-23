@@ -24,7 +24,7 @@ fn main() -> std::io::Result<()> {
 
     let input = read_to_string(args.filename)?;
 
-    Ok(run(&input, args.tokens, args.ast)?)
+    run(&input, args.tokens, args.ast)
 }
 
 fn run(input: &str, print_tokens: bool, print_ast: bool) -> std::io::Result<()> {
