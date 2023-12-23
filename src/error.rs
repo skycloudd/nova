@@ -1,6 +1,7 @@
 use crate::{Span, Spanned};
 use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
+use std::borrow::Cow;
 
 pub enum Error {
     ExpectedFound {
@@ -14,8 +15,10 @@ pub enum Error {
     },
     BinaryExpressionTypeMismatch {
         op: String,
-        left: Spanned<String>,
-        right: Spanned<String>,
+        left: String,
+        left_span: Span,
+        right: String,
+        right_span: Span,
     },
     UnaryExpressionTypeMismatch {
         op: String,
@@ -24,7 +27,7 @@ pub enum Error {
 }
 
 impl Error {
-    pub fn message(&self) -> String {
+    pub fn message(&self) -> Cow<'_, str> {
         match self {
             Error::ExpectedFound {
                 expected,
@@ -38,7 +41,7 @@ impl Error {
                     .fg(Color::Yellow);
 
                 if expected.is_empty() {
-                    format!("Found {}, expected something else", found)
+                    format!("Found {}, expected something else", found).into()
                 } else {
                     let expected_string = expected
                         .iter()
@@ -52,40 +55,54 @@ impl Error {
                         expected_string,
                         found
                     )
+                    .into()
                 }
             }
-            Error::Custom { message, span: _ } => message.clone(),
-            Error::BinaryExpressionTypeMismatch { op, left, right } => format!(
+            Error::Custom { message, span: _ } => message.into(),
+            Error::BinaryExpressionTypeMismatch {
+                op,
+                left,
+                left_span: _,
+                right,
+                right_span: _,
+            } => format!(
                 "Cannot apply operator {} to {} and {}",
                 op,
-                left.0.clone().fg(Color::Yellow),
-                right.0.clone().fg(Color::Yellow)
-            ),
+                left.fg(Color::Yellow),
+                right.fg(Color::Yellow)
+            )
+            .into(),
             Error::UnaryExpressionTypeMismatch { op, operand } => format!(
                 "Cannot apply operator {} to {}",
                 op,
                 operand.0.clone().fg(Color::Yellow)
-            ),
+            )
+            .into(),
         }
     }
 
-    pub fn spans(&self) -> Vec<Spanned<String>> {
+    pub fn spans(&self) -> Vec<Spanned<Cow<'_, str>>> {
         let spans = match self {
             Error::ExpectedFound {
                 expected: _,
                 found,
                 span,
             } => vec![(
-                format!("Found {}", found.as_ref().unwrap_or(&"EOF".into())),
+                Cow::from(format!("Found {}", found.as_ref().unwrap_or(&"EOF".into()))),
                 *span,
             )],
-            Error::Custom { message: _, span } => vec![(String::new(), *span)],
-            Error::BinaryExpressionTypeMismatch { op: _, left, right } => vec![
-                (format!("{}", left.0.clone()), left.1),
-                (format!("{}", right.0.clone()), right.1),
-            ],
+            Error::Custom { message: _, span } => vec![(Cow::from(""), *span)],
+            Error::BinaryExpressionTypeMismatch {
+                op: _,
+                left,
+                left_span,
+                right,
+                right_span,
+            } => {
+                vec![(left.into(), *left_span), (right.into(), *right_span)]
+            }
             Error::UnaryExpressionTypeMismatch { op, operand } => vec![(
-                format!("Cannot apply operator {} to {}", op, operand.0.clone()),
+                format!("Cannot apply operator {} to {}", op, operand.0.clone()).into(),
                 operand.1,
             )],
         };
@@ -96,11 +113,14 @@ impl Error {
                 let start = span.start;
                 let end = span.end;
 
-                if start > end {
-                    (s, Span::new(end, start))
-                } else {
-                    (s, span)
-                }
+                (
+                    s,
+                    if start > end {
+                        Span::new(end, start)
+                    } else {
+                        span
+                    },
+                )
             })
             .collect()
     }

@@ -1,19 +1,28 @@
 use ariadne::{ColorGenerator, Label, Report, Source};
 use chumsky::prelude::*;
 use error::convert_error;
-use std::{fmt::Display, fs::read_to_string};
+use std::{fmt::Display, fs::read_to_string, path::PathBuf};
 
 mod error;
 mod interpret;
 mod lexer;
 mod parser;
 
+#[derive(clap::Parser)]
+struct Args {
+    filename: PathBuf,
+
+    #[clap(short, long)]
+    tokens: bool,
+
+    #[clap(short, long)]
+    ast: bool,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let input = read_to_string(
-        std::env::args()
-            .nth(1)
-            .ok_or_else(|| format!("must pass a file name as argument"))?,
-    )?;
+    let args = <Args as clap::Parser>::parse();
+
+    let input = read_to_string(args.filename)?;
 
     Ok(run(&input)?)
 }

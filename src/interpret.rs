@@ -12,7 +12,7 @@ enum Value<'ast, 'src> {
     Integer(i32),
     Function {
         name: &'src str,
-        parameters: Vec<&'src str>,
+        parameters: &'ast [Spanned<&'src str>],
         body: &'ast [Spanned<Statement<'src>>],
     },
 }
@@ -29,49 +29,59 @@ impl<'ast, 'src> Value<'ast, 'src> {
     }
 
     fn add(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs.0) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs + rhs)),
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs + rhs)),
 
-            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Plus.to_string(),
-                left: (lhs.ty(), span),
-                right: (rhs_.ty(), rhs.1),
+                // left: (lhs.ty(), span),
+                // right: (rhs_.ty(), rhs.1),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
             }),
         }
     }
 
     fn sub(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs.0) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs - rhs)),
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs - rhs)),
 
-            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Minus.to_string(),
-                left: (lhs.ty(), span),
-                right: (rhs_.ty(), rhs.1),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
             }),
         }
     }
 
     fn mul(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs.0) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs * rhs)),
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Integer(lhs * rhs)),
 
-            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Multiply.to_string(),
-                left: (lhs.ty(), span),
-                right: (rhs_.ty(), rhs.1),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
             }),
         }
     }
 
     fn div(self, span: Span, rhs: Spanned<Self>) -> Result<Option<Self>, Error> {
-        match (self, rhs.0) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Some(Value::Integer(lhs / rhs))),
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Some(Value::Integer(lhs / rhs))),
 
-            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Divide.to_string(),
-                left: (lhs.ty(), span),
-                right: (rhs_.ty(), rhs.1),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
             }),
         }
     }
@@ -88,29 +98,31 @@ impl<'ast, 'src> Value<'ast, 'src> {
     }
 
     fn eq(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        match (self, rhs.0) {
-            (Value::Null, Value::Null) => Ok(Value::Boolean(true)),
+        match (self, rhs) {
+            (Value::Null, (Value::Null, _)) => Ok(Value::Boolean(true)),
 
-            (Value::Boolean(lhs), Value::Boolean(rhs)) => Ok(Value::Boolean(lhs == rhs)),
+            (Value::Boolean(lhs), (Value::Boolean(rhs), _)) => Ok(Value::Boolean(lhs == rhs)),
 
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Boolean(lhs == rhs)),
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs == rhs)),
 
-            (Value::Null, Value::Boolean(_)) => Ok(Value::Boolean(false)),
-            (Value::Null, Value::Integer(_)) => Ok(Value::Boolean(false)),
+            (Value::Null, (Value::Boolean(_), _)) => Ok(Value::Boolean(false)),
+            (Value::Null, (Value::Integer(_), _)) => Ok(Value::Boolean(false)),
 
-            (Value::Boolean(_), Value::Null) => Ok(Value::Boolean(false)),
-            (Value::Integer(_), Value::Null) => Ok(Value::Boolean(false)),
+            (Value::Boolean(_), (Value::Null, _)) => Ok(Value::Boolean(false)),
+            (Value::Integer(_), (Value::Null, _)) => Ok(Value::Boolean(false)),
 
-            (lhs, rhs_) => Err(Error::BinaryExpressionTypeMismatch {
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Equals.to_string(),
-                left: (lhs.ty(), span),
-                right: (rhs_.ty(), rhs.1),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
             }),
         }
     }
 
     fn neq(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
-        Ok(self.eq(span, rhs)?.not(span)?)
+        self.eq(span, rhs)?.not(span)
     }
 
     fn not(self, span: Span) -> Result<Self, Error> {
@@ -136,7 +148,16 @@ impl std::fmt::Display for Value<'_, '_> {
                 parameters,
                 body: _,
             } => {
-                write!(f, "func {} |{}|", name, parameters.join(", "))
+                write!(
+                    f,
+                    "func {} |{}|",
+                    name,
+                    parameters
+                        .iter()
+                        .map(|p| p.0)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         }
     }
@@ -191,7 +212,7 @@ fn eval_statement<'ast, 'src>(
                 name.0,
                 Value::Function {
                     name: name.0,
-                    parameters: parameters.0.iter().map(|p| p.0).collect(),
+                    parameters: &parameters.0,
                     body: &body.0,
                 },
             );
@@ -297,7 +318,7 @@ fn eval_expr<'ast, 'src>(
                     }
 
                     for (parameter, value) in parameters.iter().zip(values) {
-                        variables.insert(parameter, value);
+                        variables.insert(parameter.0, value);
                     }
 
                     for statement in body {
