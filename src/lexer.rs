@@ -100,7 +100,13 @@ pub fn lexer<'src>(
     let variable = text::ident().map(Token::Variable);
 
     let integer = text::int(10)
-        .map(|n: &str| n.parse().unwrap())
+        .validate(|n: &str, e, emitter| match n.parse() {
+            Ok(n) => n,
+            Err(err) => {
+                emitter.emit(Rich::custom(e.span(), err));
+                0
+            }
+        })
         .map(Token::Integer);
 
     let keyword = choice((
