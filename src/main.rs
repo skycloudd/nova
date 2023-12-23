@@ -19,20 +19,26 @@ struct Args {
     ast: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> std::io::Result<()> {
     let args = <Args as clap::Parser>::parse();
 
     let input = read_to_string(args.filename)?;
 
-    Ok(run(&input)?)
+    Ok(run(&input, args.tokens, args.ast)?)
 }
 
-fn run(input: &str) -> std::io::Result<()> {
+fn run(input: &str, print_tokens: bool, print_ast: bool) -> std::io::Result<()> {
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer().parse(input).into_output_errors();
 
     errors.extend(map_errors(lex_errors));
+
+    if print_tokens {
+        if let Some(tokens) = &tokens {
+            println!("{:#?}", tokens);
+        }
+    }
 
     let (ast, parse_errors) = tokens.as_ref().map_or((None, vec![]), |tokens| {
         parser::parser()
@@ -41,6 +47,12 @@ fn run(input: &str) -> std::io::Result<()> {
     });
 
     errors.extend(map_errors(parse_errors));
+
+    if print_ast {
+        if let Some(ast) = &ast {
+            println!("{:#?}", ast);
+        }
+    }
 
     if errors.is_empty() {
         if let Some(ast) = &ast {
