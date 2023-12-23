@@ -4,7 +4,7 @@ use crate::{
 };
 use chumsky::{input::SpannedInput, prelude::*};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Statement<'src> {
     Expr(Spanned<Expr<'src>>),
     Function {
@@ -19,7 +19,7 @@ pub enum Statement<'src> {
     Loop(Spanned<Vec<Spanned<Statement<'src>>>>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Expr<'src> {
     Variable(Spanned<&'src str>),
     Boolean(Spanned<bool>),

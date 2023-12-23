@@ -83,9 +83,11 @@ fn print_error(input: &str, error: error::Error) -> std::io::Result<()> {
     report.set_message(message);
 
     for span in spans {
-        let label = Label::new(span.1.into_range())
-            .with_message(span.0)
-            .with_color(color_generator.next());
+        let mut label = Label::new(span.1.into_range()).with_color(color_generator.next());
+
+        if let Some(message) = span.0 {
+            label = label.with_message(message);
+        }
 
         report.add_label(label);
     }

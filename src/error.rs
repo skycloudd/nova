@@ -22,7 +22,8 @@ pub enum Error {
     },
     UnaryExpressionTypeMismatch {
         op: String,
-        operand: Spanned<String>,
+        operand: String,
+        operand_span: Span,
     },
 }
 
@@ -72,26 +73,33 @@ impl Error {
                 right.fg(Color::Yellow)
             )
             .into(),
-            Error::UnaryExpressionTypeMismatch { op, operand } => format!(
+            Error::UnaryExpressionTypeMismatch {
+                op,
+                operand,
+                operand_span: _,
+            } => format!(
                 "Cannot apply operator {} to {}",
                 op,
-                operand.0.clone().fg(Color::Yellow)
+                operand.fg(Color::Yellow)
             )
             .into(),
         }
     }
 
-    pub fn spans(&self) -> Vec<Spanned<Cow<'_, str>>> {
+    pub fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
         let spans = match self {
             Error::ExpectedFound {
                 expected: _,
                 found,
                 span,
             } => vec![(
-                Cow::from(format!("Found {}", found.as_ref().unwrap_or(&"EOF".into()))),
+                Some(Cow::from(format!(
+                    "Found {}",
+                    found.as_ref().unwrap_or(&"EOF".into())
+                ))),
                 *span,
             )],
-            Error::Custom { message: _, span } => vec![(Cow::from(""), *span)],
+            Error::Custom { message: _, span } => vec![(None, *span)],
             Error::BinaryExpressionTypeMismatch {
                 op: _,
                 left,
@@ -99,11 +107,18 @@ impl Error {
                 right,
                 right_span,
             } => {
-                vec![(left.into(), *left_span), (right.into(), *right_span)]
+                vec![
+                    (Some(left.into()), *left_span),
+                    (Some(right.into()), *right_span),
+                ]
             }
-            Error::UnaryExpressionTypeMismatch { op, operand } => vec![(
-                format!("Cannot apply operator {} to {}", op, operand.0.clone()).into(),
-                operand.1,
+            Error::UnaryExpressionTypeMismatch {
+                op,
+                operand,
+                operand_span,
+            } => vec![(
+                Some(format!("Cannot apply operator {} to {}", op, operand).into()),
+                *operand_span,
             )],
         };
 

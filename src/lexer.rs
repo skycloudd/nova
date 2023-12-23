@@ -1,7 +1,7 @@
 use crate::{Span, Spanned};
 use chumsky::prelude::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Token<'src> {
     Variable(&'src str),
     Boolean(bool),
@@ -23,7 +23,7 @@ pub enum Kw {
     Continue,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ctrl {
     LeftParen,
     RightParen,
@@ -32,7 +32,7 @@ pub enum Ctrl {
     Pipe,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Op {
     Equals,
     NotEquals,

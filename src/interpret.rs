@@ -5,7 +5,7 @@ use crate::{
 };
 use std::{collections::HashMap, hash::Hash};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy)]
 enum Value<'ast, 'src> {
     Null,
     Boolean(bool),
@@ -34,8 +34,6 @@ impl<'ast, 'src> Value<'ast, 'src> {
 
             (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
                 op: BinaryOp::Plus.to_string(),
-                // left: (lhs.ty(), span),
-                // right: (rhs_.ty(), rhs.1),
                 left: lhs.ty(),
                 left_span: span,
                 right: rhs.0.ty(),
@@ -92,7 +90,8 @@ impl<'ast, 'src> Value<'ast, 'src> {
 
             value => Err(Error::UnaryExpressionTypeMismatch {
                 op: UnaryOp::Negate.to_string(),
-                operand: (value.ty(), span),
+                operand: value.ty(),
+                operand_span: span,
             }),
         }
     }
@@ -131,7 +130,8 @@ impl<'ast, 'src> Value<'ast, 'src> {
 
             value => Err(Error::UnaryExpressionTypeMismatch {
                 op: UnaryOp::Negate.to_string(),
-                operand: (value.ty(), span),
+                operand: value.ty(),
+                operand_span: span,
             }),
         }
     }
@@ -171,19 +171,19 @@ pub fn interpret(ast: &[Spanned<Statement>]) -> Result<(), Error> {
             ControlFlow::Normal => {}
             ControlFlow::Return(_) => {
                 return Err(Error::Custom {
-                    message: "Return outside of function".into(),
+                    message: "Return statements aren't allowed outside of a function".into(),
                     span: statement.1,
                 })
             }
             ControlFlow::Break => {
                 return Err(Error::Custom {
-                    message: "Break outside of loop".into(),
+                    message: "Break statements aren't allowed outside of a loop".into(),
                     span: statement.1,
                 })
             }
             ControlFlow::Continue => {
                 return Err(Error::Custom {
-                    message: "Continue outside of loop".into(),
+                    message: "Continue statements aren't allowed outside of a loop".into(),
                     span: statement.1,
                 })
             }
@@ -263,7 +263,7 @@ fn eval_expr<'ast, 'src>(
     expr: &Spanned<Expr<'src>>,
 ) -> Result<Value<'ast, 'src>, Error> {
     Ok(match &expr.0 {
-        Expr::Variable(v) => variables.get(&v.0).cloned().ok_or(Error::Custom {
+        Expr::Variable(v) => variables.get(&v.0).copied().ok_or(Error::Custom {
             message: "Undefined variable".into(),
             span: expr.1,
         })?,
@@ -333,7 +333,8 @@ fn eval_expr<'ast, 'src>(
                                 variables.pop_scope();
 
                                 return Err(Error::Custom {
-                                    message: "Break outside of loop".into(),
+                                    message: "Break statements aren't allowed outside of a loop"
+                                        .into(),
                                     span: statement.1,
                                 });
                             }
@@ -341,7 +342,8 @@ fn eval_expr<'ast, 'src>(
                                 variables.pop_scope();
 
                                 return Err(Error::Custom {
-                                    message: "Continue outside of loop".into(),
+                                    message: "Continue statements aren't allowed outside of a loop"
+                                        .into(),
                                     span: statement.1,
                                 });
                             }
