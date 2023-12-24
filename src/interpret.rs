@@ -382,7 +382,7 @@ fn eval_expr<'ast, 'src>(
     expr: &Spanned<Expr<'src>>,
 ) -> Result<Value<'ast, 'src>, Error> {
     Ok(match &expr.0 {
-        Expr::Variable(v) => variables.get(&v.0).copied().ok_or(Error::Custom {
+        Expr::Variable(v) => *variables.get(&v.0).ok_or(Error::Custom {
             message: "Undefined variable".into(),
             span: expr.1,
         })?,
