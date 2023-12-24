@@ -124,6 +124,62 @@ impl<'ast, 'src> Value<'ast, 'src> {
         self.eq(span, rhs)?.not(span)
     }
 
+    fn ge(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs >= rhs)),
+
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::GreaterThanEquals.to_string(),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
+            }),
+        }
+    }
+
+    fn le(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs <= rhs)),
+
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::LessThanEquals.to_string(),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
+            }),
+        }
+    }
+
+    fn gt(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs > rhs)),
+
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::GreaterThan.to_string(),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
+            }),
+        }
+    }
+
+    fn lt(self, span: Span, rhs: Spanned<Self>) -> Result<Self, Error> {
+        match (self, rhs) {
+            (Value::Integer(lhs), (Value::Integer(rhs), _)) => Ok(Value::Boolean(lhs < rhs)),
+
+            (lhs, rhs) => Err(Error::BinaryExpressionTypeMismatch {
+                op: BinaryOp::LessThan.to_string(),
+                left: lhs.ty(),
+                left_span: span,
+                right: rhs.0.ty(),
+                right_span: rhs.1,
+            }),
+        }
+    }
+
     fn not(self, span: Span) -> Result<Self, Error> {
         match self {
             Value::Boolean(b) => Ok(Value::Boolean(!b)),
@@ -255,6 +311,69 @@ fn eval_statement<'ast, 'src>(
 
             variables.pop_scope();
         },
+        Statement::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => match eval_expr(variables, condition)? {
+            Value::Boolean(condition) => {
+                let branch = if condition {
+                    then_branch
+                } else {
+                    match else_branch {
+                        Some(else_branch) => else_branch,
+                        None => return Ok(ControlFlow::Normal),
+                    }
+                };
+
+                variables.push_scope();
+
+                for statement in &branch.0 {
+                    match eval_statement(variables, statement)? {
+                        ControlFlow::Normal => {}
+                        ControlFlow::Return(value) => {
+                            variables.pop_scope();
+
+                            return Ok(ControlFlow::Return(value));
+                        }
+                        ControlFlow::Break => {
+                            variables.pop_scope();
+
+                            return Err(Error::Custom {
+                                message: "Break statements aren't allowed outside of a loop".into(),
+                                span: statement.1,
+                            });
+                        }
+                        ControlFlow::Continue => {
+                            variables.pop_scope();
+
+                            return Err(Error::Custom {
+                                message: "Continue statements aren't allowed outside of a loop"
+                                    .into(),
+                                span: statement.1,
+                            });
+                        }
+                    }
+                }
+
+                variables.pop_scope();
+
+                ControlFlow::Normal
+            }
+            _ => {
+                return Err(Error::Custom {
+                    message: "Expected a boolean".into(),
+                    span: condition.1,
+                })
+            }
+        },
+        Statement::Let { name, value } => {
+            let value = eval_expr(variables, value)?;
+
+            variables.insert(name.0, value);
+
+            ControlFlow::Normal
+        }
     })
 }
 
@@ -275,15 +394,19 @@ fn eval_expr<'ast, 'src>(
             let rhs = (eval_expr(variables, rhs)?, rhs.1);
 
             match op.0 {
+                BinaryOp::Equals => lhs.0.eq(lhs.1, rhs)?,
+                BinaryOp::NotEquals => lhs.0.neq(lhs.1, rhs)?,
+                BinaryOp::Plus => lhs.0.add(lhs.1, rhs)?,
+                BinaryOp::Minus => lhs.0.sub(lhs.1, rhs)?,
                 BinaryOp::Multiply => lhs.0.mul(lhs.1, rhs)?,
                 BinaryOp::Divide => lhs.0.div(lhs.1, rhs)?.ok_or(Error::Custom {
                     message: "Division by zero".into(),
                     span: expr.1,
                 })?,
-                BinaryOp::Equals => lhs.0.eq(lhs.1, rhs)?,
-                BinaryOp::NotEquals => lhs.0.neq(lhs.1, rhs)?,
-                BinaryOp::Plus => lhs.0.add(lhs.1, rhs)?,
-                BinaryOp::Minus => lhs.0.sub(lhs.1, rhs)?,
+                BinaryOp::GreaterThanEquals => lhs.0.ge(lhs.1, rhs)?,
+                BinaryOp::LessThanEquals => lhs.0.le(lhs.1, rhs)?,
+                BinaryOp::GreaterThan => lhs.0.gt(lhs.1, rhs)?,
+                BinaryOp::LessThan => lhs.0.lt(lhs.1, rhs)?,
             }
         }
         Expr::Unary(op, expr) => {
@@ -291,6 +414,7 @@ fn eval_expr<'ast, 'src>(
 
             match op.0 {
                 UnaryOp::Negate => rhs.neg(expr.1)?,
+                UnaryOp::Not => rhs.not(expr.1)?,
             }
         }
         Expr::Call(func_expr, args) => {

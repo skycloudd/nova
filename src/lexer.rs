@@ -21,6 +21,10 @@ pub enum Kw {
     Loop,
     Break,
     Continue,
+    If,
+    Else,
+    Then,
+    Let,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -36,10 +40,18 @@ pub enum Ctrl {
 pub enum Op {
     Equals,
     NotEquals,
+
     Plus,
     Minus,
     Multiply,
     Divide,
+
+    GreaterThanEquals,
+    LessThanEquals,
+    GreaterThan,
+    LessThan,
+
+    Not,
 }
 
 impl std::fmt::Display for Token<'_> {
@@ -66,6 +78,10 @@ impl std::fmt::Display for Kw {
             Kw::Loop => write!(f, "loop"),
             Kw::Break => write!(f, "break"),
             Kw::Continue => write!(f, "continue"),
+            Kw::If => write!(f, "if"),
+            Kw::Else => write!(f, "else"),
+            Kw::Then => write!(f, "then"),
+            Kw::Let => write!(f, "let"),
         }
     }
 }
@@ -87,10 +103,18 @@ impl std::fmt::Display for Op {
         match self {
             Op::Equals => write!(f, "=="),
             Op::NotEquals => write!(f, "!="),
+
             Op::Plus => write!(f, "+"),
             Op::Minus => write!(f, "-"),
             Op::Multiply => write!(f, "*"),
             Op::Divide => write!(f, "/"),
+
+            Op::GreaterThanEquals => write!(f, ">="),
+            Op::LessThanEquals => write!(f, "<="),
+            Op::GreaterThan => write!(f, ">"),
+            Op::LessThan => write!(f, "<"),
+
+            Op::Not => write!(f, "!"),
         }
     }
 }
@@ -120,6 +144,10 @@ pub fn lexer<'src>(
         text::keyword("loop").to(Token::Kw(Kw::Loop)),
         text::keyword("break").to(Token::Kw(Kw::Break)),
         text::keyword("continue").to(Token::Kw(Kw::Continue)),
+        text::keyword("if").to(Token::Kw(Kw::If)),
+        text::keyword("else").to(Token::Kw(Kw::Else)),
+        text::keyword("then").to(Token::Kw(Kw::Then)),
+        text::keyword("let").to(Token::Kw(Kw::Let)),
     ));
 
     let ctrl = choice((
@@ -137,6 +165,11 @@ pub fn lexer<'src>(
         just('-').to(Token::Op(Op::Minus)),
         just('*').to(Token::Op(Op::Multiply)),
         just('/').to(Token::Op(Op::Divide)),
+        just(">=").to(Token::Op(Op::GreaterThanEquals)),
+        just("<=").to(Token::Op(Op::LessThanEquals)),
+        just('>').to(Token::Op(Op::GreaterThan)),
+        just('<').to(Token::Op(Op::LessThan)),
+        just('!').to(Token::Op(Op::Not)),
     ));
 
     let token = choice((keyword, variable, integer, ctrl, operator));

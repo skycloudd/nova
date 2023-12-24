@@ -17,6 +17,15 @@ pub enum Statement<'src> {
     Continue,
     Print(Spanned<Expr<'src>>),
     Loop(Spanned<Vec<Spanned<Statement<'src>>>>),
+    If {
+        condition: Spanned<Expr<'src>>,
+        then_branch: Spanned<Vec<Spanned<Statement<'src>>>>,
+        else_branch: Option<Spanned<Vec<Spanned<Statement<'src>>>>>,
+    },
+    Let {
+        name: Spanned<&'src str>,
+        value: Spanned<Expr<'src>>,
+    },
 }
 
 #[derive(Debug)]
@@ -36,23 +45,31 @@ pub enum Expr<'src> {
 
 #[derive(Clone, Copy, Debug)]
 pub enum BinaryOp {
-    Multiply,
-    Divide,
     Equals,
     NotEquals,
     Plus,
     Minus,
+    Multiply,
+    Divide,
+    GreaterThanEquals,
+    LessThanEquals,
+    GreaterThan,
+    LessThan,
 }
 
 impl std::fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BinaryOp::Multiply => write!(f, "*"),
-            BinaryOp::Divide => write!(f, "/"),
             BinaryOp::Equals => write!(f, "=="),
             BinaryOp::NotEquals => write!(f, "!="),
             BinaryOp::Plus => write!(f, "+"),
             BinaryOp::Minus => write!(f, "-"),
+            BinaryOp::Multiply => write!(f, "*"),
+            BinaryOp::Divide => write!(f, "/"),
+            BinaryOp::GreaterThanEquals => write!(f, ">="),
+            BinaryOp::LessThanEquals => write!(f, "<="),
+            BinaryOp::GreaterThan => write!(f, ">"),
+            BinaryOp::LessThan => write!(f, "<"),
         }
     }
 }
@@ -60,12 +77,14 @@ impl std::fmt::Display for BinaryOp {
 #[derive(Clone, Copy, Debug)]
 pub enum UnaryOp {
     Negate,
+    Not,
 }
 
 impl std::fmt::Display for UnaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnaryOp::Negate => write!(f, "-"),
+            UnaryOp::Not => write!(f, "!"),
         }
     }
 }
@@ -146,6 +165,7 @@ fn statement_parser<'tokens, 'src: 'tokens>(
         let loop_ = just(Token::Kw(Kw::Loop))
             .ignore_then(
                 statement
+                    .clone()
                     .repeated()
                     .collect()
                     .then_ignore(just(Token::Kw(Kw::End)))
@@ -154,7 +174,54 @@ fn statement_parser<'tokens, 'src: 'tokens>(
             .map_with(|body, e| (Statement::Loop(body), e.span()))
             .boxed();
 
-        choice((expr, function, return_, break_, continue_, print, loop_)).boxed()
+        let if_ = just(Token::Kw(Kw::If))
+            .ignore_then(expr_parser())
+            .then_ignore(just(Token::Kw(Kw::Then)))
+            .then(
+                statement
+                    .clone()
+                    .repeated()
+                    .collect()
+                    .map_with(|body, e| (body, e.span()))
+                    .boxed(),
+            )
+            .then(
+                just(Token::Kw(Kw::Else))
+                    .ignore_then(
+                        statement
+                            .clone()
+                            .repeated()
+                            .collect()
+                            .map_with(|body, e| (body, e.span())),
+                    )
+                    .or_not()
+                    .boxed(),
+            )
+            .then_ignore(just(Token::Kw(Kw::End)))
+            .map_with(|((condition, then_branch), else_branch), e| {
+                (
+                    Statement::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                    },
+                    e.span(),
+                )
+            })
+            .boxed();
+
+        let let_ = just(Token::Kw(Kw::Let))
+            .ignore_then(ident())
+            .then_ignore(just(Token::Op(Op::Equals)))
+            .then(expr_parser())
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map_with(|(name, value), e| (Statement::Let { name, value }, e.span()))
+            .boxed();
+
+        choice((
+            expr, function, return_, break_, continue_, print, loop_, if_, let_,
+        ))
+        .boxed()
     })
 }
 
@@ -208,16 +275,18 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             )
             .boxed();
 
-        let negate_op = just(Token::Op(Op::Minus))
-            .to(UnaryOp::Negate)
-            .map_with(|op, e| (op, e.span()));
+        let unary_op = choice((
+            just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
+            just(Token::Op(Op::Not)).to(UnaryOp::Not),
+        ))
+        .map_with(|t, e| (t, e.span()));
 
-        let negate = negate_op
+        let unary = unary_op
             .repeated()
             .foldr(call, |op: (_, SimpleSpan), expr| {
                 let span = op.1.start..expr.1.end;
 
-                (Expr::Unary(op, Box::new(expr)), SimpleSpan::from(span))
+                (Expr::Unary(op, Box::new(expr)), span.into())
             })
             .boxed();
 
@@ -227,9 +296,9 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         ))
         .map_with(|t, e| (t, e.span()));
 
-        let factor = negate
+        let factor = unary
             .clone()
-            .foldl(factor_op.then(negate).repeated(), |lhs, (op, rhs)| {
+            .foldl(factor_op.then(unary).repeated(), |lhs, (op, rhs)| {
                 let span = lhs.1.start..rhs.1.end;
 
                 (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
@@ -251,14 +320,32 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             })
             .boxed();
 
+        let relational_op = choice((
+            just(Token::Op(Op::GreaterThanEquals)).to(BinaryOp::GreaterThanEquals),
+            just(Token::Op(Op::LessThanEquals)).to(BinaryOp::LessThanEquals),
+            just(Token::Op(Op::GreaterThan)).to(BinaryOp::GreaterThan),
+            just(Token::Op(Op::LessThan)).to(BinaryOp::LessThan),
+        ))
+        .map_with(|t, e| (t, e.span()));
+
+        let relational = sum
+            .clone()
+            .foldl(relational_op.then(sum).repeated(), |lhs, (op, rhs)| {
+                let span = lhs.1.start..rhs.1.end;
+
+                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
+            })
+            .boxed();
+
         let equality_op = choice((
             just(Token::Op(Op::Equals)).to(BinaryOp::Equals),
             just(Token::Op(Op::NotEquals)).to(BinaryOp::NotEquals),
         ))
         .map_with(|t, e| (t, e.span()));
 
-        sum.clone()
-            .foldl(equality_op.then(sum).repeated(), |lhs, (op, rhs)| {
+        relational
+            .clone()
+            .foldl(equality_op.then(relational).repeated(), |lhs, (op, rhs)| {
                 let span = lhs.1.start..rhs.1.end;
 
                 (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
