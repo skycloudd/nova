@@ -3,7 +3,8 @@ use crate::{
     parser::{BinaryOp, Expr, Statement, UnaryOp},
     Span, Spanned,
 };
-use std::{collections::HashMap, hash::Hash};
+use rustc_hash::FxHashMap;
+use std::hash::Hash;
 
 #[derive(Clone, Copy)]
 enum Value<'ast, 'src> {
@@ -490,20 +491,20 @@ fn eval_expr<'ast, 'src>(
 }
 
 struct Scopes<K, V> {
-    base: HashMap<K, V>,
-    scopes: Vec<HashMap<K, V>>,
+    base: FxHashMap<K, V>,
+    scopes: Vec<FxHashMap<K, V>>,
 }
 
 impl<K: Eq + Hash, V> Scopes<K, V> {
     fn new() -> Scopes<K, V> {
         Scopes {
-            base: HashMap::new(),
+            base: FxHashMap::default(),
             scopes: vec![],
         }
     }
 
     fn push_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(FxHashMap::default());
     }
 
     fn pop_scope(&mut self) {
