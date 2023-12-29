@@ -496,8 +496,8 @@ struct Scopes<K, V> {
 }
 
 impl<K: Eq + Hash, V> Scopes<K, V> {
-    fn new() -> Scopes<K, V> {
-        Scopes {
+    fn new() -> Self {
+        Self {
             base: FxHashMap::default(),
             scopes: vec![],
         }
