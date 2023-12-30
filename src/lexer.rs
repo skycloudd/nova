@@ -123,6 +123,11 @@ pub fn lexer<'src>(
 ) -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char, Span>>> {
     let variable = text::ident().map(Token::Variable);
 
+    let bool = choice((
+        text::keyword("true").to(Token::Boolean(true)),
+        text::keyword("false").to(Token::Boolean(false)),
+    ));
+
     let integer = text::int(10)
         .validate(|n: &str, e, emitter| match n.parse() {
             Ok(n) => n,
@@ -134,8 +139,6 @@ pub fn lexer<'src>(
         .map(Token::Integer);
 
     let keyword = choice((
-        text::keyword("true").to(Token::Boolean(true)),
-        text::keyword("false").to(Token::Boolean(false)),
         text::keyword("null").to(Token::Null),
         text::keyword("print").to(Token::Kw(Kw::Print)),
         text::keyword("func").to(Token::Kw(Kw::Func)),
@@ -172,7 +175,7 @@ pub fn lexer<'src>(
         just('!').to(Token::Op(Op::Not)),
     ));
 
-    let token = choice((keyword, variable, integer, ctrl, operator));
+    let token = choice((keyword, bool, variable, integer, ctrl, operator));
 
     token
         .map_with(|tok, e| (tok, e.span()))
