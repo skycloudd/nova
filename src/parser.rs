@@ -15,7 +15,7 @@ pub enum Statement<'src> {
     Return(Spanned<Expr<'src>>),
     Break,
     Continue,
-    Print(Spanned<Expr<'src>>),
+    BuiltinPrint(Spanned<Expr<'src>>),
     Loop(Spanned<Vec<Spanned<Statement<'src>>>>),
     If {
         condition: Spanned<Expr<'src>>,
@@ -28,12 +28,16 @@ pub enum Statement<'src> {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr<'src> {
     Variable(Spanned<&'src str>),
     Boolean(Spanned<bool>),
     Integer(Spanned<i32>),
     Null,
+    Function {
+        parameters: Spanned<Vec<Spanned<&'src str>>>,
+        body: Box<Spanned<Expr<'src>>>,
+    },
     Binary(
         Box<Spanned<Expr<'src>>>,
         Spanned<BinaryOp>,
@@ -156,10 +160,10 @@ fn statement_parser<'tokens, 'src: 'tokens>(
             .map_with(|_, e| (Statement::Continue, e.span()))
             .boxed();
 
-        let print = just(Token::Kw(Kw::Print))
+        let print = just(Token::Kw(Kw::BuiltinPrint))
             .ignore_then(expr_parser())
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map_with(|expr, e| (Statement::Print(expr), e.span()))
+            .map_with(|expr, e| (Statement::BuiltinPrint(expr), e.span()))
             .boxed();
 
         let loop_ = just(Token::Kw(Kw::Loop))
@@ -249,12 +253,36 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             .map_with(|_, e| (Expr::Null, e.span()))
             .boxed();
 
+        let function = ident()
+            .separated_by(just(Token::Ctrl(Ctrl::Comma)))
+            .collect()
+            .delimited_by(just(Token::Ctrl(Ctrl::Pipe)), just(Token::Ctrl(Ctrl::Pipe)))
+            .map_with(|parameters, e| (parameters, e.span()))
+            .then(expression.clone())
+            .map_with(|(parameters, body), e| {
+                (
+                    Expr::Function {
+                        parameters,
+                        body: Box::new(body),
+                    },
+                    e.span(),
+                )
+            });
+
         let parenthesized_expr = expression.clone().delimited_by(
             just(Token::Ctrl(Ctrl::LeftParen)),
             just(Token::Ctrl(Ctrl::RightParen)),
         );
 
-        let atom = choice((variable, boolean, integer, null, parenthesized_expr)).boxed();
+        let atom = choice((
+            variable,
+            boolean,
+            integer,
+            null,
+            function,
+            parenthesized_expr,
+        ))
+        .boxed();
 
         let call = atom
             .foldl(

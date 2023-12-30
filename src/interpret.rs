@@ -16,6 +16,10 @@ enum Value<'ast, 'src> {
         parameters: &'ast [Spanned<&'src str>],
         body: &'ast [Spanned<Statement<'src>>],
     },
+    NamelessFunction {
+        parameters: &'ast [Spanned<&'src str>],
+        body: &'ast Spanned<Expr<'src>>,
+    },
 }
 
 impl Value<'_, '_> {
@@ -25,6 +29,7 @@ impl Value<'_, '_> {
             Value::Boolean(_) => "boolean",
             Value::Integer(_) => "integer",
             Value::Function { .. } => "function",
+            Value::NamelessFunction { .. } => "function",
         }
         .to_owned()
     }
@@ -216,6 +221,20 @@ impl std::fmt::Display for Value<'_, '_> {
                         .join(", ")
                 )
             }
+            Value::NamelessFunction {
+                parameters,
+                body: _,
+            } => {
+                write!(
+                    f,
+                    "|{}| ...",
+                    parameters
+                        .iter()
+                        .map(|p| p.0)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
         }
     }
 }
@@ -283,7 +302,7 @@ fn eval_statement<'ast, 'src>(
         }
         Statement::Break => ControlFlow::Break,
         Statement::Continue => ControlFlow::Continue,
-        Statement::Print(expr) => {
+        Statement::BuiltinPrint(expr) => {
             let result = eval_expr(variables, expr)?;
 
             println!("{}", result);
@@ -380,7 +399,7 @@ fn eval_statement<'ast, 'src>(
 
 fn eval_expr<'ast, 'src>(
     variables: &mut Scopes<&'src str, Value<'ast, 'src>>,
-    expr: &Spanned<Expr<'src>>,
+    expr: &'ast Spanned<Expr<'src>>,
 ) -> Result<Value<'ast, 'src>, Error> {
     Ok(match &expr.0 {
         Expr::Variable(v) => *variables.get(&v.0).ok_or(Error::Custom {
@@ -390,6 +409,10 @@ fn eval_expr<'ast, 'src>(
         Expr::Boolean(b) => Value::Boolean(b.0),
         Expr::Integer(n) => Value::Integer(n.0),
         Expr::Null => Value::Null,
+        Expr::Function { parameters, body } => Value::NamelessFunction {
+            parameters: &parameters.0,
+            body,
+        },
         Expr::Binary(lhs, op, rhs) => {
             let lhs = (eval_expr(variables, lhs)?, lhs.1);
             let rhs = (eval_expr(variables, rhs)?, rhs.1);
@@ -478,6 +501,32 @@ fn eval_expr<'ast, 'src>(
                     variables.pop_scope();
 
                     Value::Null
+                }
+                Value::NamelessFunction { parameters, body } => {
+                    if parameters.len() != args.0.len() {
+                        return Err(Error::Custom {
+                            message: "Incorrect number of arguments".into(),
+                            span: args.1,
+                        });
+                    }
+
+                    variables.push_scope();
+
+                    let mut values = vec![];
+
+                    for arg in &args.0 {
+                        values.push(eval_expr(variables, arg)?);
+                    }
+
+                    for (parameter, value) in parameters.iter().zip(values) {
+                        variables.insert(parameter.0, value);
+                    }
+
+                    let result = eval_expr(variables, body)?;
+
+                    variables.pop_scope();
+
+                    result
                 }
                 _ => {
                     return Err(Error::Custom {

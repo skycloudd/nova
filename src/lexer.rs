@@ -14,7 +14,7 @@ pub enum Token<'src> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Kw {
-    Print,
+    BuiltinPrint,
     Func,
     End,
     Return,
@@ -71,7 +71,7 @@ impl std::fmt::Display for Token<'_> {
 impl std::fmt::Display for Kw {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Kw::Print => write!(f, "print"),
+            Kw::BuiltinPrint => write!(f, "print"),
             Kw::Func => write!(f, "func"),
             Kw::End => write!(f, "end"),
             Kw::Return => write!(f, "return"),
@@ -140,7 +140,7 @@ pub fn lexer<'src>(
 
     let keyword = choice((
         text::keyword("null").to(Token::Null),
-        text::keyword("print").to(Token::Kw(Kw::Print)),
+        text::keyword("builtin_print__").to(Token::Kw(Kw::BuiltinPrint)),
         text::keyword("func").to(Token::Kw(Kw::Func)),
         text::keyword("end").to(Token::Kw(Kw::End)),
         text::keyword("return").to(Token::Kw(Kw::Return)),
