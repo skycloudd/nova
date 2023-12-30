@@ -18,7 +18,7 @@ enum Value<'ast, 'src> {
     },
 }
 
-impl<'ast, 'src> Value<'ast, 'src> {
+impl Value<'_, '_> {
     fn ty(&self) -> String {
         match self {
             Value::Null => "null",

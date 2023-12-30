@@ -128,14 +128,7 @@ impl Error {
                 let start = span.start;
                 let end = span.end;
 
-                (
-                    s,
-                    if start > end {
-                        Span::new(end, start)
-                    } else {
-                        span
-                    },
-                )
+                (s, Span::new(start, end))
             })
             .collect()
     }
