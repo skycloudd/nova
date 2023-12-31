@@ -1,97 +1,9 @@
 use crate::{
+    ast::{BinaryOp, Expr, Statement, UnaryOp},
     lexer::{Ctrl, Kw, Op, Token},
     Span, Spanned,
 };
 use chumsky::{input::SpannedInput, prelude::*};
-
-#[derive(Debug)]
-pub enum Statement<'src> {
-    Expr(Spanned<Expr<'src>>),
-    Function {
-        name: Spanned<&'src str>,
-        parameters: Spanned<Vec<Spanned<&'src str>>>,
-        body: Spanned<Vec<Spanned<Statement<'src>>>>,
-    },
-    Return(Spanned<Expr<'src>>),
-    Break,
-    Continue,
-    BuiltinPrint(Spanned<Expr<'src>>),
-    Loop(Spanned<Vec<Spanned<Statement<'src>>>>),
-    If {
-        condition: Spanned<Expr<'src>>,
-        then_branch: Spanned<Vec<Spanned<Statement<'src>>>>,
-        else_branch: Option<Spanned<Vec<Spanned<Statement<'src>>>>>,
-    },
-    Let {
-        name: Spanned<&'src str>,
-        value: Spanned<Expr<'src>>,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub enum Expr<'src> {
-    Variable(Spanned<&'src str>),
-    Boolean(Spanned<bool>),
-    Integer(Spanned<i32>),
-    Null,
-    Function {
-        parameters: Spanned<Vec<Spanned<&'src str>>>,
-        body: Box<Spanned<Expr<'src>>>,
-    },
-    Binary(
-        Box<Spanned<Expr<'src>>>,
-        Spanned<BinaryOp>,
-        Box<Spanned<Expr<'src>>>,
-    ),
-    Unary(Spanned<UnaryOp>, Box<Spanned<Expr<'src>>>),
-    Call(Box<Spanned<Expr<'src>>>, Spanned<Vec<Spanned<Expr<'src>>>>),
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum BinaryOp {
-    Equals,
-    NotEquals,
-    Plus,
-    Minus,
-    Multiply,
-    Divide,
-    GreaterThanEquals,
-    LessThanEquals,
-    GreaterThan,
-    LessThan,
-}
-
-impl std::fmt::Display for BinaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BinaryOp::Equals => write!(f, "=="),
-            BinaryOp::NotEquals => write!(f, "!="),
-            BinaryOp::Plus => write!(f, "+"),
-            BinaryOp::Minus => write!(f, "-"),
-            BinaryOp::Multiply => write!(f, "*"),
-            BinaryOp::Divide => write!(f, "/"),
-            BinaryOp::GreaterThanEquals => write!(f, ">="),
-            BinaryOp::LessThanEquals => write!(f, "<="),
-            BinaryOp::GreaterThan => write!(f, ">"),
-            BinaryOp::LessThan => write!(f, "<"),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum UnaryOp {
-    Negate,
-    Not,
-}
-
-impl std::fmt::Display for UnaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UnaryOp::Negate => write!(f, "-"),
-            UnaryOp::Not => write!(f, "!"),
-        }
-    }
-}
 
 type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
 
@@ -113,51 +25,6 @@ fn statement_parser<'tokens, 'src: 'tokens>(
         let expr = expr_parser()
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
             .map_with(|expr, e| (Statement::Expr(expr), e.span()))
-            .boxed();
-
-        let function = just(Token::Kw(Kw::Func))
-            .ignore_then(ident())
-            .then(
-                ident()
-                    .separated_by(just(Token::Ctrl(Ctrl::Comma)))
-                    .collect()
-                    .delimited_by(just(Token::Ctrl(Ctrl::Pipe)), just(Token::Ctrl(Ctrl::Pipe)))
-                    .map_with(|parameters, e| (parameters, e.span())),
-            )
-            .then(
-                statement
-                    .clone()
-                    .repeated()
-                    .collect()
-                    .then_ignore(just(Token::Kw(Kw::End)))
-                    .map_with(|body, e| (body, e.span())),
-            )
-            .map_with(|((name, parameters), body), e| {
-                (
-                    Statement::Function {
-                        name,
-                        parameters,
-                        body,
-                    },
-                    e.span(),
-                )
-            })
-            .boxed();
-
-        let return_ = just(Token::Kw(Kw::Return))
-            .ignore_then(expr_parser())
-            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map_with(|expr, e| (Statement::Return(expr), e.span()))
-            .boxed();
-
-        let break_ = just(Token::Kw(Kw::Break))
-            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map_with(|_, e| (Statement::Break, e.span()))
-            .boxed();
-
-        let continue_ = just(Token::Kw(Kw::Continue))
-            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map_with(|_, e| (Statement::Continue, e.span()))
             .boxed();
 
         let print = just(Token::Kw(Kw::BuiltinPrint))
@@ -222,10 +89,7 @@ fn statement_parser<'tokens, 'src: 'tokens>(
             .map_with(|(name, value), e| (Statement::Let { name, value }, e.span()))
             .boxed();
 
-        choice((
-            expr, function, return_, break_, continue_, print, loop_, if_, let_,
-        ))
-        .boxed()
+        choice((expr, print, loop_, if_, let_)).boxed()
     })
 }
 
@@ -253,55 +117,12 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             .map_with(|_, e| (Expr::Null, e.span()))
             .boxed();
 
-        let function = ident()
-            .separated_by(just(Token::Ctrl(Ctrl::Comma)))
-            .collect()
-            .delimited_by(just(Token::Ctrl(Ctrl::Pipe)), just(Token::Ctrl(Ctrl::Pipe)))
-            .map_with(|parameters, e| (parameters, e.span()))
-            .then(expression.clone())
-            .map_with(|(parameters, body), e| {
-                (
-                    Expr::Function {
-                        parameters,
-                        body: Box::new(body),
-                    },
-                    e.span(),
-                )
-            });
-
         let parenthesized_expr = expression.clone().delimited_by(
             just(Token::Ctrl(Ctrl::LeftParen)),
             just(Token::Ctrl(Ctrl::RightParen)),
         );
 
-        let atom = choice((
-            variable,
-            boolean,
-            integer,
-            null,
-            function,
-            parenthesized_expr,
-        ))
-        .boxed();
-
-        let call = atom
-            .foldl(
-                expression
-                    .separated_by(just(Token::Ctrl(Ctrl::Comma)))
-                    .collect()
-                    .delimited_by(
-                        just(Token::Ctrl(Ctrl::LeftParen)),
-                        just(Token::Ctrl(Ctrl::RightParen)),
-                    )
-                    .map_with(|arguments, e| (arguments, e.span()))
-                    .repeated(),
-                |expr: (_, SimpleSpan), arguments: (_, SimpleSpan)| {
-                    let span = expr.1.start..arguments.1.end;
-
-                    (Expr::Call(Box::new(expr), arguments), span.into())
-                },
-            )
-            .boxed();
+        let atom = choice((variable, boolean, integer, null, parenthesized_expr)).boxed();
 
         let unary_op = choice((
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
@@ -311,7 +132,7 @@ fn expr_parser<'tokens, 'src: 'tokens>(
 
         let unary = unary_op
             .repeated()
-            .foldr(call, |op: (_, SimpleSpan), expr| {
+            .foldr(atom, |op: (_, SimpleSpan), expr: (_, SimpleSpan)| {
                 let span = op.1.start..expr.1.end;
 
                 (Expr::Unary(op, Box::new(expr)), span.into())

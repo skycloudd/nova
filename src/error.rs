@@ -13,18 +13,6 @@ pub enum Error {
         message: String,
         span: Span,
     },
-    BinaryExpressionTypeMismatch {
-        op: String,
-        left: String,
-        left_span: Span,
-        right: String,
-        right_span: Span,
-    },
-    UnaryExpressionTypeMismatch {
-        op: String,
-        operand: String,
-        operand_span: Span,
-    },
 }
 
 impl Error {
@@ -60,29 +48,6 @@ impl Error {
                 }
             }
             Error::Custom { message, span: _ } => message.into(),
-            Error::BinaryExpressionTypeMismatch {
-                op,
-                left,
-                left_span: _,
-                right,
-                right_span: _,
-            } => format!(
-                "Cannot apply operator {} to {} and {}",
-                op,
-                left.fg(Color::Yellow),
-                right.fg(Color::Yellow)
-            )
-            .into(),
-            Error::UnaryExpressionTypeMismatch {
-                op,
-                operand,
-                operand_span: _,
-            } => format!(
-                "Cannot apply operator {} to {}",
-                op,
-                operand.fg(Color::Yellow)
-            )
-            .into(),
         }
     }
 
@@ -100,26 +65,6 @@ impl Error {
                 *span,
             )],
             Error::Custom { message: _, span } => vec![(None, *span)],
-            Error::BinaryExpressionTypeMismatch {
-                op: _,
-                left,
-                left_span,
-                right,
-                right_span,
-            } => {
-                vec![
-                    (Some(left.into()), *left_span),
-                    (Some(right.into()), *right_span),
-                ]
-            }
-            Error::UnaryExpressionTypeMismatch {
-                op,
-                operand,
-                operand_span,
-            } => vec![(
-                Some(format!("Cannot apply operator {} to {}", op, operand).into()),
-                *operand_span,
-            )],
         };
 
         spans
@@ -137,8 +82,6 @@ impl Error {
         match self {
             Error::ExpectedFound { .. } => None,
             Error::Custom { .. } => None,
-            Error::BinaryExpressionTypeMismatch { .. } => None,
-            Error::UnaryExpressionTypeMismatch { .. } => None,
         }
     }
 }

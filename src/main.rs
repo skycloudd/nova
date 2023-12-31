@@ -3,10 +3,11 @@ use chumsky::prelude::*;
 use error::convert_error;
 use std::{fmt::Display, fs::read_to_string, path::PathBuf};
 
+mod ast;
 mod error;
-mod interpret;
 mod lexer;
 mod parser;
+mod typecheck;
 
 #[derive(clap::Parser)]
 struct Args {
@@ -54,17 +55,21 @@ fn run(input: &str, print_tokens: bool, print_ast: bool) -> std::io::Result<()> 
         }
     }
 
+    let (typed_ast, type_errors) = ast
+        .as_ref()
+        .map_or((None, vec![]), |ast| typecheck::typecheck(ast));
+
+    errors.extend(type_errors);
+
     if errors.is_empty() {
-        if let Some(ast) = &ast {
-            if let Err(error) = interpret::interpret(ast) {
-                print_error(input, error)?;
-            }
+        if let Some(typed_ast) = &typed_ast {
+            println!("{:#?}", typed_ast);
         }
     } else {
-        for e in errors {
-            print_error(input, e)?;
+        for error in errors {
+            print_error(input, error)?;
         }
-    };
+    }
 
     Ok(())
 }

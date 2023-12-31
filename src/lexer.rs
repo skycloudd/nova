@@ -15,12 +15,8 @@ pub enum Token<'src> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Kw {
     BuiltinPrint,
-    Func,
     End,
-    Return,
     Loop,
-    Break,
-    Continue,
     If,
     Else,
     Then,
@@ -72,12 +68,8 @@ impl std::fmt::Display for Kw {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Kw::BuiltinPrint => write!(f, "print"),
-            Kw::Func => write!(f, "func"),
             Kw::End => write!(f, "end"),
-            Kw::Return => write!(f, "return"),
             Kw::Loop => write!(f, "loop"),
-            Kw::Break => write!(f, "break"),
-            Kw::Continue => write!(f, "continue"),
             Kw::If => write!(f, "if"),
             Kw::Else => write!(f, "else"),
             Kw::Then => write!(f, "then"),
@@ -141,12 +133,8 @@ pub fn lexer<'src>(
     let keyword = choice((
         text::keyword("null").to(Token::Null),
         text::keyword("builtin_print__").to(Token::Kw(Kw::BuiltinPrint)),
-        text::keyword("func").to(Token::Kw(Kw::Func)),
         text::keyword("end").to(Token::Kw(Kw::End)),
-        text::keyword("return").to(Token::Kw(Kw::Return)),
         text::keyword("loop").to(Token::Kw(Kw::Loop)),
-        text::keyword("break").to(Token::Kw(Kw::Break)),
-        text::keyword("continue").to(Token::Kw(Kw::Continue)),
         text::keyword("if").to(Token::Kw(Kw::If)),
         text::keyword("else").to(Token::Kw(Kw::Else)),
         text::keyword("then").to(Token::Kw(Kw::Then)),
