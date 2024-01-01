@@ -196,11 +196,6 @@ impl<'src> Typechecker<'src> {
                         (Integer, Integer, GreaterThan, Boolean),
                         (Integer, Integer, LessThan, Boolean)
                     );
-                    let ty = self.engine.insert(type_to_typeinfo((&ty, lhs.1)));
-
-                    self.engine.unify(lhs_ty, ty)?;
-
-                    let ty = self.engine.reconstruct(lhs_ty)?.0;
 
                     TypedExpr {
                         expr: typed::Expr::Binary(Box::new(lhs), *op, Box::new(rhs)),
@@ -210,8 +205,6 @@ impl<'src> Typechecker<'src> {
                 Expr::Unary(op, expr) => {
                     let expr = self.typecheck_expr(expr)?;
 
-                    let expr_ty = self.engine.insert(type_to_typeinfo((&expr.0.ty, expr.1)));
-
                     use Type::*;
                     use UnaryOp::*;
                     let ty = unary_op!(
@@ -220,11 +213,6 @@ impl<'src> Typechecker<'src> {
                         (Boolean, Not, Boolean),
                         (Integer, Negate, Integer)
                     );
-                    let ty = self.engine.insert(type_to_typeinfo((&ty, expr.1)));
-
-                    self.engine.unify(expr_ty, ty)?;
-
-                    let ty = self.engine.reconstruct(expr_ty)?.0;
 
                     TypedExpr {
                         expr: typed::Expr::Unary(*op, Box::new(expr)),
@@ -284,6 +272,8 @@ impl Engine {
     fn unify(&mut self, a: TypeId, b: TypeId) -> Result<(), Error> {
         let var_a = self.vars[&a];
         let var_b = self.vars[&b];
+
+        println!("unify {:?} {:?}", var_a, var_b);
 
         match (var_a.0, var_b.0) {
             (TypeInfo::Ref(a), _) => self.unify(a, b),
