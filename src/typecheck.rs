@@ -273,8 +273,6 @@ impl Engine {
         let var_a = self.vars[&a];
         let var_b = self.vars[&b];
 
-        println!("unify {:?} {:?}", var_a, var_b);
-
         match (var_a.0, var_b.0) {
             (TypeInfo::Ref(a), _) => self.unify(a, b),
             (_, TypeInfo::Ref(b)) => self.unify(a, b),
