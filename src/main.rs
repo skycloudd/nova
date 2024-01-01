@@ -18,24 +18,27 @@ struct Args {
 
     #[clap(short, long)]
     ast: bool,
+
+    #[clap(short = 'c', long)]
+    typechecked_ast: bool,
 }
 
 fn main() -> std::io::Result<()> {
     let args = <Args as clap::Parser>::parse();
 
-    let input = read_to_string(args.filename)?;
+    let input = read_to_string(&args.filename)?;
 
-    run(&input, args.tokens, args.ast)
+    run(&input, &args)
 }
 
-fn run(input: &str, print_tokens: bool, print_ast: bool) -> std::io::Result<()> {
+fn run(input: &str, args: &Args) -> std::io::Result<()> {
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer().parse(input).into_output_errors();
 
     errors.extend(map_errors(lex_errors));
 
-    if print_tokens {
+    if args.tokens {
         if let Some(tokens) = &tokens {
             println!("{:#?}", tokens);
         }
@@ -49,7 +52,7 @@ fn run(input: &str, print_tokens: bool, print_ast: bool) -> std::io::Result<()> 
 
     errors.extend(map_errors(parse_errors));
 
-    if print_ast {
+    if args.ast {
         if let Some(ast) = &ast {
             println!("{:#?}", ast);
         }
@@ -61,9 +64,15 @@ fn run(input: &str, print_tokens: bool, print_ast: bool) -> std::io::Result<()> 
 
     errors.extend(type_errors);
 
-    if errors.is_empty() {
+    if args.typechecked_ast {
         if let Some(typed_ast) = &typed_ast {
             println!("{:#?}", typed_ast);
+        }
+    }
+
+    if errors.is_empty() {
+        if let Some(_) = &typed_ast {
+            todo!()
         }
     } else {
         for error in errors {
