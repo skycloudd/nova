@@ -11,14 +11,18 @@ mod typecheck;
 
 #[derive(clap::Parser)]
 struct Args {
+    /// Input file
     filename: PathBuf,
 
+    /// Print tokens
     #[clap(short, long)]
     tokens: bool,
 
+    /// Print AST
     #[clap(short, long)]
     ast: bool,
 
+    /// Print typechecked AST
     #[clap(short = 'c', long)]
     typechecked_ast: bool,
 }
