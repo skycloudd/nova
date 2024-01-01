@@ -175,25 +175,30 @@ impl<'src> Typechecker<'src> {
                     let lhs_ty = self.engine.insert(type_to_typeinfo((&lhs.0.ty, lhs.1)));
                     let rhs_ty = self.engine.insert(type_to_typeinfo((&rhs.0.ty, rhs.1)));
 
-                    bin_op!(
+                    self.engine.unify(lhs_ty, rhs_ty)?;
+
+                    use BinaryOp::*;
+                    use Type::*;
+                    let ty = bin_op!(
                         lhs.0.ty,
                         rhs.0.ty,
                         op.0,
-                        (Type::Boolean, Type::Boolean, BinaryOp::Equals),
-                        (Type::Boolean, Type::Boolean, BinaryOp::NotEquals),
-                        (Type::Integer, Type::Integer, BinaryOp::Equals),
-                        (Type::Integer, Type::Integer, BinaryOp::NotEquals),
-                        (Type::Integer, Type::Integer, BinaryOp::Plus),
-                        (Type::Integer, Type::Integer, BinaryOp::Minus),
-                        (Type::Integer, Type::Integer, BinaryOp::Multiply),
-                        (Type::Integer, Type::Integer, BinaryOp::Divide),
-                        (Type::Integer, Type::Integer, BinaryOp::GreaterThanEquals),
-                        (Type::Integer, Type::Integer, BinaryOp::LessThanEquals),
-                        (Type::Integer, Type::Integer, BinaryOp::GreaterThan),
-                        (Type::Integer, Type::Integer, BinaryOp::LessThan)
+                        (Boolean, Boolean, Equals, Boolean),
+                        (Boolean, Boolean, NotEquals, Boolean),
+                        (Integer, Integer, Equals, Boolean),
+                        (Integer, Integer, NotEquals, Boolean),
+                        (Integer, Integer, Plus, Integer),
+                        (Integer, Integer, Minus, Integer),
+                        (Integer, Integer, Multiply, Integer),
+                        (Integer, Integer, Divide, Integer),
+                        (Integer, Integer, GreaterThanEquals, Boolean),
+                        (Integer, Integer, LessThanEquals, Boolean),
+                        (Integer, Integer, GreaterThan, Boolean),
+                        (Integer, Integer, LessThan, Boolean)
                     );
+                    let ty = self.engine.insert(type_to_typeinfo((&ty, lhs.1)));
 
-                    self.engine.unify(lhs_ty, rhs_ty)?;
+                    self.engine.unify(lhs_ty, ty)?;
 
                     let ty = self.engine.reconstruct(lhs_ty)?.0;
 
@@ -207,12 +212,17 @@ impl<'src> Typechecker<'src> {
 
                     let expr_ty = self.engine.insert(type_to_typeinfo((&expr.0.ty, expr.1)));
 
-                    unary_op!(
+                    use Type::*;
+                    use UnaryOp::*;
+                    let ty = unary_op!(
                         expr.0.ty,
                         op.0,
-                        (Type::Boolean, UnaryOp::Not),
-                        (Type::Integer, UnaryOp::Negate)
+                        (Boolean, Not, Boolean),
+                        (Integer, Negate, Integer)
                     );
+                    let ty = self.engine.insert(type_to_typeinfo((&ty, expr.1)));
+
+                    self.engine.unify(expr_ty, ty)?;
 
                     let ty = self.engine.reconstruct(expr_ty)?.0;
 
@@ -228,10 +238,10 @@ impl<'src> Typechecker<'src> {
 }
 
 macro_rules! bin_op {
-    ($lhs_value:expr, $rhs_value:expr, $op_value:expr, $(($lhs:pat, $rhs:pat, $op:pat)),*) => {
+    ($lhs_value:expr, $rhs_value:expr, $op_value:expr, $(($lhs:pat, $rhs:pat, $op:pat, $ret_ty:expr)),*) => {
         match ($lhs_value, $rhs_value, $op_value) {
             $(
-                ($lhs, $rhs, $op) => $lhs_value,
+                ($lhs, $rhs, $op) => $ret_ty,
             )*
             _ => todo!("error"),
         }
@@ -240,10 +250,10 @@ macro_rules! bin_op {
 use bin_op;
 
 macro_rules! unary_op {
-    ($value:expr, $op_value:expr, $(($ty:pat, $op:pat)),*) => {
+    ($value:expr, $op_value:expr, $(($ty:pat, $op:pat, $ret_ty:expr)),*) => {
         match ($value, $op_value) {
             $(
-                ($ty, $op) => $value,
+                ($ty, $op) => $ret_ty,
             )*
             _ => todo!("error"),
         }
