@@ -4,9 +4,11 @@ use error::convert_error;
 use std::{fmt::Display, fs::read_to_string, path::PathBuf};
 
 mod ast;
+mod const_eval;
 mod error;
 mod lexer;
 mod parser;
+mod scopes;
 mod typecheck;
 
 #[derive(clap::Parser)]
@@ -62,7 +64,7 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
         }
     }
 
-    let (typed_ast, type_errors) = ast
+    let (mut typed_ast, type_errors) = ast
         .as_ref()
         .map_or((None, vec![]), |ast| typecheck::typecheck(ast));
 
@@ -74,9 +76,15 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
         }
     }
 
+    if let Some(typed_ast) = &mut typed_ast {
+        if let Err(errs) = const_eval::const_eval(typed_ast) {
+            errors.extend(errs);
+        }
+    }
+
     if errors.is_empty() {
-        if let Some(_) = &typed_ast {
-            todo!()
+        if let Some(typed_ast) = typed_ast {
+            println!("{:#?}", typed_ast);
         }
     } else {
         for error in errors {

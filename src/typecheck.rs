@@ -4,6 +4,7 @@ use crate::{
         BinaryOp, Expr, Statement, UnaryOp,
     },
     error::Error,
+    scopes::Scopes,
     Spanned,
 };
 use rustc_hash::FxHashMap;
@@ -138,6 +139,14 @@ impl<'src> Typechecker<'src> {
 
                     TypedStatement::Let { name: *name, value }
                 }
+                Statement::Const { name, value } => {
+                    let value = self.typecheck_expr(value)?;
+                    let value_ty = self.engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
+
+                    self.bindings.insert(name.0, value_ty);
+
+                    TypedStatement::Const { name: *name, value }
+                }
             },
             statement.1,
         ))
@@ -194,7 +203,9 @@ impl<'src> Typechecker<'src> {
                         (Integer, Integer, GreaterThanEquals, Boolean),
                         (Integer, Integer, LessThanEquals, Boolean),
                         (Integer, Integer, GreaterThan, Boolean),
-                        (Integer, Integer, LessThan, Boolean)
+                        (Integer, Integer, LessThan, Boolean),
+                        (Null, Null, Equals, Boolean),
+                        (Null, Null, NotEquals, Boolean)
                     );
 
                     TypedExpr {
@@ -333,43 +344,4 @@ fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
         },
         ty.1,
     )
-}
-
-struct Scopes<K, V> {
-    base: FxHashMap<K, V>,
-    scopes: Vec<FxHashMap<K, V>>,
-}
-
-impl<K: Eq + Hash, V> Scopes<K, V> {
-    fn new() -> Self {
-        Self {
-            base: FxHashMap::default(),
-            scopes: vec![],
-        }
-    }
-
-    fn push_scope(&mut self) {
-        self.scopes.push(FxHashMap::default());
-    }
-
-    fn pop_scope(&mut self) {
-        self.scopes.pop();
-    }
-
-    fn insert(&mut self, k: K, v: V) {
-        self.scopes
-            .last_mut()
-            .unwrap_or(&mut self.base)
-            .insert(k, v);
-    }
-
-    fn get(&self, k: &K) -> Option<&V> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(v) = scope.get(k) {
-                return Some(v);
-            }
-        }
-
-        self.base.get(k)
-    }
 }

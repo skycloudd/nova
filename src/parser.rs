@@ -83,13 +83,21 @@ fn statement_parser<'tokens, 'src: 'tokens>(
 
         let let_ = just(Token::Kw(Kw::Let))
             .ignore_then(ident())
-            .then_ignore(just(Token::Op(Op::Equals)))
+            .then_ignore(just(Token::Ctrl(Ctrl::Equals)))
             .then(expr_parser())
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
             .map_with(|(name, value), e| (Statement::Let { name, value }, e.span()))
             .boxed();
 
-        choice((expr, print, loop_, if_, let_)).boxed()
+        let const_ = just(Token::Kw(Kw::Const))
+            .ignore_then(ident())
+            .then_ignore(just(Token::Ctrl(Ctrl::Equals)))
+            .then(expr_parser())
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map_with(|(name, value), e| (Statement::Const { name, value }, e.span()))
+            .boxed();
+
+        choice((expr, print, loop_, if_, let_, const_)).boxed()
     })
 }
 

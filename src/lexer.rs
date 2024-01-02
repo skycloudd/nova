@@ -21,6 +21,7 @@ pub enum Kw {
     Else,
     Then,
     Let,
+    Const,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -30,6 +31,7 @@ pub enum Ctrl {
     SemiColon,
     Comma,
     Pipe,
+    Equals,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -74,6 +76,7 @@ impl std::fmt::Display for Kw {
             Kw::Else => write!(f, "else"),
             Kw::Then => write!(f, "then"),
             Kw::Let => write!(f, "let"),
+            Kw::Const => write!(f, "const"),
         }
     }
 }
@@ -86,6 +89,7 @@ impl std::fmt::Display for Ctrl {
             Ctrl::SemiColon => write!(f, ";"),
             Ctrl::Comma => write!(f, ","),
             Ctrl::Pipe => write!(f, "|"),
+            Ctrl::Equals => write!(f, "="),
         }
     }
 }
@@ -139,6 +143,7 @@ pub fn lexer<'src>(
         text::keyword("else").to(Token::Kw(Kw::Else)),
         text::keyword("then").to(Token::Kw(Kw::Then)),
         text::keyword("let").to(Token::Kw(Kw::Let)),
+        text::keyword("const").to(Token::Kw(Kw::Const)),
     ));
 
     let ctrl = choice((
@@ -147,6 +152,7 @@ pub fn lexer<'src>(
         just(';').to(Token::Ctrl(Ctrl::SemiColon)),
         just(',').to(Token::Ctrl(Ctrl::Comma)),
         just('|').to(Token::Ctrl(Ctrl::Pipe)),
+        just('=').to(Token::Ctrl(Ctrl::Equals)),
     ));
 
     let operator = choice((
@@ -163,7 +169,7 @@ pub fn lexer<'src>(
         just('!').to(Token::Op(Op::Not)),
     ));
 
-    let token = choice((keyword, bool, variable, integer, ctrl, operator));
+    let token = choice((keyword, bool, variable, integer, operator, ctrl));
 
     token
         .map_with(|tok, e| (tok, e.span()))

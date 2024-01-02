@@ -16,6 +16,10 @@ macro_rules! ast_statement {
                 name: Spanned<&'src str>,
                 value: Spanned<$expr<'src>>,
             },
+            Const {
+                name: Spanned<&'src str>,
+                value: Spanned<$expr<'src>>,
+            },
         }
     };
 }
