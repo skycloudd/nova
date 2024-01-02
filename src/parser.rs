@@ -108,17 +108,17 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         let variable = select! {
             Token::Variable(name) => name
         }
-        .map_with(|variable, e| (Expr::Variable((variable, e.span())), e.span()));
+        .map_with(|variable, e| (Expr::Variable(variable), e.span()));
 
         let boolean = select! {
             Token::Boolean(b) => b
         }
-        .map_with(|boolean, e| (Expr::Boolean((boolean, e.span())), e.span()));
+        .map_with(|boolean, e| (Expr::Boolean(boolean), e.span()));
 
         let integer = select! {
             Token::Integer(n) => n
         }
-        .map_with(|integer, e| (Expr::Integer((integer, e.span())), e.span()));
+        .map_with(|integer, e| (Expr::Integer(integer), e.span()));
 
         let null = just(Token::Null)
             .ignored()

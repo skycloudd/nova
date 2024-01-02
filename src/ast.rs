@@ -30,9 +30,9 @@ macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
         #[derive(Debug, Clone)]
         pub enum $name<'src> {
-            Variable(Spanned<&'src str>),
-            Boolean(Spanned<bool>),
-            Integer(Spanned<i32>),
+            Variable(&'src str),
+            Boolean(bool),
+            Integer(i32),
             Null,
             Binary(
                 Box<Spanned<$self_expr<'src>>>,

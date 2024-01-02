@@ -158,9 +158,9 @@ impl<'src> Typechecker<'src> {
     ) -> Result<Spanned<TypedExpr<'src>>, Error> {
         Ok((
             match &expr.0 {
-                Expr::Variable(var) => match self.bindings.get(&var.0) {
+                Expr::Variable(var) => match self.bindings.get(var) {
                     Some(ty) => TypedExpr {
-                        expr: typed::Expr::Variable(*var),
+                        expr: typed::Expr::Variable(var),
                         ty: self.engine.reconstruct(*ty)?.0,
                     },
                     None => todo!("error"),
