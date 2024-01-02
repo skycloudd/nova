@@ -117,11 +117,7 @@ fn const_eval_statement<'src>(
 
             *value = (
                 TypedExpr {
-                    expr: match const_value.0 {
-                        ConstValue::Boolean(value) => Expr::Boolean(value),
-                        ConstValue::Integer(value) => Expr::Integer(value),
-                        ConstValue::Null => Expr::Null,
-                    },
+                    expr: const_value.0.into(),
                     ty: value.0.ty,
                 },
                 value.1,
@@ -204,4 +200,14 @@ enum ConstValue {
     Boolean(bool),
     Integer(i32),
     Null,
+}
+
+impl From<ConstValue> for Expr<'_> {
+    fn from(expr: ConstValue) -> Self {
+        match expr {
+            ConstValue::Boolean(value) => Expr::Boolean(value),
+            ConstValue::Integer(value) => Expr::Integer(value),
+            ConstValue::Null => Expr::Null,
+        }
+    }
 }
