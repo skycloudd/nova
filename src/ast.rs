@@ -28,7 +28,7 @@ ast_statement!(Statement, Expr);
 
 macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         pub enum $name<'src> {
             Variable(&'src str),
             Boolean(bool),
@@ -98,7 +98,7 @@ pub mod typed {
 
     ast_statement!(TypedStatement, TypedExpr);
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct TypedExpr<'src> {
         pub expr: Expr<'src>,
         pub ty: Type,

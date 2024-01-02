@@ -31,8 +31,16 @@ fn const_eval_statement<'src>(
     statement: &mut Spanned<TypedStatement<'src>>,
 ) -> Result<(), Vec<Error>> {
     match statement.0 {
-        TypedStatement::Expr(_) => Ok(()),
-        TypedStatement::BuiltinPrint(_) => Ok(()),
+        TypedStatement::Expr(ref mut expr) => {
+            *expr = propagate_const(const_vars, expr);
+
+            Ok(())
+        }
+        TypedStatement::BuiltinPrint(ref mut expr) => {
+            *expr = propagate_const(const_vars, &expr);
+
+            Ok(())
+        }
         TypedStatement::Loop(ref mut statements) => {
             let mut errors = vec![];
 
@@ -53,10 +61,12 @@ fn const_eval_statement<'src>(
             }
         }
         TypedStatement::If {
-            condition: _,
+            ref mut condition,
             ref mut then_branch,
             ref mut else_branch,
         } => {
+            *condition = propagate_const(const_vars, &condition);
+
             let mut errors = vec![];
 
             const_vars.push_scope();
@@ -91,21 +101,22 @@ fn const_eval_statement<'src>(
             name,
             ref mut value,
         } => {
-            if let Ok(const_value) = const_eval_expr(const_vars, value) {
-                *value = (
-                    TypedExpr {
-                        expr: match const_value.0 {
-                            ConstValue::Boolean(value) => Expr::Boolean(value),
-                            ConstValue::Integer(value) => Expr::Integer(value),
-                            ConstValue::Null => Expr::Null,
+            match const_eval_expr(const_vars, value) {
+                Ok(const_value) => {
+                    *value = (
+                        TypedExpr {
+                            expr: const_value.0.into(),
+                            ty: value.0.ty,
                         },
-                        ty: value.0.ty,
-                    },
-                    const_value.1,
-                );
+                        const_value.1,
+                    );
 
-                const_vars.insert(name.0, const_value);
-            };
+                    const_vars.insert(name.0, const_value);
+                }
+                Err(_) => {
+                    *value = propagate_const(const_vars, &value);
+                }
+            }
 
             Ok(())
         }
@@ -198,6 +209,86 @@ fn const_eval_expr<'src>(
         },
         expr.1,
     ))
+}
+
+fn propagate_const<'src>(
+    const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
+    expr: &Spanned<TypedExpr<'src>>,
+) -> Spanned<TypedExpr<'src>> {
+    (
+        TypedExpr {
+            expr: match &expr.0.expr {
+                Expr::Variable(name) => match const_vars.get(name) {
+                    Some(value) => Expr::from(value.0),
+                    None => Expr::Variable(name),
+                },
+                Expr::Boolean(value) => Expr::Boolean(*value),
+                Expr::Integer(value) => Expr::Integer(*value),
+                Expr::Null => Expr::Null,
+                Expr::Binary(lhs, op, rhs) => {
+                    let lhs = propagate_const(const_vars, lhs);
+                    let rhs = propagate_const(const_vars, rhs);
+
+                    match (&lhs.0.expr, op.0, &rhs.0.expr) {
+                        (Expr::Integer(lhs), BinaryOp::Equals, Expr::Integer(rhs)) => {
+                            Expr::Boolean(lhs == rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::NotEquals, Expr::Integer(rhs)) => {
+                            Expr::Boolean(lhs != rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::Plus, Expr::Integer(rhs)) => {
+                            Expr::Integer(lhs + rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::Minus, Expr::Integer(rhs)) => {
+                            Expr::Integer(lhs - rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::Multiply, Expr::Integer(rhs)) => {
+                            Expr::Integer(lhs * rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::Divide, Expr::Integer(rhs)) => {
+                            Expr::Integer(lhs / rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::GreaterThanEquals, Expr::Integer(rhs)) => {
+                            Expr::Boolean(lhs >= rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::LessThanEquals, Expr::Integer(rhs)) => {
+                            Expr::Boolean(lhs <= rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::GreaterThan, Expr::Integer(rhs)) => {
+                            Expr::Boolean(lhs > rhs)
+                        }
+                        (Expr::Integer(lhs), BinaryOp::LessThan, Expr::Integer(rhs)) => {
+                            Expr::Boolean(lhs < rhs)
+                        }
+
+                        (Expr::Boolean(lhs), BinaryOp::Equals, Expr::Boolean(rhs)) => {
+                            Expr::Boolean(lhs == rhs)
+                        }
+                        (Expr::Boolean(lhs), BinaryOp::NotEquals, Expr::Boolean(rhs)) => {
+                            Expr::Boolean(lhs != rhs)
+                        }
+
+                        (Expr::Null, BinaryOp::Equals, Expr::Null) => Expr::Boolean(true),
+                        (Expr::Null, BinaryOp::NotEquals, Expr::Null) => Expr::Boolean(false),
+
+                        _ => Expr::Binary(Box::new(lhs), *op, Box::new(rhs)),
+                    }
+                }
+                Expr::Unary(op, rhs) => {
+                    let rhs = propagate_const(const_vars, rhs);
+
+                    match (op.0, &rhs.0.expr) {
+                        (UnaryOp::Negate, Expr::Integer(value)) => Expr::Integer(-value),
+                        (UnaryOp::Not, Expr::Boolean(value)) => Expr::Boolean(!value),
+
+                        _ => Expr::Unary(*op, Box::new(rhs)),
+                    }
+                }
+            },
+            ty: expr.0.ty,
+        },
+        expr.1,
+    )
 }
 
 #[derive(Clone, Copy, Debug)]
