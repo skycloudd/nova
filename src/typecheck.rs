@@ -15,7 +15,6 @@ pub fn typecheck<'src>(
     Typechecker::new().typecheck_ast(ast)
 }
 
-#[derive(Debug)]
 struct Typechecker<'src> {
     engine: Engine,
     bindings: Scopes<&'src str, TypeId>,
@@ -279,7 +278,6 @@ macro_rules! unary_op {
 }
 use unary_op;
 
-#[derive(Debug)]
 struct Engine {
     id_counter: usize,
     vars: FxHashMap<TypeId, Spanned<TypeInfo>>,
@@ -348,7 +346,7 @@ impl Engine {
 
 type TypeId = usize;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 enum TypeInfo {
     #[allow(dead_code)]
     Unknown,

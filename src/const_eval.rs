@@ -291,7 +291,7 @@ fn propagate_const<'src>(
     )
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 enum ConstValue {
     Boolean(bool),
     Integer(i32),

@@ -13,7 +13,7 @@ mod parser;
 mod scopes;
 mod typecheck;
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser)]
 struct Args {
     /// Input file
     filename: PathBuf,
