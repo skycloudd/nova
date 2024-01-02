@@ -195,7 +195,7 @@ fn const_eval_expr<'src>(
     ))
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum ConstValue {
     Boolean(bool),
     Integer(i32),

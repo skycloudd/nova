@@ -3,6 +3,7 @@ use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
 use std::borrow::Cow;
 
+#[derive(Debug)]
 pub enum Error {
     ExpectedFound {
         expected: Vec<String>,

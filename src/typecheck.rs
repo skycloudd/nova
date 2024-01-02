@@ -8,7 +8,6 @@ use crate::{
     Spanned,
 };
 use rustc_hash::FxHashMap;
-use std::hash::Hash;
 
 pub fn typecheck<'src>(
     ast: &[Spanned<Statement<'src>>],
@@ -325,7 +324,7 @@ impl Engine {
 
 type TypeId = usize;
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 enum TypeInfo {
     #[allow(dead_code)]
     Unknown,
