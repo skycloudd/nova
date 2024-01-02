@@ -14,8 +14,8 @@ pub fn const_eval(ast: &mut [Spanned<TypedStatement>]) -> Result<(), Vec<Error>>
     let mut const_vars = Scopes::new();
 
     for statement in ast {
-        if let Err(error) = const_eval_statement(&mut const_vars, statement) {
-            errors.push(error);
+        if let Err(errs) = const_eval_statement(&mut const_vars, statement) {
+            errors.extend(errs);
         }
     }
 
@@ -29,30 +29,42 @@ pub fn const_eval(ast: &mut [Spanned<TypedStatement>]) -> Result<(), Vec<Error>>
 fn const_eval_statement<'src>(
     const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
     statement: &mut Spanned<TypedStatement<'src>>,
-) -> Result<(), Error> {
+) -> Result<(), Vec<Error>> {
     match statement.0 {
         TypedStatement::Expr(_) => Ok(()),
         TypedStatement::BuiltinPrint(_) => Ok(()),
         TypedStatement::Loop(ref mut statements) => {
+            let mut errors = vec![];
+
             const_vars.push_scope();
 
             for statement in &mut statements.0 {
-                const_eval_statement(const_vars, statement)?;
+                if let Err(errs) = const_eval_statement(const_vars, statement) {
+                    errors.extend(errs);
+                }
             }
 
             const_vars.pop_scope();
 
-            Ok(())
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(errors)
+            }
         }
         TypedStatement::If {
             condition: _,
             ref mut then_branch,
             ref mut else_branch,
         } => {
+            let mut errors = vec![];
+
             const_vars.push_scope();
 
             for statement in &mut then_branch.0 {
-                const_eval_statement(const_vars, statement)?;
+                if let Err(errs) = const_eval_statement(const_vars, statement) {
+                    errors.extend(errs);
+                }
             }
 
             const_vars.pop_scope();
@@ -61,38 +73,39 @@ fn const_eval_statement<'src>(
                 const_vars.push_scope();
 
                 for statement in &mut else_branch.0 {
-                    const_eval_statement(const_vars, statement)?;
+                    if let Err(errs) = const_eval_statement(const_vars, statement) {
+                        errors.extend(errs);
+                    }
                 }
 
                 const_vars.pop_scope();
             }
 
-            Ok(())
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(errors)
+            }
         }
         TypedStatement::Let {
             name,
             ref mut value,
         } => {
-            let const_value = match const_eval_expr(const_vars, value) {
-                Ok(value) => value,
-                Err(_) => {
-                    return Ok(());
-                }
-            };
-
-            *value = (
-                TypedExpr {
-                    expr: match const_value.0 {
-                        ConstValue::Boolean(value) => Expr::Boolean(value),
-                        ConstValue::Integer(value) => Expr::Integer(value),
-                        ConstValue::Null => Expr::Null,
+            if let Ok(const_value) = const_eval_expr(const_vars, value) {
+                *value = (
+                    TypedExpr {
+                        expr: match const_value.0 {
+                            ConstValue::Boolean(value) => Expr::Boolean(value),
+                            ConstValue::Integer(value) => Expr::Integer(value),
+                            ConstValue::Null => Expr::Null,
+                        },
+                        ty: value.0.ty,
                     },
-                    ty: value.0.ty,
-                },
-                value.1,
-            );
+                    const_value.1,
+                );
 
-            const_vars.insert(name.0, const_value);
+                const_vars.insert(name.0, const_value);
+            };
 
             Ok(())
         }
@@ -100,7 +113,7 @@ fn const_eval_statement<'src>(
             name,
             ref mut value,
         } => {
-            let const_value = const_eval_expr(const_vars, value)?;
+            let const_value = const_eval_expr(const_vars, value).map_err(|err| vec![err])?;
 
             *value = (
                 TypedExpr {
