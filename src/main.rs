@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use ariadne::{ColorGenerator, Label, Report, Source};
 use chumsky::prelude::*;
 use error::convert_error;
