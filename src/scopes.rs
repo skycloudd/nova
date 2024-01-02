@@ -1,6 +1,7 @@
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
+#[derive(Debug)]
 pub struct Scopes<K, V> {
     base: FxHashMap<K, V>,
     scopes: Vec<FxHashMap<K, V>>,

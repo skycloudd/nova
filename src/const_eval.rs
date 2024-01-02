@@ -138,7 +138,12 @@ fn const_eval_expr<'src>(
         match &expr.0.expr {
             Expr::Variable(name) => match const_vars.get(name) {
                 Some(value) => value.0,
-                None => todo!("error"),
+                None => {
+                    return Err(Error::UnknownConstVariable {
+                        name: name.to_string(),
+                        span: expr.1,
+                    })
+                }
             },
             Expr::Boolean(value) => ConstValue::Boolean(*value),
             Expr::Integer(value) => ConstValue::Integer(*value),

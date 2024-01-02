@@ -14,6 +14,37 @@ pub enum Error {
         message: String,
         span: Span,
     },
+    UnknownConstVariable {
+        name: String,
+        span: Span,
+    },
+    UndefinedVariable {
+        name: String,
+        span: Span,
+    },
+    UnknownType {
+        span: Span,
+    },
+    IncompatibleTypes {
+        a: String,
+        a_span: Span,
+        b: String,
+        b_span: Span,
+    },
+    BinaryOp {
+        lhs: String,
+        lhs_span: Span,
+        rhs: String,
+        rhs_span: Span,
+        op: String,
+        op_span: Span,
+    },
+    UnaryOp {
+        ty: String,
+        ty_span: Span,
+        op: String,
+        op_span: Span,
+    },
 }
 
 impl Error {
@@ -49,40 +80,100 @@ impl Error {
                 }
             }
             Error::Custom { message, span: _ } => message.into(),
+            Error::UnknownConstVariable { name, span: _ } => {
+                format!("Unknown const variable `{}`", name).into()
+            }
+            Error::UndefinedVariable { name, span: _ } => {
+                format!("Undefined variable `{}`", name).into()
+            }
+            Error::UnknownType { span: _ } => format!("Unknown type").into(),
+            Error::IncompatibleTypes {
+                a,
+                a_span: _,
+                b,
+                b_span: _,
+            } => format!("Incompatible types `{}` and `{}`", a, b).into(),
+            Error::BinaryOp {
+                lhs,
+                lhs_span: _,
+                rhs,
+                rhs_span: _,
+                op,
+                op_span: _,
+            } => format!("Cannot apply `{}` to `{}` and `{}`", op, lhs, rhs).into(),
+            Error::UnaryOp {
+                ty,
+                ty_span: _,
+                op,
+                op_span: _,
+            } => format!("Cannot apply `{}` to `{}`", op, ty).into(),
         }
     }
 
     pub fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
-        let spans = match self {
+        match self {
             Error::ExpectedFound {
                 expected: _,
                 found,
                 span,
             } => vec![(
-                Some(Cow::from(format!(
-                    "Found {}",
-                    found.as_ref().unwrap_or(&"EOF".into())
-                ))),
+                Some(format!("Found {}", found.as_ref().unwrap_or(&"EOF".into())).into()),
                 *span,
             )],
             Error::Custom { message: _, span } => vec![(None, *span)],
-        };
-
-        spans
-            .into_iter()
-            .map(|(s, span)| {
-                let start = span.start;
-                let end = span.end;
-
-                (s, Span::new(start, end))
-            })
-            .collect()
+            Error::UnknownConstVariable { name, span } => {
+                vec![(
+                    Some(format!("Unknown const variable `{}`", name).into()),
+                    *span,
+                )]
+            }
+            Error::UndefinedVariable { name, span } => {
+                vec![(Some(format!("Undefined variable `{}`", name).into()), *span)]
+            }
+            Error::UnknownType { span } => vec![(Some("Unknown type".into()), *span)],
+            Error::IncompatibleTypes {
+                a,
+                a_span,
+                b,
+                b_span,
+            } => vec![
+                (Some(format!("`{}`", a).into()), *a_span),
+                (Some(format!("`{}`", b).into()), *b_span),
+            ],
+            Error::BinaryOp {
+                lhs,
+                lhs_span,
+                rhs,
+                rhs_span,
+                op,
+                op_span,
+            } => vec![
+                (Some(format!("`{}`", lhs).into()), *lhs_span),
+                (Some(format!("`{}`", rhs).into()), *rhs_span),
+                (Some(format!("`{}`", op).into()), *op_span),
+            ],
+            Error::UnaryOp {
+                ty,
+                ty_span,
+                op,
+                op_span,
+            } => vec![
+                (Some(format!("`{}`", ty).into()), *ty_span),
+                (Some(format!("`{}`", op).into()), *op_span),
+            ],
+        }
     }
 
     pub fn note(&self) -> Option<String> {
         match self {
             Error::ExpectedFound { .. } => None,
             Error::Custom { .. } => None,
+            Error::UnknownConstVariable { .. } => None,
+            Error::UndefinedVariable { .. } => None,
+            Error::UnknownType { .. } => None,
+            Error::IncompatibleTypes { .. } => None,
+            Error::BinaryOp { .. } => None,
+            Error::UnaryOp { .. } => None,
         }
     }
 }

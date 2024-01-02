@@ -15,6 +15,7 @@ pub fn typecheck<'src>(
     Typechecker::new().typecheck_ast(ast)
 }
 
+#[derive(Debug)]
 struct Typechecker<'src> {
     engine: Engine,
     bindings: Scopes<&'src str, TypeId>,
@@ -162,7 +163,12 @@ impl<'src> Typechecker<'src> {
                         expr: typed::Expr::Variable(var),
                         ty: self.engine.reconstruct(*ty)?.0,
                     },
-                    None => todo!("error"),
+                    None => {
+                        return Err(Error::UndefinedVariable {
+                            name: var.to_string(),
+                            span: expr.1,
+                        })
+                    }
                 },
                 Expr::Boolean(boolean) => TypedExpr {
                     expr: typed::Expr::Boolean(*boolean),
@@ -205,7 +211,15 @@ impl<'src> Typechecker<'src> {
                         (Integer, Integer, LessThan, Boolean),
                         (Null, Null, Equals, Boolean),
                         (Null, Null, NotEquals, Boolean)
-                    );
+                    )
+                    .map_err(|_| Error::BinaryOp {
+                        lhs: lhs.0.ty.to_string(),
+                        lhs_span: lhs.1,
+                        rhs: rhs.0.ty.to_string(),
+                        rhs_span: rhs.1,
+                        op: op.0.to_string(),
+                        op_span: op.1,
+                    })?;
 
                     TypedExpr {
                         expr: typed::Expr::Binary(Box::new(lhs), *op, Box::new(rhs)),
@@ -222,7 +236,13 @@ impl<'src> Typechecker<'src> {
                         op.0,
                         (Boolean, Not, Boolean),
                         (Integer, Negate, Integer)
-                    );
+                    )
+                    .map_err(|_| Error::UnaryOp {
+                        ty: expr.0.ty.to_string(),
+                        ty_span: expr.1,
+                        op: op.0.to_string(),
+                        op_span: op.1,
+                    })?;
 
                     TypedExpr {
                         expr: typed::Expr::Unary(*op, Box::new(expr)),
@@ -239,9 +259,9 @@ macro_rules! bin_op {
     ($lhs_value:expr, $rhs_value:expr, $op_value:expr, $(($lhs:pat, $rhs:pat, $op:pat, $ret_ty:expr)),*) => {
         match ($lhs_value, $rhs_value, $op_value) {
             $(
-                ($lhs, $rhs, $op) => $ret_ty,
+                ($lhs, $rhs, $op) => Ok($ret_ty),
             )*
-            _ => todo!("error"),
+            _ => Err(()),
         }
     };
 }
@@ -251,14 +271,15 @@ macro_rules! unary_op {
     ($value:expr, $op_value:expr, $(($ty:pat, $op:pat, $ret_ty:expr)),*) => {
         match ($value, $op_value) {
             $(
-                ($ty, $op) => $ret_ty,
+                ($ty, $op) => Ok($ret_ty),
             )*
-            _ => todo!("error"),
+            _ => Err(()),
         }
     };
 }
 use unary_op;
 
+#[derive(Debug)]
 struct Engine {
     id_counter: usize,
     vars: FxHashMap<TypeId, Spanned<TypeInfo>>,
@@ -300,7 +321,12 @@ impl Engine {
             (TypeInfo::Integer, TypeInfo::Integer) => Ok(()),
             (TypeInfo::Null, TypeInfo::Null) => Ok(()),
 
-            (_, _) => todo!("error"),
+            (a, b) => Err(Error::IncompatibleTypes {
+                a: a.to_string(),
+                a_span: var_a.1,
+                b: b.to_string(),
+                b_span: var_b.1,
+            }),
         }
     }
 
@@ -309,9 +335,7 @@ impl Engine {
 
         Ok((
             match var.0 {
-                TypeInfo::Unknown => {
-                    todo!("error")
-                }
+                TypeInfo::Unknown => return Err(Error::UnknownType { span: var.1 }),
                 TypeInfo::Ref(id) => self.reconstruct(id)?.0,
                 TypeInfo::Boolean => Type::Boolean,
                 TypeInfo::Integer => Type::Integer,
@@ -332,6 +356,18 @@ enum TypeInfo {
     Boolean,
     Integer,
     Null,
+}
+
+impl std::fmt::Display for TypeInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeInfo::Unknown => write!(f, "unknown"),
+            TypeInfo::Ref(id) => write!(f, "ref {}", id),
+            TypeInfo::Boolean => write!(f, "boolean"),
+            TypeInfo::Integer => write!(f, "integer"),
+            TypeInfo::Null => write!(f, "null"),
+        }
+    }
 }
 
 fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
