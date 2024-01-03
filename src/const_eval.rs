@@ -121,34 +121,13 @@ fn const_eval_statement<'src>(
             Ok(())
         }
         TypedStatement::Assign { name, ref value } => {
-            match const_eval_expr(const_vars, value) {
-                Ok(const_value) => {
-                    *statement = (
-                        TypedStatement::Const {
-                            name,
-                            value: (
-                                TypedExpression {
-                                    expr: const_value.0.into(),
-                                    ty: value.0.ty,
-                                },
-                                value.1,
-                            ),
-                        },
-                        statement.1,
-                    );
-
-                    const_vars.insert(name.0, const_value);
-                }
-                Err(_) => {
-                    *statement = (
-                        TypedStatement::Assign {
-                            name,
-                            value: propagate_const(const_vars, value),
-                        },
-                        statement.1,
-                    );
-                }
-            }
+            *statement = (
+                TypedStatement::Assign {
+                    name,
+                    value: propagate_const(const_vars, value),
+                },
+                statement.1,
+            );
 
             Ok(())
         }
