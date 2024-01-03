@@ -185,6 +185,8 @@ impl<'src> Typechecker<'src> {
 
                     TypedStatement::Assign { name: *name, value }
                 }
+                Statement::Break => TypedStatement::Break,
+                Statement::Continue => TypedStatement::Continue,
             },
             statement.1,
         ))

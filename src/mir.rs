@@ -28,6 +28,8 @@ pub enum TypedStatement<'src> {
         name: Spanned<&'src str>,
         value: Spanned<TypedExpression<'src>>,
     },
+    Break,
+    Continue,
 }
 
 #[derive(Debug)]
@@ -165,6 +167,8 @@ fn build_mir_statement(statement: Spanned<Statement<'_>>) -> Spanned<TypedStatem
                 name,
                 value: build_mir_expr(value),
             },
+            Statement::Break => TypedStatement::Break,
+            Statement::Continue => TypedStatement::Continue,
         },
         statement.1,
     )

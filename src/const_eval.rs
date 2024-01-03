@@ -152,6 +152,8 @@ fn const_eval_statement<'src>(
 
             Ok(())
         }
+        TypedStatement::Break => Ok(()),
+        TypedStatement::Continue => Ok(()),
     }
 }
 

@@ -104,7 +104,20 @@ fn statement_parser<'tokens, 'src: 'tokens>(
             .map_with(|(name, value), e| (Statement::Assign { name, value }, e.span()))
             .boxed();
 
-        choice((expr, print, loop_, if_, let_, const_, assign)).boxed()
+        let break_ = just(Token::Kw(Kw::Break))
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map_with(|_, e| (Statement::Break, e.span()))
+            .boxed();
+
+        let continue_ = just(Token::Kw(Kw::Continue))
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map_with(|_, e| (Statement::Continue, e.span()))
+            .boxed();
+
+        choice((
+            expr, print, loop_, if_, let_, const_, assign, break_, continue_,
+        ))
+        .boxed()
     })
 }
 

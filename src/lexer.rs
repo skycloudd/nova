@@ -22,6 +22,8 @@ pub enum Kw {
     Then,
     Let,
     Const,
+    Break,
+    Continue,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -77,6 +79,8 @@ impl std::fmt::Display for Kw {
             Kw::Then => write!(f, "then"),
             Kw::Let => write!(f, "let"),
             Kw::Const => write!(f, "const"),
+            Kw::Break => write!(f, "break"),
+            Kw::Continue => write!(f, "continue"),
         }
     }
 }
@@ -144,6 +148,8 @@ pub fn lexer<'src>(
         text::keyword("then").to(Token::Kw(Kw::Then)),
         text::keyword("let").to(Token::Kw(Kw::Let)),
         text::keyword("const").to(Token::Kw(Kw::Const)),
+        text::keyword("break").to(Token::Kw(Kw::Break)),
+        text::keyword("continue").to(Token::Kw(Kw::Continue)),
     ));
 
     let ctrl = choice((
