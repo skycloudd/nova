@@ -120,14 +120,11 @@ fn const_eval_statement<'src>(
 
             Ok(())
         }
-        TypedStatement::Assign { name, ref value } => {
-            *statement = (
-                TypedStatement::Assign {
-                    name,
-                    value: propagate_const(const_vars, value),
-                },
-                statement.1,
-            );
+        TypedStatement::Assign {
+            name: _,
+            ref mut value,
+        } => {
+            *value = propagate_const(const_vars, value);
 
             Ok(())
         }
