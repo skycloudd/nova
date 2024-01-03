@@ -30,6 +30,10 @@ struct Args {
     /// Print typechecked AST
     #[clap(short = 'c', long)]
     typechecked_ast: bool,
+
+    /// Print MIR
+    #[clap(short, long)]
+    mir: bool,
 }
 
 fn main() -> std::io::Result<()> {
@@ -87,9 +91,15 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
         }
     };
 
-    if errors.is_empty() {
-        if let Some(mir) = mir {
+    if args.mir {
+        if let Some(mir) = &mir {
             println!("{:#?}", mir);
+        }
+    }
+
+    if errors.is_empty() {
+        if let Some(_) = mir {
+            todo!()
         }
     } else {
         for error in errors {
