@@ -156,122 +156,155 @@ fn const_eval_expr<'src>(
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Boolean(lhs == rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerEquals,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Boolean,
+                        lhs == rhs
+                    )
                 }
                 Operation::IntegerNotEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Boolean(lhs != rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerNotEquals,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Boolean,
+                        lhs != rhs
+                    )
                 }
                 Operation::IntegerPlus(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Integer(lhs + rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerPlus,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Integer,
+                        lhs + rhs
+                    )
                 }
                 Operation::IntegerMinus(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Integer(lhs - rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerMinus,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Integer,
+                        lhs - rhs
+                    )
                 }
                 Operation::IntegerMultiply(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Integer(lhs * rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerMultiply,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Integer,
+                        lhs * rhs
+                    )
                 }
                 Operation::IntegerDivide(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Integer(lhs / rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerDivide,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Integer,
+                        lhs / rhs
+                    )
                 }
                 Operation::IntegerGreaterThanEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Boolean(lhs >= rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerGreaterThanEquals,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Boolean,
+                        lhs >= rhs
+                    )
                 }
                 Operation::IntegerLessThanEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Boolean(lhs <= rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerLessThanEquals,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Boolean,
+                        lhs <= rhs
+                    )
                 }
                 Operation::IntegerGreaterThan(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Boolean(lhs > rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerGreaterThan,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Boolean,
+                        lhs > rhs
+                    )
                 }
                 Operation::IntegerLessThan(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
-                            ConstValue::Boolean(lhs < rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        IntegerLessThan,
+                        lhs,
+                        rhs,
+                        Integer,
+                        Integer,
+                        Boolean,
+                        lhs < rhs
+                    )
                 }
                 Operation::BooleanEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Boolean(lhs), ConstValue::Boolean(rhs)) => {
-                            ConstValue::Boolean(lhs == rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_operation!(
+                        BooleanEquals,
+                        lhs,
+                        rhs,
+                        Boolean,
+                        Boolean,
+                        Boolean,
+                        lhs == rhs
+                    )
                 }
                 Operation::BooleanNotEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
@@ -551,3 +584,15 @@ impl From<ConstValue> for Expression<'_> {
         }
     }
 }
+
+macro_rules! const_eval_operation {
+    ($operation:ident, $lhs:ident, $rhs:ident, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $result:expr) => {
+        match ($lhs.0, $rhs.0) {
+            (ConstValue::$lhs_ty($lhs), ConstValue::$rhs_ty($rhs)) => {
+                ConstValue::$result_ty($result)
+            }
+            _ => unreachable!(),
+        }
+    };
+}
+use const_eval_operation;
