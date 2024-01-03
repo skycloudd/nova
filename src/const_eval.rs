@@ -1,9 +1,6 @@
 use crate::{
-    ast::{
-        typed::{Expr, TypedExpr, TypedStatement},
-        BinaryOp, UnaryOp,
-    },
     error::Error,
+    mir::{Expression, Operation, TypedExpression, TypedStatement},
     scopes::Scopes,
     Spanned,
 };
@@ -37,7 +34,7 @@ fn const_eval_statement<'src>(
             Ok(())
         }
         TypedStatement::BuiltinPrint(ref mut expr) => {
-            *expr = propagate_const(const_vars, &expr);
+            *expr = propagate_const(const_vars, expr);
 
             Ok(())
         }
@@ -65,7 +62,7 @@ fn const_eval_statement<'src>(
             ref mut then_branch,
             ref mut else_branch,
         } => {
-            *condition = propagate_const(const_vars, &condition);
+            *condition = propagate_const(const_vars, condition);
 
             let mut errors = vec![];
 
@@ -98,25 +95,10 @@ fn const_eval_statement<'src>(
             }
         }
         TypedStatement::Let {
-            name,
+            name: _,
             ref mut value,
         } => {
-            match const_eval_expr(const_vars, value) {
-                Ok(const_value) => {
-                    *value = (
-                        TypedExpr {
-                            expr: const_value.0.into(),
-                            ty: value.0.ty,
-                        },
-                        const_value.1,
-                    );
-
-                    const_vars.insert(name.0, const_value);
-                }
-                Err(_) => {
-                    *value = propagate_const(const_vars, &value);
-                }
-            }
+            *value = propagate_const(const_vars, value);
 
             Ok(())
         }
@@ -127,7 +109,7 @@ fn const_eval_statement<'src>(
             let const_value = const_eval_expr(const_vars, value).map_err(|err| vec![err])?;
 
             *value = (
-                TypedExpr {
+                TypedExpression {
                     expr: const_value.0.into(),
                     ty: value.0.ty,
                 },
@@ -138,16 +120,48 @@ fn const_eval_statement<'src>(
 
             Ok(())
         }
+        TypedStatement::Assign { name, ref value } => {
+            match const_eval_expr(const_vars, value) {
+                Ok(const_value) => {
+                    *statement = (
+                        TypedStatement::Const {
+                            name,
+                            value: (
+                                TypedExpression {
+                                    expr: const_value.0.into(),
+                                    ty: value.0.ty,
+                                },
+                                value.1,
+                            ),
+                        },
+                        statement.1,
+                    );
+
+                    const_vars.insert(name.0, const_value);
+                }
+                Err(_) => {
+                    *statement = (
+                        TypedStatement::Assign {
+                            name,
+                            value: propagate_const(const_vars, value),
+                        },
+                        statement.1,
+                    );
+                }
+            }
+
+            Ok(())
+        }
     }
 }
 
 fn const_eval_expr<'src>(
     const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
-    expr: &Spanned<TypedExpr<'src>>,
+    expr: &Spanned<TypedExpression<'src>>,
 ) -> Result<Spanned<ConstValue>, Error> {
     Ok((
         match &expr.0.expr {
-            Expr::Variable(name) => match const_vars.get(name) {
+            Expression::Variable(name) => match const_vars.get(name) {
                 Some(value) => value.0,
                 None => {
                     return Err(Error::UnknownConstVariable {
@@ -156,56 +170,177 @@ fn const_eval_expr<'src>(
                     })
                 }
             },
-            Expr::Boolean(value) => ConstValue::Boolean(*value),
-            Expr::Integer(value) => ConstValue::Integer(*value),
-            Expr::Null => ConstValue::Null,
-            Expr::Binary(lhs, op, rhs) => {
-                let lhs = const_eval_expr(const_vars, lhs)?;
-                let rhs = const_eval_expr(const_vars, rhs)?;
+            Expression::Boolean(value) => ConstValue::Boolean(*value),
+            Expression::Integer(value) => ConstValue::Integer(*value),
+            Expression::Null => ConstValue::Null,
+            Expression::Operation(operation) => match operation.as_ref() {
+                Operation::IntegerEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
 
-                use BinaryOp::*;
-                use ConstValue::{Boolean, Integer, Null};
-                match (&lhs.0, &rhs.0) {
-                    (Integer(lhs), Integer(rhs)) => match op.0 {
-                        Equals => Boolean(lhs == rhs),
-                        NotEquals => Boolean(lhs != rhs),
-                        Plus => Integer(lhs + rhs),
-                        Minus => Integer(lhs - rhs),
-                        Multiply => Integer(lhs * rhs),
-                        Divide => Integer(lhs / rhs),
-                        GreaterThanEquals => Boolean(lhs >= rhs),
-                        LessThanEquals => Boolean(lhs <= rhs),
-                        GreaterThan => Boolean(lhs > rhs),
-                        LessThan => Boolean(lhs < rhs),
-                    },
-
-                    (Boolean(lhs), Boolean(rhs)) => match op.0 {
-                        Equals => Boolean(lhs == rhs),
-                        NotEquals => Boolean(lhs != rhs),
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Boolean(lhs == rhs)
+                        }
                         _ => unreachable!(),
-                    },
+                    }
+                }
+                Operation::IntegerNotEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
 
-                    (Null, Null) => match op.0 {
-                        Equals => Boolean(true),
-                        NotEquals => Boolean(false),
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Boolean(lhs != rhs)
+                        }
                         _ => unreachable!(),
-                    },
-
-                    _ => unreachable!(),
+                    }
                 }
-            }
-            Expr::Unary(op, rhs) => {
-                let rhs = const_eval_expr(const_vars, rhs)?;
+                Operation::IntegerPlus(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
 
-                use ConstValue::{Boolean, Integer};
-                use UnaryOp::*;
-                match (op.0, rhs.0) {
-                    (Negate, Integer(value)) => Integer(-value),
-                    (Not, Boolean(value)) => Boolean(!value),
-
-                    _ => unreachable!(),
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Integer(lhs + rhs)
+                        }
+                        _ => unreachable!(),
+                    }
                 }
-            }
+                Operation::IntegerMinus(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Integer(lhs - rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerMultiply(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Integer(lhs * rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerDivide(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Integer(lhs / rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerGreaterThanEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Boolean(lhs >= rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerLessThanEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Boolean(lhs <= rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerGreaterThan(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Boolean(lhs > rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerLessThan(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Integer(lhs), ConstValue::Integer(rhs)) => {
+                            ConstValue::Boolean(lhs < rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::BooleanEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Boolean(lhs), ConstValue::Boolean(rhs)) => {
+                            ConstValue::Boolean(lhs == rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::BooleanNotEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Boolean(lhs), ConstValue::Boolean(rhs)) => {
+                            ConstValue::Boolean(lhs != rhs)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::NullEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Null, ConstValue::Null) => ConstValue::Boolean(true),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::NullNotEquals(lhs, rhs) => {
+                    let lhs = const_eval_expr(const_vars, lhs)?;
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match (lhs.0, rhs.0) {
+                        (ConstValue::Null, ConstValue::Null) => ConstValue::Boolean(false),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerNegate(rhs) => {
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match rhs.0 {
+                        ConstValue::Integer(rhs) => ConstValue::Integer(-rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::BooleanNot(rhs) => {
+                    let rhs = const_eval_expr(const_vars, rhs)?;
+
+                    match rhs.0 {
+                        ConstValue::Boolean(rhs) => ConstValue::Boolean(!rhs),
+                        _ => unreachable!(),
+                    }
+                }
+            },
         },
         expr.1,
     ))
@@ -213,77 +348,208 @@ fn const_eval_expr<'src>(
 
 fn propagate_const<'src>(
     const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
-    expr: &Spanned<TypedExpr<'src>>,
-) -> Spanned<TypedExpr<'src>> {
+    expr: &Spanned<TypedExpression<'src>>,
+) -> Spanned<TypedExpression<'src>> {
     (
-        TypedExpr {
+        TypedExpression {
             expr: match &expr.0.expr {
-                Expr::Variable(name) => match const_vars.get(name) {
-                    Some(value) => Expr::from(value.0),
-                    None => Expr::Variable(name),
+                Expression::Variable(name) => match const_vars.get(name) {
+                    Some(value) => Expression::from(value.0),
+                    None => Expression::Variable(name),
                 },
-                Expr::Boolean(value) => Expr::Boolean(*value),
-                Expr::Integer(value) => Expr::Integer(*value),
-                Expr::Null => Expr::Null,
-                Expr::Binary(lhs, op, rhs) => {
-                    let lhs = propagate_const(const_vars, lhs);
-                    let rhs = propagate_const(const_vars, rhs);
+                Expression::Boolean(value) => Expression::Boolean(*value),
+                Expression::Integer(value) => Expression::Integer(*value),
+                Expression::Null => Expression::Null,
+                Expression::Operation(operation) => match operation.as_ref() {
+                    Operation::IntegerEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
 
-                    match (&lhs.0.expr, op.0, &rhs.0.expr) {
-                        (Expr::Integer(lhs), BinaryOp::Equals, Expr::Integer(rhs)) => {
-                            Expr::Boolean(lhs == rhs)
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Boolean(lhs == rhs)
+                            }
+                            _ => {
+                                Expression::Operation(Box::new(Operation::IntegerEquals(lhs, rhs)))
+                            }
                         }
-                        (Expr::Integer(lhs), BinaryOp::NotEquals, Expr::Integer(rhs)) => {
-                            Expr::Boolean(lhs != rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::Plus, Expr::Integer(rhs)) => {
-                            Expr::Integer(lhs + rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::Minus, Expr::Integer(rhs)) => {
-                            Expr::Integer(lhs - rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::Multiply, Expr::Integer(rhs)) => {
-                            Expr::Integer(lhs * rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::Divide, Expr::Integer(rhs)) => {
-                            Expr::Integer(lhs / rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::GreaterThanEquals, Expr::Integer(rhs)) => {
-                            Expr::Boolean(lhs >= rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::LessThanEquals, Expr::Integer(rhs)) => {
-                            Expr::Boolean(lhs <= rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::GreaterThan, Expr::Integer(rhs)) => {
-                            Expr::Boolean(lhs > rhs)
-                        }
-                        (Expr::Integer(lhs), BinaryOp::LessThan, Expr::Integer(rhs)) => {
-                            Expr::Boolean(lhs < rhs)
-                        }
-
-                        (Expr::Boolean(lhs), BinaryOp::Equals, Expr::Boolean(rhs)) => {
-                            Expr::Boolean(lhs == rhs)
-                        }
-                        (Expr::Boolean(lhs), BinaryOp::NotEquals, Expr::Boolean(rhs)) => {
-                            Expr::Boolean(lhs != rhs)
-                        }
-
-                        (Expr::Null, BinaryOp::Equals, Expr::Null) => Expr::Boolean(true),
-                        (Expr::Null, BinaryOp::NotEquals, Expr::Null) => Expr::Boolean(false),
-
-                        _ => Expr::Binary(Box::new(lhs), *op, Box::new(rhs)),
                     }
-                }
-                Expr::Unary(op, rhs) => {
-                    let rhs = propagate_const(const_vars, rhs);
+                    Operation::IntegerNotEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
 
-                    match (op.0, &rhs.0.expr) {
-                        (UnaryOp::Negate, Expr::Integer(value)) => Expr::Integer(-value),
-                        (UnaryOp::Not, Expr::Boolean(value)) => Expr::Boolean(!value),
-
-                        _ => Expr::Unary(*op, Box::new(rhs)),
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Boolean(lhs != rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerNotEquals(
+                                lhs, rhs,
+                            ))),
+                        }
                     }
-                }
+                    Operation::IntegerPlus(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Integer(lhs + rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerPlus(lhs, rhs))),
+                        }
+                    }
+                    Operation::IntegerMinus(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Integer(lhs - rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerMinus(lhs, rhs))),
+                        }
+                    }
+                    Operation::IntegerMultiply(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Integer(lhs * rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerMultiply(
+                                lhs, rhs,
+                            ))),
+                        }
+                    }
+                    Operation::IntegerDivide(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Integer(lhs / rhs)
+                            }
+                            _ => {
+                                Expression::Operation(Box::new(Operation::IntegerDivide(lhs, rhs)))
+                            }
+                        }
+                    }
+                    Operation::IntegerGreaterThanEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Boolean(lhs >= rhs)
+                            }
+                            _ => Expression::Operation(Box::new(
+                                Operation::IntegerGreaterThanEquals(lhs, rhs),
+                            )),
+                        }
+                    }
+                    Operation::IntegerLessThanEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Boolean(lhs <= rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerLessThanEquals(
+                                lhs, rhs,
+                            ))),
+                        }
+                    }
+                    Operation::IntegerGreaterThan(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Boolean(lhs > rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerGreaterThan(
+                                lhs, rhs,
+                            ))),
+                        }
+                    }
+                    Operation::IntegerLessThan(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
+                                Expression::Boolean(lhs < rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::IntegerLessThan(
+                                lhs, rhs,
+                            ))),
+                        }
+                    }
+                    Operation::BooleanEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Boolean(lhs), Expression::Boolean(rhs)) => {
+                                Expression::Boolean(lhs == rhs)
+                            }
+                            _ => {
+                                Expression::Operation(Box::new(Operation::BooleanEquals(lhs, rhs)))
+                            }
+                        }
+                    }
+                    Operation::BooleanNotEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Boolean(lhs), Expression::Boolean(rhs)) => {
+                                Expression::Boolean(lhs != rhs)
+                            }
+                            _ => Expression::Operation(Box::new(Operation::BooleanNotEquals(
+                                lhs, rhs,
+                            ))),
+                        }
+                    }
+                    Operation::NullEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Null, Expression::Null) => Expression::Boolean(true),
+                            _ => Expression::Operation(Box::new(Operation::NullEquals(lhs, rhs))),
+                        }
+                    }
+                    Operation::NullNotEquals(lhs, rhs) => {
+                        let lhs = propagate_const(const_vars, lhs);
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match (&lhs.0.expr, &rhs.0.expr) {
+                            (Expression::Null, Expression::Null) => Expression::Boolean(false),
+                            _ => {
+                                Expression::Operation(Box::new(Operation::NullNotEquals(lhs, rhs)))
+                            }
+                        }
+                    }
+                    Operation::IntegerNegate(rhs) => {
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match &rhs.0.expr {
+                            Expression::Integer(rhs) => Expression::Integer(-rhs),
+                            _ => Expression::Operation(Box::new(Operation::IntegerNegate(rhs))),
+                        }
+                    }
+                    Operation::BooleanNot(rhs) => {
+                        let rhs = propagate_const(const_vars, rhs);
+
+                        match &rhs.0.expr {
+                            Expression::Boolean(rhs) => Expression::Boolean(!rhs),
+                            _ => Expression::Operation(Box::new(Operation::BooleanNot(rhs))),
+                        }
+                    }
+                },
             },
             ty: expr.0.ty,
         },
@@ -291,19 +557,19 @@ fn propagate_const<'src>(
     )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum ConstValue {
     Boolean(bool),
     Integer(i32),
     Null,
 }
 
-impl From<ConstValue> for Expr<'_> {
+impl From<ConstValue> for Expression<'_> {
     fn from(expr: ConstValue) -> Self {
         match expr {
-            ConstValue::Boolean(value) => Expr::Boolean(value),
-            ConstValue::Integer(value) => Expr::Integer(value),
-            ConstValue::Null => Expr::Null,
+            ConstValue::Boolean(value) => Expression::Boolean(value),
+            ConstValue::Integer(value) => Expression::Integer(value),
+            ConstValue::Null => Expression::Null,
         }
     }
 }

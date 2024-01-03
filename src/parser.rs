@@ -97,7 +97,14 @@ fn statement_parser<'tokens, 'src: 'tokens>(
             .map_with(|(name, value), e| (Statement::Const { name, value }, e.span()))
             .boxed();
 
-        choice((expr, print, loop_, if_, let_, const_)).boxed()
+        let assign = ident()
+            .then_ignore(just(Token::Ctrl(Ctrl::Equals)))
+            .then(expr_parser())
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map_with(|(name, value), e| (Statement::Assign { name, value }, e.span()))
+            .boxed();
+
+        choice((expr, print, loop_, if_, let_, const_, assign)).boxed()
     })
 }
 

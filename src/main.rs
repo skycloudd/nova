@@ -9,6 +9,7 @@ mod ast;
 mod const_eval;
 mod error;
 mod lexer;
+mod mir;
 mod parser;
 mod scopes;
 mod typecheck;
@@ -66,7 +67,7 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
         }
     }
 
-    let (mut typed_ast, type_errors) = ast
+    let (typed_ast, type_errors) = ast
         .as_ref()
         .map_or((None, vec![]), |ast| typecheck::typecheck(ast));
 
@@ -78,15 +79,17 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
         }
     }
 
-    if let Some(typed_ast) = &mut typed_ast {
-        if let Err(errs) = const_eval::const_eval(typed_ast) {
+    let mut mir = typed_ast.map(mir::build_mir);
+
+    if let Some(mir) = mir.as_mut() {
+        if let Err(errs) = const_eval::const_eval(mir) {
             errors.extend(errs);
         }
-    }
+    };
 
     if errors.is_empty() {
-        if let Some(typed_ast) = typed_ast {
-            println!("{:#?}", typed_ast);
+        if let Some(mir) = mir {
+            println!("{:#?}", mir);
         }
     } else {
         for error in errors {

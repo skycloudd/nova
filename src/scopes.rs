@@ -1,6 +1,7 @@
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
+#[derive(Clone)]
 pub struct Scopes<K, V> {
     base: FxHashMap<K, V>,
     scopes: Vec<FxHashMap<K, V>>,
@@ -37,5 +38,9 @@ impl<K: Eq + Hash, V> Scopes<K, V> {
         }
 
         self.base.get(k)
+    }
+
+    pub fn contains_key(&self, k: &K) -> bool {
+        self.scopes.iter().any(|scope| scope.contains_key(k)) || self.base.contains_key(k)
     }
 }

@@ -44,6 +44,10 @@ pub enum Error {
         op: String,
         op_span: Span,
     },
+    ConstAlreadyDefined {
+        name: String,
+        span: Span,
+    },
 }
 
 impl Error {
@@ -85,7 +89,7 @@ impl Error {
             Error::UndefinedVariable { name, span: _ } => {
                 format!("Undefined variable `{}`", name).into()
             }
-            Error::UnknownType { span: _ } => format!("Unknown type").into(),
+            Error::UnknownType { span: _ } => "Unknown type".into(),
             Error::IncompatibleTypes {
                 a,
                 a_span: _,
@@ -106,6 +110,9 @@ impl Error {
                 op,
                 op_span: _,
             } => format!("Cannot apply `{}` to `{}`", op, ty).into(),
+            Error::ConstAlreadyDefined { name, span: _ } => {
+                format!("Const `{}` already defined", name).into()
+            }
         }
     }
 
@@ -160,6 +167,12 @@ impl Error {
                 (Some(format!("`{}`", ty).into()), *ty_span),
                 (Some(format!("`{}`", op).into()), *op_span),
             ],
+            Error::ConstAlreadyDefined { name, span } => {
+                vec![(
+                    Some(format!("Const `{}` already defined", name).into()),
+                    *span,
+                )]
+            }
         }
     }
 
@@ -173,6 +186,7 @@ impl Error {
             Error::IncompatibleTypes { .. } => None,
             Error::BinaryOp { .. } => None,
             Error::UnaryOp { .. } => None,
+            Error::ConstAlreadyDefined { .. } => None,
         }
     }
 }

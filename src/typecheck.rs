@@ -17,15 +17,27 @@ pub fn typecheck<'src>(
 
 struct Typechecker<'src> {
     engine: Engine,
-    bindings: Scopes<&'src str, TypeId>,
+    variables: Scopes<&'src str, TypeId>,
+    const_variables: Scopes<&'src str, TypeId>,
 }
 
 impl<'src> Typechecker<'src> {
     fn new() -> Self {
         Self {
             engine: Engine::new(),
-            bindings: Scopes::new(),
+            variables: Scopes::new(),
+            const_variables: Scopes::new(),
         }
+    }
+
+    fn push_scope(&mut self) {
+        self.variables.push_scope();
+        self.const_variables.push_scope();
+    }
+
+    fn pop_scope(&mut self) {
+        self.variables.pop_scope();
+        self.const_variables.pop_scope();
     }
 
     fn typecheck_ast(
@@ -62,7 +74,7 @@ impl<'src> Typechecker<'src> {
                     TypedStatement::BuiltinPrint(expr)
                 }
                 Statement::Loop(statements) => {
-                    self.bindings.push_scope();
+                    self.push_scope();
 
                     let statements = (
                         statements
@@ -73,7 +85,7 @@ impl<'src> Typechecker<'src> {
                         statements.1,
                     );
 
-                    self.bindings.pop_scope();
+                    self.pop_scope();
 
                     TypedStatement::Loop(statements)
                 }
@@ -91,7 +103,7 @@ impl<'src> Typechecker<'src> {
 
                     self.engine.unify(condition_ty, bool)?;
 
-                    self.bindings.push_scope();
+                    self.push_scope();
 
                     let then_branch = (
                         then_branch
@@ -102,11 +114,11 @@ impl<'src> Typechecker<'src> {
                         then_branch.1,
                     );
 
-                    self.bindings.pop_scope();
+                    self.pop_scope();
 
                     let else_branch = match else_branch {
                         Some(else_branch) => {
-                            self.bindings.push_scope();
+                            self.push_scope();
 
                             let else_branch = (
                                 else_branch
@@ -117,7 +129,7 @@ impl<'src> Typechecker<'src> {
                                 else_branch.1,
                             );
 
-                            self.bindings.pop_scope();
+                            self.pop_scope();
 
                             Some(else_branch)
                         }
@@ -134,7 +146,7 @@ impl<'src> Typechecker<'src> {
                     let value = self.typecheck_expr(value)?;
                     let value_ty = self.engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
 
-                    self.bindings.insert(name.0, value_ty);
+                    self.variables.insert(name.0, value_ty);
 
                     TypedStatement::Let { name: *name, value }
                 }
@@ -142,9 +154,36 @@ impl<'src> Typechecker<'src> {
                     let value = self.typecheck_expr(value)?;
                     let value_ty = self.engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
 
-                    self.bindings.insert(name.0, value_ty);
+                    if self.variables.contains_key(&name.0)
+                        || self.const_variables.contains_key(&name.0)
+                    {
+                        return Err(Error::ConstAlreadyDefined {
+                            name: name.0.to_string(),
+                            span: name.1,
+                        });
+                    }
+
+                    self.const_variables.insert(name.0, value_ty);
 
                     TypedStatement::Const { name: *name, value }
+                }
+                Statement::Assign { name, value } => {
+                    let value = self.typecheck_expr(value)?;
+                    let value_ty = self.engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
+
+                    let name_ty = match self.variables.get(&name.0) {
+                        Some(ty) => ty,
+                        None => {
+                            return Err(Error::UndefinedVariable {
+                                name: name.0.to_string(),
+                                span: name.1,
+                            })
+                        }
+                    };
+
+                    self.engine.unify(*name_ty, value_ty)?;
+
+                    TypedStatement::Assign { name: *name, value }
                 }
             },
             statement.1,
@@ -157,18 +196,29 @@ impl<'src> Typechecker<'src> {
     ) -> Result<Spanned<TypedExpr<'src>>, Error> {
         Ok((
             match &expr.0 {
-                Expr::Variable(var) => match self.bindings.get(var) {
-                    Some(ty) => TypedExpr {
-                        expr: typed::Expr::Variable(var),
-                        ty: self.engine.reconstruct(*ty)?.0,
-                    },
-                    None => {
-                        return Err(Error::UndefinedVariable {
-                            name: var.to_string(),
-                            span: expr.1,
-                        })
+                Expr::Variable(var) => {
+                    let var_result = self.variables.get(var);
+                    let const_var_result = self.const_variables.get(var);
+
+                    match (var_result, const_var_result) {
+                        (Some(ty), _) => TypedExpr {
+                            expr: typed::Expr::Variable(var),
+                            ty: self.engine.reconstruct(*ty)?.0,
+                        },
+
+                        (None, Some(ty)) => TypedExpr {
+                            expr: typed::Expr::Variable(var),
+                            ty: self.engine.reconstruct(*ty)?.0,
+                        },
+
+                        (None, None) => {
+                            return Err(Error::UndefinedVariable {
+                                name: var.to_string(),
+                                span: expr.1,
+                            })
+                        }
                     }
-                },
+                }
                 Expr::Boolean(boolean) => TypedExpr {
                     expr: typed::Expr::Boolean(*boolean),
                     ty: Type::Boolean,
