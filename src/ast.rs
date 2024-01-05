@@ -127,6 +127,7 @@ pub mod typed {
         Integer,
         Null,
         Colour,
+        Vector,
     }
 
     impl std::fmt::Display for Type {
@@ -136,6 +137,7 @@ pub mod typed {
                 Type::Integer => write!(f, "integer"),
                 Type::Null => write!(f, "null"),
                 Type::Colour => write!(f, "colour"),
+                Type::Vector => write!(f, "vector"),
             }
         }
     }

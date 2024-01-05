@@ -250,14 +250,12 @@ impl<'src> Typechecker<'src> {
 
                     self.engine.unify(x_ty, y_ty)?;
 
-                    let x_ty = self.engine.reconstruct(x_ty)?;
-
                     TypedExpr {
                         expr: typed::Expr::Vector {
                             x: Box::new(x),
                             y: Box::new(y),
                         },
-                        ty: x_ty.0,
+                        ty: Type::Vector,
                     }
                 }
                 Expr::Binary(lhs, op, rhs) => {
@@ -419,6 +417,7 @@ impl Engine {
                 TypeInfo::Integer => Type::Integer,
                 TypeInfo::Null => Type::Null,
                 TypeInfo::Colour => Type::Colour,
+                TypeInfo::Vector => Type::Vector,
             },
             var.1,
         ))
@@ -436,6 +435,7 @@ enum TypeInfo {
     Integer,
     Null,
     Colour,
+    Vector,
 }
 
 impl std::fmt::Display for TypeInfo {
@@ -447,6 +447,7 @@ impl std::fmt::Display for TypeInfo {
             TypeInfo::Integer => write!(f, "integer"),
             TypeInfo::Null => write!(f, "null"),
             TypeInfo::Colour => write!(f, "colour"),
+            TypeInfo::Vector => write!(f, "vector"),
         }
     }
 }
@@ -458,6 +459,7 @@ fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
             Type::Integer => TypeInfo::Integer,
             Type::Null => TypeInfo::Null,
             Type::Colour => TypeInfo::Colour,
+            Type::Vector => TypeInfo::Vector,
         },
         ty.1,
     )

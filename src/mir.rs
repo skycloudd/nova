@@ -127,6 +127,7 @@ pub enum Type {
     Integer,
     Null,
     Colour,
+    Vector,
 }
 
 impl From<typed::Type> for Type {
@@ -136,6 +137,7 @@ impl From<typed::Type> for Type {
             typed::Type::Integer => Type::Integer,
             typed::Type::Null => Type::Null,
             typed::Type::Colour => Type::Colour,
+            typed::Type::Vector => Type::Vector,
         }
     }
 }
