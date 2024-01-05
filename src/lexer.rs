@@ -31,6 +31,8 @@ pub enum Kw {
 pub enum Ctrl {
     LeftParen,
     RightParen,
+    LeftCurly,
+    RightCurly,
     SemiColon,
     Comma,
     Pipe,
@@ -92,6 +94,8 @@ impl std::fmt::Display for Ctrl {
         match self {
             Ctrl::LeftParen => write!(f, "("),
             Ctrl::RightParen => write!(f, ")"),
+            Ctrl::LeftCurly => write!(f, "{{"),
+            Ctrl::RightCurly => write!(f, "}}"),
             Ctrl::SemiColon => write!(f, ";"),
             Ctrl::Comma => write!(f, ","),
             Ctrl::Pipe => write!(f, "|"),
@@ -194,6 +198,8 @@ pub fn lexer<'src>(
     let ctrl = choice((
         just('(').to(Token::Ctrl(Ctrl::LeftParen)),
         just(')').to(Token::Ctrl(Ctrl::RightParen)),
+        just('{').to(Token::Ctrl(Ctrl::LeftCurly)),
+        just('}').to(Token::Ctrl(Ctrl::RightCurly)),
         just(';').to(Token::Ctrl(Ctrl::SemiColon)),
         just(',').to(Token::Ctrl(Ctrl::Comma)),
         just('|').to(Token::Ctrl(Ctrl::Pipe)),

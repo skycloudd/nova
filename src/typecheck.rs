@@ -241,6 +241,25 @@ impl<'src> Typechecker<'src> {
                     },
                     ty: Type::Colour,
                 },
+                Expr::Vector { x, y } => {
+                    let x = self.typecheck_expr(x)?;
+                    let y = self.typecheck_expr(y)?;
+
+                    let x_ty = self.engine.insert(type_to_typeinfo((&x.0.ty, x.1)));
+                    let y_ty = self.engine.insert(type_to_typeinfo((&y.0.ty, y.1)));
+
+                    self.engine.unify(x_ty, y_ty)?;
+
+                    let x_ty = self.engine.reconstruct(x_ty)?;
+
+                    TypedExpr {
+                        expr: typed::Expr::Vector {
+                            x: Box::new(x),
+                            y: Box::new(y),
+                        },
+                        ty: x_ty.0,
+                    }
+                }
                 Expr::Binary(lhs, op, rhs) => {
                     let lhs = self.typecheck_expr(lhs)?;
                     let rhs = self.typecheck_expr(rhs)?;

@@ -44,7 +44,15 @@ pub enum Expression<'src> {
     Boolean(bool),
     Integer(i32),
     Null,
-    Colour { r: u8, g: u8, b: u8 },
+    Colour {
+        r: u8,
+        g: u8,
+        b: u8,
+    },
+    Vector {
+        x: Box<Spanned<TypedExpression<'src>>>,
+        y: Box<Spanned<TypedExpression<'src>>>,
+    },
     Operation(Box<Operation<'src>>),
 }
 
@@ -186,6 +194,10 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                 Expr::Integer(value) => Expression::Integer(value),
                 Expr::Null => Expression::Null,
                 Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
+                Expr::Vector { x, y } => Expression::Vector {
+                    x: Box::new(build_mir_expr(*x)),
+                    y: Box::new(build_mir_expr(*y)),
+                },
                 Expr::Binary(lhs, op, rhs) => {
                     let lhs = build_mir_expr(*lhs);
                     let rhs = build_mir_expr(*rhs);

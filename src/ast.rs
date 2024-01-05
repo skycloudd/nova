@@ -45,6 +45,10 @@ macro_rules! ast_expr {
                 g: u8,
                 b: u8,
             },
+            Vector {
+                x: Box<Spanned<$self_expr<'src>>>,
+                y: Box<Spanned<$self_expr<'src>>>,
+            },
             Binary(
                 Box<Spanned<$self_expr<'src>>>,
                 Spanned<BinaryOp>,

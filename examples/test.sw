@@ -17,3 +17,5 @@ loop
 end
 
 builtin_print__ #ff77a8;
+
+builtin_print__ { 1, 2 };

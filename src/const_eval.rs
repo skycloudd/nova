@@ -1,6 +1,6 @@
 use crate::{
     error::Error,
-    mir::{Expression, Operation, TypedExpression, TypedStatement},
+    mir::{Expression, Operation, Type, TypedExpression, TypedStatement},
     scopes::Scopes,
     Spanned,
 };
@@ -110,7 +110,7 @@ fn const_eval_statement<'src>(
 
             *value = (
                 TypedExpression {
-                    expr: const_value.0.into(),
+                    expr: const_value.0.clone().into(),
                     ty: value.0.ty,
                 },
                 value.1,
@@ -140,7 +140,7 @@ fn const_eval_expr<'src>(
     Ok((
         match &expr.0.expr {
             Expression::Variable(name) => match const_vars.get(name) {
-                Some(value) => value.0,
+                Some(value) => value.0.clone(),
                 None => {
                     return Err(Error::UnknownConstVariable {
                         name: name.to_string(),
@@ -156,6 +156,15 @@ fn const_eval_expr<'src>(
                 g: *g,
                 b: *b,
             },
+            Expression::Vector { x, y } => {
+                let x = const_eval_expr(const_vars, x)?;
+                let y = const_eval_expr(const_vars, y)?;
+
+                ConstValue::Vector {
+                    x: Box::new(x),
+                    y: Box::new(y),
+                }
+            }
             Expression::Operation(operation) => match operation.as_ref() {
                 Operation::IntegerEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
@@ -370,7 +379,7 @@ fn propagate_const<'src>(
         TypedExpression {
             expr: match &expr.0.expr {
                 Expression::Variable(name) => match const_vars.get(name) {
-                    Some(value) => Expression::from(value.0),
+                    Some(value) => Expression::from(value.0.clone()),
                     None => Expression::Variable(name),
                 },
                 Expression::Boolean(value) => Expression::Boolean(*value),
@@ -380,6 +389,10 @@ fn propagate_const<'src>(
                     r: *r,
                     g: *g,
                     b: *b,
+                },
+                Expression::Vector { x, y } => Expression::Vector {
+                    x: Box::new(propagate_const(const_vars, x)),
+                    y: Box::new(propagate_const(const_vars, y)),
                 },
                 Expression::Operation(operation) => match operation.as_ref() {
                     Operation::IntegerEquals(lhs, rhs) => {
@@ -578,12 +591,20 @@ fn propagate_const<'src>(
     )
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 enum ConstValue {
     Boolean(bool),
     Integer(i32),
     Null,
-    Colour { r: u8, g: u8, b: u8 },
+    Colour {
+        r: u8,
+        g: u8,
+        b: u8,
+    },
+    Vector {
+        x: Box<Spanned<ConstValue>>,
+        y: Box<Spanned<ConstValue>>,
+    },
 }
 
 impl From<ConstValue> for Expression<'_> {
@@ -593,6 +614,22 @@ impl From<ConstValue> for Expression<'_> {
             ConstValue::Integer(value) => Expression::Integer(value),
             ConstValue::Null => Expression::Null,
             ConstValue::Colour { r, g, b } => Expression::Colour { r, g, b },
+            ConstValue::Vector { x, y } => Expression::Vector {
+                x: Box::new((
+                    TypedExpression {
+                        expr: Expression::from(x.0),
+                        ty: Type::Integer,
+                    },
+                    x.1,
+                )),
+                y: Box::new((
+                    TypedExpression {
+                        expr: Expression::from(y.0),
+                        ty: Type::Integer,
+                    },
+                    y.1,
+                )),
+            },
         }
     }
 }

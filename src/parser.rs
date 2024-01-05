@@ -148,14 +148,44 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         let colour = select! {
             Token::HexCode(r, g, b) => (r, g, b)
         }
-        .map_with(|(r, g, b), e| (Expr::Colour { r, g, b }, e.span()));
+        .map_with(|(r, g, b), e| (Expr::Colour { r, g, b }, e.span()))
+        .boxed();
+
+        let vector = expression
+            .clone()
+            .then_ignore(just(Token::Ctrl(Ctrl::Comma)))
+            .then(expression.clone())
+            .then_ignore(just(Token::Ctrl(Ctrl::Comma)).or_not())
+            .delimited_by(
+                just(Token::Ctrl(Ctrl::LeftCurly)),
+                just(Token::Ctrl(Ctrl::RightCurly)),
+            )
+            .map_with(|(x, y), e| {
+                (
+                    Expr::Vector {
+                        x: Box::new(x),
+                        y: Box::new(y),
+                    },
+                    e.span(),
+                )
+            })
+            .boxed();
 
         let parenthesized_expr = expression.clone().delimited_by(
             just(Token::Ctrl(Ctrl::LeftParen)),
             just(Token::Ctrl(Ctrl::RightParen)),
         );
 
-        let atom = choice((variable, boolean, integer, null, colour, parenthesized_expr)).boxed();
+        let atom = choice((
+            variable,
+            boolean,
+            integer,
+            null,
+            colour,
+            vector,
+            parenthesized_expr,
+        ))
+        .boxed();
 
         let unary_op = choice((
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
