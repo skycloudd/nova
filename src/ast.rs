@@ -39,6 +39,7 @@ macro_rules! ast_expr {
             Variable(&'src str),
             Boolean(bool),
             Integer(i32),
+            Float(f32),
             Null,
             Colour {
                 r: u8,
@@ -125,6 +126,7 @@ pub mod typed {
     pub enum Type {
         Boolean,
         Integer,
+        Float,
         Null,
         Colour,
         Vector,
@@ -135,6 +137,7 @@ pub mod typed {
             match self {
                 Type::Boolean => write!(f, "boolean"),
                 Type::Integer => write!(f, "integer"),
+                Type::Float => write!(f, "float"),
                 Type::Null => write!(f, "null"),
                 Type::Colour => write!(f, "colour"),
                 Type::Vector => write!(f, "vector"),

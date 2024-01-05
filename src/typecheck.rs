@@ -229,6 +229,10 @@ impl<'src> Typechecker<'src> {
                     expr: typed::Expr::Integer(*integer),
                     ty: Type::Integer,
                 },
+                Expr::Float(float) => TypedExpr {
+                    expr: typed::Expr::Float(*float),
+                    ty: Type::Float,
+                },
                 Expr::Null => TypedExpr {
                     expr: typed::Expr::Null,
                     ty: Type::Null,
@@ -249,6 +253,11 @@ impl<'src> Typechecker<'src> {
                     let y_ty = self.engine.insert(type_to_typeinfo((&y.0.ty, y.1)));
 
                     self.engine.unify(x_ty, y_ty)?;
+
+                    let float_ty = self.engine.insert((TypeInfo::Float, x.1));
+
+                    self.engine.unify(x_ty, float_ty)?;
+                    self.engine.unify(y_ty, float_ty)?;
 
                     TypedExpr {
                         expr: typed::Expr::Vector {
@@ -285,6 +294,16 @@ impl<'src> Typechecker<'src> {
                         (Integer, Integer, LessThanEquals, Boolean),
                         (Integer, Integer, GreaterThan, Boolean),
                         (Integer, Integer, LessThan, Boolean),
+                        (Float, Float, Equals, Boolean),
+                        (Float, Float, NotEquals, Boolean),
+                        (Float, Float, Plus, Float),
+                        (Float, Float, Minus, Float),
+                        (Float, Float, Multiply, Float),
+                        (Float, Float, Divide, Float),
+                        (Float, Float, GreaterThanEquals, Boolean),
+                        (Float, Float, LessThanEquals, Boolean),
+                        (Float, Float, GreaterThan, Boolean),
+                        (Float, Float, LessThan, Boolean),
                         (Null, Null, Equals, Boolean),
                         (Null, Null, NotEquals, Boolean)
                     )
@@ -310,8 +329,9 @@ impl<'src> Typechecker<'src> {
                     let ty = unary_op!(
                         expr.0.ty,
                         op.0,
-                        (Boolean, Not, Boolean),
-                        (Integer, Negate, Integer)
+                        (Integer, Negate, Integer),
+                        (Float, Negate, Float),
+                        (Boolean, Not, Boolean)
                     )
                     .map_err(|_| Error::UnaryOp {
                         ty: expr.0.ty.to_string(),
@@ -394,6 +414,7 @@ impl Engine {
 
             (TypeInfo::Boolean, TypeInfo::Boolean) => Ok(()),
             (TypeInfo::Integer, TypeInfo::Integer) => Ok(()),
+            (TypeInfo::Float, TypeInfo::Float) => Ok(()),
             (TypeInfo::Null, TypeInfo::Null) => Ok(()),
             (TypeInfo::Colour, TypeInfo::Colour) => Ok(()),
 
@@ -415,6 +436,7 @@ impl Engine {
                 TypeInfo::Ref(id) => self.reconstruct(id)?.0,
                 TypeInfo::Boolean => Type::Boolean,
                 TypeInfo::Integer => Type::Integer,
+                TypeInfo::Float => Type::Float,
                 TypeInfo::Null => Type::Null,
                 TypeInfo::Colour => Type::Colour,
                 TypeInfo::Vector => Type::Vector,
@@ -433,6 +455,7 @@ enum TypeInfo {
     Ref(TypeId),
     Boolean,
     Integer,
+    Float,
     Null,
     Colour,
     Vector,
@@ -445,6 +468,7 @@ impl std::fmt::Display for TypeInfo {
             TypeInfo::Ref(id) => write!(f, "ref {}", id),
             TypeInfo::Boolean => write!(f, "boolean"),
             TypeInfo::Integer => write!(f, "integer"),
+            TypeInfo::Float => write!(f, "float"),
             TypeInfo::Null => write!(f, "null"),
             TypeInfo::Colour => write!(f, "colour"),
             TypeInfo::Vector => write!(f, "vector"),
@@ -457,6 +481,7 @@ fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
         match ty.0 {
             Type::Boolean => TypeInfo::Boolean,
             Type::Integer => TypeInfo::Integer,
+            Type::Float => TypeInfo::Float,
             Type::Null => TypeInfo::Null,
             Type::Colour => TypeInfo::Colour,
             Type::Vector => TypeInfo::Vector,

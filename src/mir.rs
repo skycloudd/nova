@@ -43,6 +43,7 @@ pub enum Expression<'src> {
     Variable(&'src str),
     Boolean(bool),
     Integer(i32),
+    Float(f32),
     Null,
     Colour {
         r: u8,
@@ -99,6 +100,47 @@ pub enum Operation<'src> {
         Spanned<TypedExpression<'src>>,
     ),
 
+    FloatEquals(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatNotEquals(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatPlus(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatMinus(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatMultiply(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatDivide(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatGreaterThanEquals(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatLessThanEquals(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatGreaterThan(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+    FloatLessThan(
+        Spanned<TypedExpression<'src>>,
+        Spanned<TypedExpression<'src>>,
+    ),
+
     BooleanEquals(
         Spanned<TypedExpression<'src>>,
         Spanned<TypedExpression<'src>>,
@@ -118,6 +160,7 @@ pub enum Operation<'src> {
     ),
 
     IntegerNegate(Spanned<TypedExpression<'src>>),
+    FloatNegate(Spanned<TypedExpression<'src>>),
     BooleanNot(Spanned<TypedExpression<'src>>),
 }
 
@@ -125,6 +168,7 @@ pub enum Operation<'src> {
 pub enum Type {
     Boolean,
     Integer,
+    Float,
     Null,
     Colour,
     Vector,
@@ -135,6 +179,7 @@ impl From<typed::Type> for Type {
         match ty {
             typed::Type::Boolean => Type::Boolean,
             typed::Type::Integer => Type::Integer,
+            typed::Type::Float => Type::Float,
             typed::Type::Null => Type::Null,
             typed::Type::Colour => Type::Colour,
             typed::Type::Vector => Type::Vector,
@@ -194,6 +239,7 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                 Expr::Variable(name) => Expression::Variable(name),
                 Expr::Boolean(value) => Expression::Boolean(value),
                 Expr::Integer(value) => Expression::Integer(value),
+                Expr::Float(value) => Expression::Float(value),
                 Expr::Null => Expression::Null,
                 Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
                 Expr::Vector { x, y } => Expression::Vector {
@@ -220,6 +266,21 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                             BinaryOp::LessThan => Operation::IntegerLessThan(lhs, rhs),
                         },
 
+                        (Type::Float, Type::Float) => match op.0 {
+                            BinaryOp::Equals => Operation::FloatEquals(lhs, rhs),
+                            BinaryOp::NotEquals => Operation::FloatNotEquals(lhs, rhs),
+                            BinaryOp::Plus => Operation::FloatPlus(lhs, rhs),
+                            BinaryOp::Minus => Operation::FloatMinus(lhs, rhs),
+                            BinaryOp::Multiply => Operation::FloatMultiply(lhs, rhs),
+                            BinaryOp::Divide => Operation::FloatDivide(lhs, rhs),
+                            BinaryOp::GreaterThanEquals => {
+                                Operation::FloatGreaterThanEquals(lhs, rhs)
+                            }
+                            BinaryOp::LessThanEquals => Operation::FloatLessThanEquals(lhs, rhs),
+                            BinaryOp::GreaterThan => Operation::FloatGreaterThan(lhs, rhs),
+                            BinaryOp::LessThan => Operation::FloatLessThan(lhs, rhs),
+                        },
+
                         (Type::Boolean, Type::Boolean) => match op.0 {
                             BinaryOp::Equals => Operation::BooleanEquals(lhs, rhs),
                             BinaryOp::NotEquals => Operation::BooleanNotEquals(lhs, rhs),
@@ -243,6 +304,11 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                     Expression::Operation(Box::new(match &rhs.0.ty {
                         Type::Integer => match op.0 {
                             UnaryOp::Negate => Operation::IntegerNegate(rhs),
+
+                            _ => unreachable!(),
+                        },
+                        Type::Float => match op.0 {
+                            UnaryOp::Negate => Operation::FloatNegate(rhs),
 
                             _ => unreachable!(),
                         },

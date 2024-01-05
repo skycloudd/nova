@@ -6,6 +6,7 @@ pub enum Token<'src> {
     Variable(&'src str),
     Boolean(bool),
     Integer(i32),
+    Float(f32),
     Null,
     HexCode(u8, u8, u8),
     Kw(Kw),
@@ -63,6 +64,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Variable(v) => write!(f, "{}", v),
             Token::Boolean(b) => write!(f, "{}", b),
             Token::Integer(n) => write!(f, "{}", n),
+            Token::Float(n) => write!(f, "{}", n),
             Token::Null => write!(f, "null"),
             Token::Kw(k) => write!(f, "{}", k),
             Token::Ctrl(c) => write!(f, "{}", c),
@@ -144,7 +146,20 @@ pub fn lexer<'src>(
         })
         .map(Token::Integer);
 
-    let hex_digit = choice((
+    let float = text::int(10)
+        .then_ignore(just('.'))
+        .then(text::digits(10))
+        .to_slice()
+        .validate(|n: &str, e, emitter| match n.parse::<f32>() {
+            Ok(n) => n,
+            Err(err) => {
+                emitter.emit(Rich::custom(e.span(), err));
+                0.0
+            }
+        })
+        .map(Token::Float);
+
+    let hex_byte = choice((
         just('0'),
         just('1'),
         just('2'),
@@ -167,9 +182,10 @@ pub fn lexer<'src>(
         just('D'),
         just('E'),
         just('F'),
-    ));
-
-    let hex_byte = hex_digit.repeated().exactly(2).collect::<String>();
+    ))
+    .repeated()
+    .exactly(2)
+    .collect::<String>();
 
     let colour = just('#')
         .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
@@ -220,7 +236,9 @@ pub fn lexer<'src>(
         just('!').to(Token::Op(Op::Not)),
     ));
 
-    let token = choice((keyword, bool, variable, integer, colour, operator, ctrl));
+    let token = choice((
+        keyword, bool, variable, float, integer, colour, operator, ctrl,
+    ));
 
     token
         .map_with(|tok, e| (tok, e.span()))

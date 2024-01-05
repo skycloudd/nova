@@ -18,4 +18,4 @@ end
 
 builtin_print__ #ff77a8;
 
-builtin_print__ { one, six };
+builtin_print__ { 3.14, 1.2345 * 2.0 };

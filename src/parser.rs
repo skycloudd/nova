@@ -140,6 +140,11 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         }
         .map_with(|integer, e| (Expr::Integer(integer), e.span()));
 
+        let float = select! {
+            Token::Float(n) => n
+        }
+        .map_with(|float, e| (Expr::Float(float), e.span()));
+
         let null = just(Token::Null)
             .ignored()
             .map_with(|_, e| (Expr::Null, e.span()))
@@ -180,6 +185,7 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             variable,
             boolean,
             integer,
+            float,
             null,
             colour,
             vector,
