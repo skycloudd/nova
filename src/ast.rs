@@ -40,6 +40,11 @@ macro_rules! ast_expr {
             Boolean(bool),
             Integer(i32),
             Null,
+            Colour {
+                r: u8,
+                g: u8,
+                b: u8,
+            },
             Binary(
                 Box<Spanned<$self_expr<'src>>>,
                 Spanned<BinaryOp>,
@@ -117,6 +122,7 @@ pub mod typed {
         Boolean,
         Integer,
         Null,
+        Colour,
     }
 
     impl std::fmt::Display for Type {
@@ -125,6 +131,7 @@ pub mod typed {
                 Type::Boolean => write!(f, "boolean"),
                 Type::Integer => write!(f, "integer"),
                 Type::Null => write!(f, "null"),
+                Type::Colour => write!(f, "colour"),
             }
         }
     }

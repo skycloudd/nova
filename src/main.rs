@@ -28,8 +28,8 @@ struct Args {
     ast: bool,
 
     /// Print typechecked AST
-    #[clap(short = 'c', long)]
-    typechecked_ast: bool,
+    #[clap(short, long)]
+    checked_ast: bool,
 
     /// Print MIR
     #[clap(short, long)]
@@ -53,7 +53,7 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
 
     if args.tokens {
         if let Some(tokens) = &tokens {
-            println!("{:#?}", tokens);
+            dbg!(tokens);
         }
     }
 
@@ -67,7 +67,7 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
 
     if args.ast {
         if let Some(ast) = &ast {
-            println!("{:#?}", ast);
+            dbg!(ast);
         }
     }
 
@@ -77,9 +77,9 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
 
     errors.extend(type_errors);
 
-    if args.typechecked_ast {
+    if args.checked_ast {
         if let Some(typed_ast) = &typed_ast {
-            println!("{:#?}", typed_ast);
+            dbg!(typed_ast);
         }
     }
 
@@ -93,7 +93,7 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
 
     if args.mir {
         if let Some(mir) = &mir {
-            println!("{:#?}", mir);
+            dbg!(mir);
         }
     }
 

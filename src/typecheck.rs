@@ -233,6 +233,14 @@ impl<'src> Typechecker<'src> {
                     expr: typed::Expr::Null,
                     ty: Type::Null,
                 },
+                Expr::Colour { r, g, b } => TypedExpr {
+                    expr: typed::Expr::Colour {
+                        r: *r,
+                        g: *g,
+                        b: *b,
+                    },
+                    ty: Type::Colour,
+                },
                 Expr::Binary(lhs, op, rhs) => {
                     let lhs = self.typecheck_expr(lhs)?;
                     let rhs = self.typecheck_expr(rhs)?;
@@ -370,6 +378,7 @@ impl Engine {
             (TypeInfo::Boolean, TypeInfo::Boolean) => Ok(()),
             (TypeInfo::Integer, TypeInfo::Integer) => Ok(()),
             (TypeInfo::Null, TypeInfo::Null) => Ok(()),
+            (TypeInfo::Colour, TypeInfo::Colour) => Ok(()),
 
             (a, b) => Err(Error::IncompatibleTypes {
                 a: a.to_string(),
@@ -390,6 +399,7 @@ impl Engine {
                 TypeInfo::Boolean => Type::Boolean,
                 TypeInfo::Integer => Type::Integer,
                 TypeInfo::Null => Type::Null,
+                TypeInfo::Colour => Type::Colour,
             },
             var.1,
         ))
@@ -406,6 +416,7 @@ enum TypeInfo {
     Boolean,
     Integer,
     Null,
+    Colour,
 }
 
 impl std::fmt::Display for TypeInfo {
@@ -416,6 +427,7 @@ impl std::fmt::Display for TypeInfo {
             TypeInfo::Boolean => write!(f, "boolean"),
             TypeInfo::Integer => write!(f, "integer"),
             TypeInfo::Null => write!(f, "null"),
+            TypeInfo::Colour => write!(f, "colour"),
         }
     }
 }
@@ -426,6 +438,7 @@ fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
             Type::Boolean => TypeInfo::Boolean,
             Type::Integer => TypeInfo::Integer,
             Type::Null => TypeInfo::Null,
+            Type::Colour => TypeInfo::Colour,
         },
         ty.1,
     )

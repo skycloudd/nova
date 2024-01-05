@@ -145,12 +145,17 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             .map_with(|_, e| (Expr::Null, e.span()))
             .boxed();
 
+        let colour = select! {
+            Token::HexCode(r, g, b) => (r, g, b)
+        }
+        .map_with(|(r, g, b), e| (Expr::Colour { r, g, b }, e.span()));
+
         let parenthesized_expr = expression.clone().delimited_by(
             just(Token::Ctrl(Ctrl::LeftParen)),
             just(Token::Ctrl(Ctrl::RightParen)),
         );
 
-        let atom = choice((variable, boolean, integer, null, parenthesized_expr)).boxed();
+        let atom = choice((variable, boolean, integer, null, colour, parenthesized_expr)).boxed();
 
         let unary_op = choice((
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),

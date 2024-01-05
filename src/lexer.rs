@@ -7,6 +7,7 @@ pub enum Token<'src> {
     Boolean(bool),
     Integer(i32),
     Null,
+    HexCode(u8, u8, u8),
     Kw(Kw),
     Ctrl(Ctrl),
     Op(Op),
@@ -64,6 +65,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Kw(k) => write!(f, "{}", k),
             Token::Ctrl(c) => write!(f, "{}", c),
             Token::Op(o) => write!(f, "{}", o),
+            Token::HexCode(r, g, b) => write!(f, "#{:02x}{:02x}{:02x}", r, g, b),
         }
     }
 }
@@ -138,6 +140,43 @@ pub fn lexer<'src>(
         })
         .map(Token::Integer);
 
+    let hex_digit = choice((
+        just('0'),
+        just('1'),
+        just('2'),
+        just('3'),
+        just('4'),
+        just('5'),
+        just('6'),
+        just('7'),
+        just('8'),
+        just('9'),
+        just('a'),
+        just('b'),
+        just('c'),
+        just('d'),
+        just('e'),
+        just('f'),
+        just('A'),
+        just('B'),
+        just('C'),
+        just('D'),
+        just('E'),
+        just('F'),
+    ));
+
+    let hex_byte = hex_digit.repeated().exactly(2).collect::<String>();
+
+    let colour = just('#')
+        .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
+        .map(|bytes| {
+            let r = u8::from_str_radix(&bytes[0], 16).unwrap();
+            let g = u8::from_str_radix(&bytes[1], 16).unwrap();
+            let b = u8::from_str_radix(&bytes[2], 16).unwrap();
+
+            Token::HexCode(r, g, b)
+        });
+
     let keyword = choice((
         text::keyword("null").to(Token::Null),
         text::keyword("builtin_print__").to(Token::Kw(Kw::BuiltinPrint)),
@@ -164,18 +203,18 @@ pub fn lexer<'src>(
     let operator = choice((
         just("==").to(Token::Op(Op::Equals)),
         just("!=").to(Token::Op(Op::NotEquals)),
+        just(">=").to(Token::Op(Op::GreaterThanEquals)),
+        just("<=").to(Token::Op(Op::LessThanEquals)),
         just('+').to(Token::Op(Op::Plus)),
         just('-').to(Token::Op(Op::Minus)),
         just('*').to(Token::Op(Op::Multiply)),
         just('/').to(Token::Op(Op::Divide)),
-        just(">=").to(Token::Op(Op::GreaterThanEquals)),
-        just("<=").to(Token::Op(Op::LessThanEquals)),
         just('>').to(Token::Op(Op::GreaterThan)),
         just('<').to(Token::Op(Op::LessThan)),
         just('!').to(Token::Op(Op::Not)),
     ));
 
-    let token = choice((keyword, bool, variable, integer, operator, ctrl));
+    let token = choice((keyword, bool, variable, integer, colour, operator, ctrl));
 
     token
         .map_with(|tok, e| (tok, e.span()))

@@ -44,6 +44,7 @@ pub enum Expression<'src> {
     Boolean(bool),
     Integer(i32),
     Null,
+    Colour { r: u8, g: u8, b: u8 },
     Operation(Box<Operation<'src>>),
 }
 
@@ -117,6 +118,7 @@ pub enum Type {
     Boolean,
     Integer,
     Null,
+    Colour,
 }
 
 impl From<typed::Type> for Type {
@@ -125,6 +127,7 @@ impl From<typed::Type> for Type {
             typed::Type::Boolean => Type::Boolean,
             typed::Type::Integer => Type::Integer,
             typed::Type::Null => Type::Null,
+            typed::Type::Colour => Type::Colour,
         }
     }
 }
@@ -182,6 +185,7 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                 Expr::Boolean(value) => Expression::Boolean(value),
                 Expr::Integer(value) => Expression::Integer(value),
                 Expr::Null => Expression::Null,
+                Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
                 Expr::Binary(lhs, op, rhs) => {
                     let lhs = build_mir_expr(*lhs);
                     let rhs = build_mir_expr(*rhs);

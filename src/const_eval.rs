@@ -151,6 +151,11 @@ fn const_eval_expr<'src>(
             Expression::Boolean(value) => ConstValue::Boolean(*value),
             Expression::Integer(value) => ConstValue::Integer(*value),
             Expression::Null => ConstValue::Null,
+            Expression::Colour { r, g, b } => ConstValue::Colour {
+                r: *r,
+                g: *g,
+                b: *b,
+            },
             Expression::Operation(operation) => match operation.as_ref() {
                 Operation::IntegerEquals(lhs, rhs) => {
                     let lhs = const_eval_expr(const_vars, lhs)?;
@@ -371,6 +376,11 @@ fn propagate_const<'src>(
                 Expression::Boolean(value) => Expression::Boolean(*value),
                 Expression::Integer(value) => Expression::Integer(*value),
                 Expression::Null => Expression::Null,
+                Expression::Colour { r, g, b } => Expression::Colour {
+                    r: *r,
+                    g: *g,
+                    b: *b,
+                },
                 Expression::Operation(operation) => match operation.as_ref() {
                     Operation::IntegerEquals(lhs, rhs) => {
                         let lhs = propagate_const(const_vars, lhs);
@@ -573,6 +583,7 @@ enum ConstValue {
     Boolean(bool),
     Integer(i32),
     Null,
+    Colour { r: u8, g: u8, b: u8 },
 }
 
 impl From<ConstValue> for Expression<'_> {
@@ -581,6 +592,7 @@ impl From<ConstValue> for Expression<'_> {
             ConstValue::Boolean(value) => Expression::Boolean(value),
             ConstValue::Integer(value) => Expression::Integer(value),
             ConstValue::Null => Expression::Null,
+            ConstValue::Colour { r, g, b } => Expression::Colour { r, g, b },
         }
     }
 }
