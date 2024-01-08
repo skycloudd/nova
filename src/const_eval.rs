@@ -167,293 +167,255 @@ fn const_eval_expr<'src>(
             }
             Expression::Operation(operation) => match operation.as_ref() {
                 Operation::IntegerEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Boolean,
-                        lhs == rhs
+                        ==
                     )
                 }
                 Operation::IntegerNotEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerNotEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Boolean,
-                        lhs != rhs
+                        !=
                     )
                 }
                 Operation::IntegerPlus(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerPlus,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Integer,
-                        lhs + rhs
+                        +
                     )
                 }
                 Operation::IntegerMinus(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerMinus,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Integer,
-                        lhs - rhs
+                        -
                     )
                 }
                 Operation::IntegerMultiply(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerMultiply,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Integer,
-                        lhs * rhs
+                        *
                     )
                 }
                 Operation::IntegerDivide(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerDivide,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Integer,
-                        lhs / rhs
+                        /
                     )
                 }
                 Operation::IntegerGreaterThanEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerGreaterThanEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Boolean,
-                        lhs >= rhs
+                        >=
                     )
                 }
                 Operation::IntegerLessThanEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerLessThanEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Boolean,
-                        lhs <= rhs
+                        <=
                     )
                 }
                 Operation::IntegerGreaterThan(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerGreaterThan,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Boolean,
-                        lhs > rhs
+                        >
                     )
                 }
                 Operation::IntegerLessThan(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerLessThan,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Integer,
                         Integer,
                         Boolean,
-                        lhs < rhs
+                        <
                     )
                 }
                 Operation::FloatEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(FloatEquals, lhs, rhs, Float, Float, Boolean, lhs == rhs)
-                }
-                Operation::FloatNotEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        FloatNotEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Float,
                         Float,
                         Boolean,
-                        lhs != rhs
+                        ==
+                    )
+                }
+                Operation::FloatNotEquals(lhs, rhs) => {
+                    const_eval_binary_operation!(
+                        const_vars,
+                        lhs,
+                        rhs,
+                        Float,
+                        Float,
+                        Boolean,
+                        !=
                     )
                 }
                 Operation::FloatPlus(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(FloatPlus, lhs, rhs, Float, Float, Float, lhs + rhs)
+                    const_eval_binary_operation!(
+                        const_vars,
+                        lhs,
+                        rhs,
+                        Float,
+                        Float,
+                        Float,
+                        +
+                    )
                 }
                 Operation::FloatMinus(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(IntegerMinus, lhs, rhs, Float, Float, Float, lhs - rhs)
+                    const_eval_binary_operation!(
+                        const_vars,
+                        lhs,
+                        rhs,
+                        Float,
+                        Float,
+                        Float,
+                        -
+                    )
                 }
                 Operation::FloatMultiply(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(IntegerMultiply, lhs, rhs, Float, Float, Float, lhs * rhs)
+                    const_eval_binary_operation!(
+                        const_vars,
+                        lhs,
+                        rhs,
+                        Float,
+                        Float,
+                        Float,
+                        *
+                    )
                 }
                 Operation::FloatDivide(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(IntegerDivide, lhs, rhs, Float, Float, Float, lhs / rhs)
+                    const_eval_binary_operation!(
+                        const_vars,
+                        lhs,
+                        rhs,
+                        Float,
+                        Float,
+                        Float,
+                        /
+                    )
                 }
                 Operation::FloatGreaterThanEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerGreaterThanEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Float,
                         Float,
                         Boolean,
-                        lhs >= rhs
+                        >=
                     )
                 }
                 Operation::FloatLessThanEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerLessThanEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Float,
                         Float,
                         Boolean,
-                        lhs <= rhs
+                        <=
                     )
                 }
                 Operation::FloatGreaterThan(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerGreaterThan,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Float,
                         Float,
                         Boolean,
-                        lhs > rhs
+                        >
                     )
                 }
                 Operation::FloatLessThan(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        IntegerLessThan,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Float,
                         Float,
                         Boolean,
-                        lhs < rhs
+                        <
                     )
                 }
                 Operation::BooleanEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    const_eval_operation!(
-                        BooleanEquals,
+                    const_eval_binary_operation!(
+                        const_vars,
                         lhs,
                         rhs,
                         Boolean,
                         Boolean,
                         Boolean,
-                        lhs == rhs
+                        ==
                     )
                 }
                 Operation::BooleanNotEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Boolean(lhs), ConstValue::Boolean(rhs)) => {
-                            ConstValue::Boolean(lhs != rhs)
-                        }
-                        _ => unreachable!(),
-                    }
+                    const_eval_binary_operation!(
+                        const_vars,
+                        lhs,
+                        rhs,
+                        Boolean,
+                        Boolean,
+                        Boolean,
+                        !=
+                    )
                 }
                 Operation::IntegerNegate(rhs) => {
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    match rhs.0 {
-                        ConstValue::Integer(rhs) => ConstValue::Integer(-rhs),
-                        _ => unreachable!(),
-                    }
+                    const_eval_unary_operation!(const_vars, rhs, Integer, Integer, -)
                 }
                 Operation::FloatNegate(rhs) => {
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    match rhs.0 {
-                        ConstValue::Float(rhs) => ConstValue::Float(-rhs),
-                        _ => unreachable!(),
-                    }
+                    const_eval_unary_operation!(const_vars, rhs, Float, Float, -)
                 }
                 Operation::BooleanNot(rhs) => {
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    match rhs.0 {
-                        ConstValue::Boolean(rhs) => ConstValue::Boolean(!rhs),
-                        _ => unreachable!(),
-                    }
+                    const_eval_unary_operation!(const_vars, rhs, Boolean, Boolean, !)
                 }
             },
         },
@@ -872,14 +834,27 @@ impl From<ConstValue> for Expression<'_> {
     }
 }
 
-macro_rules! const_eval_operation {
-    ($operation:ident, $lhs:ident, $rhs:ident, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $result:expr) => {
-        match ($lhs.0, $rhs.0) {
-            (ConstValue::$lhs_ty($lhs), ConstValue::$rhs_ty($rhs)) => {
-                ConstValue::$result_ty($result)
-            }
+macro_rules! const_eval_binary_operation {
+    ($const_vars:ident, $lhs:expr, $rhs:expr, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $op:tt) => {{
+        let lhs = const_eval_expr($const_vars, $lhs)?;
+        let rhs = const_eval_expr($const_vars, $rhs)?;
+
+        match (lhs.0, rhs.0) {
+            (ConstValue::$lhs_ty(lhs), ConstValue::$rhs_ty(rhs)) => ConstValue::$result_ty(lhs $op rhs),
             _ => unreachable!(),
         }
-    };
+    }};
 }
-use const_eval_operation;
+use const_eval_binary_operation;
+
+macro_rules! const_eval_unary_operation {
+    ($const_vars:ident, $rhs:expr, $rhs_ty:ident, $result_ty:ident, $op:tt) => {{
+        let rhs = const_eval_expr($const_vars, $rhs)?;
+
+        match rhs.0 {
+            ConstValue::$rhs_ty(rhs) => ConstValue::$result_ty($op rhs),
+            _ => unreachable!(),
+        }
+    }};
+}
+use const_eval_unary_operation;
