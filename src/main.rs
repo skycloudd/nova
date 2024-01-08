@@ -98,8 +98,8 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
     }
 
     if errors.is_empty() {
-        if let Some(_) = mir {
-            todo!()
+        if let Some(mir) = mir {
+            println!("{:?}", mir);
         }
     } else {
         for error in errors {

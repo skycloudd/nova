@@ -31,13 +31,11 @@ impl<K: Eq + Hash, V> Scopes<K, V> {
     }
 
     pub fn get(&self, k: &K) -> Option<&V> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(v) = scope.get(k) {
-                return Some(v);
-            }
-        }
-
-        self.base.get(k)
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(k))
+            .or_else(|| self.base.get(k))
     }
 
     pub fn contains_key(&self, k: &K) -> bool {
