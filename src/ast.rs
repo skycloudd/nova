@@ -40,7 +40,6 @@ macro_rules! ast_expr {
             Boolean(bool),
             Integer(i32),
             Float(f32),
-            Null,
             Colour {
                 r: u8,
                 g: u8,
@@ -127,7 +126,6 @@ pub mod typed {
         Boolean,
         Integer,
         Float,
-        Null,
         Colour,
         Vector,
     }
@@ -138,7 +136,6 @@ pub mod typed {
                 Type::Boolean => write!(f, "boolean"),
                 Type::Integer => write!(f, "integer"),
                 Type::Float => write!(f, "float"),
-                Type::Null => write!(f, "null"),
                 Type::Colour => write!(f, "colour"),
                 Type::Vector => write!(f, "vector"),
             }

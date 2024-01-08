@@ -145,11 +145,6 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         }
         .map_with(|float, e| (Expr::Float(float), e.span()));
 
-        let null = just(Token::Null)
-            .ignored()
-            .map_with(|_, e| (Expr::Null, e.span()))
-            .boxed();
-
         let colour = select! {
             Token::HexCode(r, g, b) => (r, g, b)
         }
@@ -186,7 +181,6 @@ fn expr_parser<'tokens, 'src: 'tokens>(
             boolean,
             integer,
             float,
-            null,
             colour,
             vector,
             parenthesized_expr,

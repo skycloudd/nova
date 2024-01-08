@@ -7,7 +7,6 @@ pub enum Token<'src> {
     Boolean(bool),
     Integer(i32),
     Float(f32),
-    Null,
     HexCode(u8, u8, u8),
     Kw(Kw),
     Ctrl(Ctrl),
@@ -65,7 +64,6 @@ impl std::fmt::Display for Token<'_> {
             Token::Boolean(b) => write!(f, "{}", b),
             Token::Integer(n) => write!(f, "{}", n),
             Token::Float(n) => write!(f, "{}", n),
-            Token::Null => write!(f, "null"),
             Token::Kw(k) => write!(f, "{}", k),
             Token::Ctrl(c) => write!(f, "{}", c),
             Token::Op(o) => write!(f, "{}", o),
@@ -198,7 +196,6 @@ pub fn lexer<'src>(
         });
 
     let keyword = choice((
-        text::keyword("null").to(Token::Null),
         text::keyword("builtin_print__").to(Token::Kw(Kw::BuiltinPrint)),
         text::keyword("end").to(Token::Kw(Kw::End)),
         text::keyword("loop").to(Token::Kw(Kw::Loop)),

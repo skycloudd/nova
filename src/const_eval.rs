@@ -151,7 +151,6 @@ fn const_eval_expr<'src>(
             Expression::Boolean(value) => ConstValue::Boolean(*value),
             Expression::Integer(value) => ConstValue::Integer(*value),
             Expression::Float(value) => ConstValue::Float(*value),
-            Expression::Null => ConstValue::Null,
             Expression::Colour { r, g, b } => ConstValue::Colour {
                 r: *r,
                 g: *g,
@@ -432,24 +431,6 @@ fn const_eval_expr<'src>(
                         _ => unreachable!(),
                     }
                 }
-                Operation::NullEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Null, ConstValue::Null) => ConstValue::Boolean(true),
-                        _ => unreachable!(),
-                    }
-                }
-                Operation::NullNotEquals(lhs, rhs) => {
-                    let lhs = const_eval_expr(const_vars, lhs)?;
-                    let rhs = const_eval_expr(const_vars, rhs)?;
-
-                    match (lhs.0, rhs.0) {
-                        (ConstValue::Null, ConstValue::Null) => ConstValue::Boolean(false),
-                        _ => unreachable!(),
-                    }
-                }
                 Operation::IntegerNegate(rhs) => {
                     let rhs = const_eval_expr(const_vars, rhs)?;
 
@@ -494,7 +475,6 @@ fn propagate_const<'src>(
                 Expression::Boolean(value) => Expression::Boolean(*value),
                 Expression::Integer(value) => Expression::Integer(*value),
                 Expression::Float(value) => Expression::Float(*value),
-                Expression::Null => Expression::Null,
                 Expression::Colour { r, g, b } => Expression::Colour {
                     r: *r,
                     g: *g,
@@ -817,26 +797,6 @@ fn propagate_const<'src>(
                             ))),
                         }
                     }
-                    Operation::NullEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Null, Expression::Null) => Expression::Boolean(true),
-                            _ => Expression::Operation(Box::new(Operation::NullEquals(lhs, rhs))),
-                        }
-                    }
-                    Operation::NullNotEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Null, Expression::Null) => Expression::Boolean(false),
-                            _ => {
-                                Expression::Operation(Box::new(Operation::NullNotEquals(lhs, rhs)))
-                            }
-                        }
-                    }
                     Operation::IntegerNegate(rhs) => {
                         let rhs = propagate_const(const_vars, rhs);
 
@@ -874,7 +834,6 @@ enum ConstValue {
     Boolean(bool),
     Integer(i32),
     Float(f32),
-    Null,
     Colour {
         r: u8,
         g: u8,
@@ -892,7 +851,6 @@ impl From<ConstValue> for Expression<'_> {
             ConstValue::Boolean(value) => Expression::Boolean(value),
             ConstValue::Integer(value) => Expression::Integer(value),
             ConstValue::Float(value) => Expression::Float(value),
-            ConstValue::Null => Expression::Null,
             ConstValue::Colour { r, g, b } => Expression::Colour { r, g, b },
             ConstValue::Vector { x, y } => Expression::Vector {
                 x: Box::new((

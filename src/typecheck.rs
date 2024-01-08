@@ -233,10 +233,6 @@ impl<'src> Typechecker<'src> {
                     expr: typed::Expr::Float(*float),
                     ty: Type::Float,
                 },
-                Expr::Null => TypedExpr {
-                    expr: typed::Expr::Null,
-                    ty: Type::Null,
-                },
                 Expr::Colour { r, g, b } => TypedExpr {
                     expr: typed::Expr::Colour {
                         r: *r,
@@ -303,9 +299,7 @@ impl<'src> Typechecker<'src> {
                         (Float, Float, GreaterThanEquals, Boolean),
                         (Float, Float, LessThanEquals, Boolean),
                         (Float, Float, GreaterThan, Boolean),
-                        (Float, Float, LessThan, Boolean),
-                        (Null, Null, Equals, Boolean),
-                        (Null, Null, NotEquals, Boolean)
+                        (Float, Float, LessThan, Boolean)
                     )
                     .map_err(|_| Error::BinaryOp {
                         lhs: lhs.0.ty.to_string(),
@@ -415,7 +409,6 @@ impl Engine {
             (TypeInfo::Boolean, TypeInfo::Boolean) => Ok(()),
             (TypeInfo::Integer, TypeInfo::Integer) => Ok(()),
             (TypeInfo::Float, TypeInfo::Float) => Ok(()),
-            (TypeInfo::Null, TypeInfo::Null) => Ok(()),
             (TypeInfo::Colour, TypeInfo::Colour) => Ok(()),
 
             (a, b) => Err(Error::IncompatibleTypes {
@@ -437,7 +430,6 @@ impl Engine {
                 TypeInfo::Boolean => Type::Boolean,
                 TypeInfo::Integer => Type::Integer,
                 TypeInfo::Float => Type::Float,
-                TypeInfo::Null => Type::Null,
                 TypeInfo::Colour => Type::Colour,
                 TypeInfo::Vector => Type::Vector,
             },
@@ -456,7 +448,6 @@ enum TypeInfo {
     Boolean,
     Integer,
     Float,
-    Null,
     Colour,
     Vector,
 }
@@ -469,7 +460,6 @@ impl std::fmt::Display for TypeInfo {
             TypeInfo::Boolean => write!(f, "boolean"),
             TypeInfo::Integer => write!(f, "integer"),
             TypeInfo::Float => write!(f, "float"),
-            TypeInfo::Null => write!(f, "null"),
             TypeInfo::Colour => write!(f, "colour"),
             TypeInfo::Vector => write!(f, "vector"),
         }
@@ -482,7 +472,6 @@ fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
             Type::Boolean => TypeInfo::Boolean,
             Type::Integer => TypeInfo::Integer,
             Type::Float => TypeInfo::Float,
-            Type::Null => TypeInfo::Null,
             Type::Colour => TypeInfo::Colour,
             Type::Vector => TypeInfo::Vector,
         },

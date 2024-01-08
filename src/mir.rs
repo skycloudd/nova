@@ -44,7 +44,6 @@ pub enum Expression<'src> {
     Boolean(bool),
     Integer(i32),
     Float(f32),
-    Null,
     Colour {
         r: u8,
         g: u8,
@@ -150,15 +149,6 @@ pub enum Operation<'src> {
         Spanned<TypedExpression<'src>>,
     ),
 
-    NullEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
-    ),
-    NullNotEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
-    ),
-
     IntegerNegate(Spanned<TypedExpression<'src>>),
     FloatNegate(Spanned<TypedExpression<'src>>),
     BooleanNot(Spanned<TypedExpression<'src>>),
@@ -169,7 +159,6 @@ pub enum Type {
     Boolean,
     Integer,
     Float,
-    Null,
     Colour,
     Vector,
 }
@@ -180,7 +169,6 @@ impl From<typed::Type> for Type {
             typed::Type::Boolean => Type::Boolean,
             typed::Type::Integer => Type::Integer,
             typed::Type::Float => Type::Float,
-            typed::Type::Null => Type::Null,
             typed::Type::Colour => Type::Colour,
             typed::Type::Vector => Type::Vector,
         }
@@ -240,7 +228,6 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                 Expr::Boolean(value) => Expression::Boolean(value),
                 Expr::Integer(value) => Expression::Integer(value),
                 Expr::Float(value) => Expression::Float(value),
-                Expr::Null => Expression::Null,
                 Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
                 Expr::Vector { x, y } => Expression::Vector {
                     x: Box::new(build_mir_expr(*x)),
@@ -284,13 +271,6 @@ fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> 
                         (Type::Boolean, Type::Boolean) => match op.0 {
                             BinaryOp::Equals => Operation::BooleanEquals(lhs, rhs),
                             BinaryOp::NotEquals => Operation::BooleanNotEquals(lhs, rhs),
-
-                            _ => unreachable!(),
-                        },
-
-                        (Type::Null, Type::Null) => match op.0 {
-                            BinaryOp::Equals => Operation::NullEquals(lhs, rhs),
-                            BinaryOp::NotEquals => Operation::NullNotEquals(lhs, rhs),
 
                             _ => unreachable!(),
                         },
