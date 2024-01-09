@@ -159,7 +159,7 @@ fn map_errors<'file, T: Clone + Display>(
         .collect()
 }
 
-fn map_boxed_errors<'file>(errors: Vec<Box<Error<'file>>>) -> Vec<error::Error<'file>> {
+fn map_boxed_errors(errors: Vec<Box<Error>>) -> Vec<error::Error> {
     errors.into_iter().map(|e| *e).collect()
 }
 
