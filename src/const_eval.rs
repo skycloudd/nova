@@ -7,7 +7,7 @@ use crate::{
 
 pub fn const_eval<'file>(
     ast: &mut [Spanned<TypedStatement<'_, 'file>>],
-) -> Result<(), Vec<Error<'file>>> {
+) -> Result<(), Vec<Box<Error<'file>>>> {
     let mut errors = vec![];
 
     let mut const_vars = Scopes::new();
@@ -28,7 +28,7 @@ pub fn const_eval<'file>(
 fn const_eval_statement<'src, 'file>(
     const_vars: &mut Scopes<&'src str, Spanned<'file, ConstValue<'file>>>,
     statement: &mut Spanned<TypedStatement<'src, 'file>>,
-) -> Result<(), Vec<Error<'file>>> {
+) -> Result<(), Vec<Box<Error<'file>>>> {
     match statement.0 {
         TypedStatement::Expr(ref mut expr) => {
             *expr = propagate_const(const_vars, expr);
@@ -135,19 +135,19 @@ fn const_eval_statement<'src, 'file>(
     }
 }
 
-fn const_eval_expr<'src, 'file>(
-    const_vars: &mut Scopes<&'src str, Spanned<ConstValue<'file>>>,
+fn const_eval_expr<'file>(
+    const_vars: &mut Scopes<&str, Spanned<ConstValue<'file>>>,
     expr: &Spanned<'file, TypedExpression<'_, 'file>>,
-) -> Result<Spanned<'file, ConstValue<'file>>, Error<'file>> {
+) -> Result<Spanned<'file, ConstValue<'file>>, Box<Error<'file>>> {
     Ok((
         match &expr.0.expr {
             Expression::Variable(name) => match const_vars.get(name) {
                 Some(value) => value.0.clone(),
                 None => {
-                    return Err(Error::UnknownConstVariable {
+                    return Err(Box::new(Error::UnknownConstVariable {
                         name: name.to_string(),
                         span: expr.1,
-                    })
+                    }))
                 }
             },
             Expression::Boolean(value) => ConstValue::Boolean(*value),

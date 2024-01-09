@@ -80,11 +80,9 @@ fn run(args: &Args) -> std::io::Result<()> {
         }
     }
 
-    let (typed_ast, type_errors) = ast
-        .as_ref()
-        .map_or((None, vec![]), |ast| typecheck::typecheck(ast));
+    let (typed_ast, type_errors) = ast.map_or((None, vec![]), typecheck::typecheck);
 
-    errors.extend(type_errors);
+    errors.extend(type_errors.into_iter().map(|e| *e));
 
     if args.checked_ast {
         if let Some(typed_ast) = &typed_ast {
@@ -96,7 +94,7 @@ fn run(args: &Args) -> std::io::Result<()> {
 
     if let Some(mir) = mir.as_mut() {
         if let Err(errs) = const_eval::const_eval(mir) {
-            errors.extend(errs);
+            errors.extend(errs.into_iter().map(|e| *e));
         }
     };
 
@@ -187,15 +185,15 @@ impl<'file> chumsky::span::Span for Span<'file> {
     }
 
     fn context(&self) -> Self::Context {
-        todo!()
+        self.0.context()
     }
 
     fn start(&self) -> Self::Offset {
-        todo!()
+        self.0.start()
     }
 
     fn end(&self) -> Self::Offset {
-        todo!()
+        self.0.end()
     }
 }
 
@@ -203,7 +201,7 @@ impl<'file> ariadne::Span for Span<'file> {
     type SourceId = Path;
 
     fn source(&self) -> &Self::SourceId {
-        &self.0.context()
+        self.0.context()
     }
 
     fn start(&self) -> usize {

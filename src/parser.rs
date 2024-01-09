@@ -220,7 +220,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(factor_op.then(unary).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
+                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
             })
             .boxed();
 
@@ -235,7 +235,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(sum_op.then(factor).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
+                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
             })
             .boxed();
 
@@ -252,7 +252,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(relational_op.then(sum).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
+                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
             })
             .boxed();
 
@@ -267,7 +267,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(equality_op.then(relational).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
+                (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
             })
             .boxed()
     })
