@@ -2,7 +2,7 @@
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
-use error::convert_error;
+use error::{convert_error, Error};
 use std::{
     fmt::Display,
     fs::read_to_string,
@@ -82,7 +82,7 @@ fn run(args: &Args) -> std::io::Result<()> {
 
     let (typed_ast, type_errors) = ast.map_or((None, vec![]), typecheck::typecheck);
 
-    errors.extend(type_errors.into_iter().map(|e| *e));
+    errors.extend(map_boxed_errors(type_errors));
 
     if args.checked_ast {
         if let Some(typed_ast) = &typed_ast {
@@ -94,7 +94,7 @@ fn run(args: &Args) -> std::io::Result<()> {
 
     if let Some(mir) = mir.as_mut() {
         if let Err(errs) = const_eval::const_eval(mir) {
-            errors.extend(errs.into_iter().map(|e| *e));
+            errors.extend(map_boxed_errors(errs));
         }
     };
 
@@ -159,6 +159,10 @@ fn map_errors<'file, T: Clone + Display>(
         .map(|e| e.map_token(|t| t.to_string()))
         .flat_map(convert_error)
         .collect()
+}
+
+fn map_boxed_errors<'file>(errors: Vec<Box<Error<'file>>>) -> Vec<error::Error<'file>> {
+    errors.into_iter().map(|e| *e).collect()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -194,7 +194,7 @@ fn typecheck_statement<'src, 'file>(
 fn typecheck_expression<'src, 'file>(
     engine: &mut Engine<'file>,
     variables: &mut Scopes<&str, TypeId>,
-    const_variables: &mut Scopes<&str, TypeId>,
+    const_variables: &Scopes<&str, TypeId>,
     expr: Spanned<'file, Expr<'src, 'file>>,
 ) -> Result<Spanned<'file, TypedExpr<'src, 'file>>, Box<Error<'file>>> {
     Ok((
