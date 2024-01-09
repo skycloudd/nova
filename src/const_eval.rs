@@ -450,340 +450,291 @@ fn propagate_const<'src, 'file>(
                 },
                 Expression::Operation(operation) => match operation.as_ref() {
                     Operation::IntegerEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Boolean(lhs == rhs)
-                            }
-                            _ => {
-                                Expression::Operation(Box::new(Operation::IntegerEquals(lhs, rhs)))
-                            }
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            ==,
+                            Integer,
+                            Integer,
+                            Boolean,
+                            IntegerEquals
+                        )
                     }
                     Operation::IntegerNotEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Boolean(lhs != rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerNotEquals(
-                                lhs, rhs,
-                            ))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            !=,
+                            Integer,
+                            Integer,
+                            Boolean,
+                            IntegerNotEquals
+                        )
                     }
                     Operation::IntegerPlus(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Integer(lhs + rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerPlus(lhs, rhs))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            +,
+                            Integer,
+                            Integer,
+                            Integer,
+                            IntegerPlus
+                        )
                     }
                     Operation::IntegerMinus(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Integer(lhs - rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerMinus(lhs, rhs))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            -,
+                            Integer,
+                            Integer,
+                            Integer,
+                            IntegerMinus
+                        )
                     }
                     Operation::IntegerMultiply(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Integer(lhs * rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerMultiply(
-                                lhs, rhs,
-                            ))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            *,
+                            Integer,
+                            Integer,
+                            Integer,
+                            IntegerMultiply
+                        )
                     }
                     Operation::IntegerDivide(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Integer(lhs / rhs)
-                            }
-                            _ => {
-                                Expression::Operation(Box::new(Operation::IntegerDivide(lhs, rhs)))
-                            }
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            /,
+                            Integer,
+                            Integer,
+                            Integer,
+                            IntegerDivide
+                        )
                     }
                     Operation::IntegerGreaterThanEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Boolean(lhs >= rhs)
-                            }
-                            _ => Expression::Operation(Box::new(
-                                Operation::IntegerGreaterThanEquals(lhs, rhs),
-                            )),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            >=,
+                            Integer,
+                            Integer,
+                            Boolean,
+                            IntegerGreaterThanEquals
+                        )
                     }
                     Operation::IntegerLessThanEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Boolean(lhs <= rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerLessThanEquals(
-                                lhs, rhs,
-                            ))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            <=,
+                            Integer,
+                            Integer,
+                            Boolean,
+                            IntegerLessThanEquals
+                        )
                     }
                     Operation::IntegerGreaterThan(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Boolean(lhs > rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerGreaterThan(
-                                lhs, rhs,
-                            ))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            >,
+                            Integer,
+                            Integer,
+                            Boolean,
+                            IntegerGreaterThan
+                        )
                     }
                     Operation::IntegerLessThan(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Integer(lhs), Expression::Integer(rhs)) => {
-                                Expression::Boolean(lhs < rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::IntegerLessThan(
-                                lhs, rhs,
-                            ))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            <,
+                            Integer,
+                            Integer,
+                            Boolean,
+                            IntegerLessThan
+                        )
                     }
                     Operation::FloatEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Boolean(lhs == rhs)
-                                }
-                                _ => Expression::Operation(Box::new(Operation::FloatEquals(
-                                    lhs, rhs,
-                                ))),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            ==,
+                            Float,
+                            Float,
+                            Boolean,
+                            FloatEquals
+                        )
                     }
                     Operation::FloatNotEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Boolean(lhs != rhs)
-                                }
-                                _ => Expression::Operation(Box::new(Operation::FloatNotEquals(
-                                    lhs, rhs,
-                                ))),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            !=,
+                            Float,
+                            Float,
+                            Boolean,
+                            FloatNotEquals
+                        )
                     }
                     Operation::FloatPlus(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Float(lhs + rhs)
-                                }
-                                _ => {
-                                    Expression::Operation(Box::new(Operation::FloatPlus(lhs, rhs)))
-                                }
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            +,
+                            Float,
+                            Float,
+                            Float,
+                            FloatPlus
+                        )
                     }
                     Operation::FloatMinus(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Float(lhs - rhs)
-                                }
-                                _ => {
-                                    Expression::Operation(Box::new(Operation::FloatMinus(lhs, rhs)))
-                                }
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            -,
+                            Float,
+                            Float,
+                            Float,
+                            FloatMinus
+                        )
                     }
                     Operation::FloatMultiply(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Float(lhs * rhs)
-                                }
-                                _ => Expression::Operation(Box::new(Operation::FloatMultiply(
-                                    lhs, rhs,
-                                ))),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            *,
+                            Float,
+                            Float,
+                            Float,
+                            FloatMultiply
+                        )
                     }
                     Operation::FloatDivide(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Float(lhs / rhs)
-                                }
-                                _ => Expression::Operation(Box::new(Operation::FloatDivide(
-                                    lhs, rhs,
-                                ))),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            /,
+                            Float,
+                            Float,
+                            Float,
+                            FloatDivide
+                        )
                     }
                     Operation::FloatGreaterThanEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Boolean(lhs >= rhs)
-                                }
-                                _ => Expression::Operation(Box::new(
-                                    Operation::FloatGreaterThanEquals(lhs, rhs),
-                                )),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            >=,
+                            Float,
+                            Float,
+                            Boolean,
+                            FloatGreaterThanEquals
+                        )
                     }
                     Operation::FloatLessThanEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Boolean(lhs <= rhs)
-                                }
-                                _ => Expression::Operation(Box::new(
-                                    Operation::FloatLessThanEquals(lhs, rhs),
-                                )),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            <=,
+                            Float,
+                            Float,
+                            Boolean,
+                            FloatLessThanEquals
+                        )
                     }
                     Operation::FloatGreaterThan(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Boolean(lhs > rhs)
-                                }
-                                _ => Expression::Operation(Box::new(Operation::FloatGreaterThan(
-                                    lhs, rhs,
-                                ))),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            >,
+                            Float,
+                            Float,
+                            Boolean,
+                            FloatGreaterThan
+                        )
                     }
                     Operation::FloatLessThan(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.ty, &rhs.0.ty) {
-                            (Type::Float, Type::Float) => match (&lhs.0.expr, &rhs.0.expr) {
-                                (Expression::Float(lhs), Expression::Float(rhs)) => {
-                                    Expression::Boolean(lhs < rhs)
-                                }
-                                _ => Expression::Operation(Box::new(Operation::FloatLessThan(
-                                    lhs, rhs,
-                                ))),
-                            },
-                            _ => unreachable!(),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            <,
+                            Float,
+                            Float,
+                            Boolean,
+                            FloatLessThan
+                        )
                     }
                     Operation::BooleanEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Boolean(lhs), Expression::Boolean(rhs)) => {
-                                Expression::Boolean(lhs == rhs)
-                            }
-                            _ => {
-                                Expression::Operation(Box::new(Operation::BooleanEquals(lhs, rhs)))
-                            }
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            ==,
+                            Boolean,
+                            Boolean,
+                            Boolean,
+                            BooleanEquals
+                        )
                     }
                     Operation::BooleanNotEquals(lhs, rhs) => {
-                        let lhs = propagate_const(const_vars, lhs);
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match (&lhs.0.expr, &rhs.0.expr) {
-                            (Expression::Boolean(lhs), Expression::Boolean(rhs)) => {
-                                Expression::Boolean(lhs != rhs)
-                            }
-                            _ => Expression::Operation(Box::new(Operation::BooleanNotEquals(
-                                lhs, rhs,
-                            ))),
-                        }
+                        const_propagate_binary_operation!(
+                            const_vars,
+                            lhs,
+                            rhs,
+                            !=,
+                            Boolean,
+                            Boolean,
+                            Boolean,
+                            BooleanNotEquals
+                        )
                     }
                     Operation::IntegerNegate(rhs) => {
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match &rhs.0.expr {
-                            Expression::Integer(rhs) => Expression::Integer(-rhs),
-                            _ => Expression::Operation(Box::new(Operation::IntegerNegate(rhs))),
-                        }
+                        const_propagate_unary_operation!(
+                            const_vars,
+                            -rhs,
+                            Integer,
+                            Integer,
+                            IntegerNegate
+                        )
                     }
                     Operation::FloatNegate(rhs) => {
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match &rhs.0.expr {
-                            Expression::Float(rhs) => Expression::Float(-rhs),
-                            _ => Expression::Operation(Box::new(Operation::FloatNegate(rhs))),
-                        }
+                        const_propagate_unary_operation!(
+                            const_vars,
+                            -rhs,
+                            Float,
+                            Float,
+                            FloatNegate
+                        )
                     }
                     Operation::BooleanNot(rhs) => {
-                        let rhs = propagate_const(const_vars, rhs);
-
-                        match &rhs.0.expr {
-                            Expression::Boolean(rhs) => Expression::Boolean(!rhs),
-                            _ => Expression::Operation(Box::new(Operation::BooleanNot(rhs))),
-                        }
+                        const_propagate_unary_operation!(
+                            const_vars, !rhs, Boolean, Boolean, BooleanNot
+                        )
                     }
                 },
             },
@@ -860,3 +811,28 @@ macro_rules! const_eval_unary_operation {
     }};
 }
 use const_eval_unary_operation;
+
+macro_rules! const_propagate_binary_operation {
+    ($const_vars:ident, $lhs:expr, $rhs:expr, $op:tt, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $og_ty:ident) => {{
+        let lhs = propagate_const($const_vars, $lhs);
+        let rhs = propagate_const($const_vars, $rhs);
+
+        match (&lhs.0.expr, &rhs.0.expr) {
+            (Expression::$lhs_ty(lhs), Expression::$rhs_ty(rhs)) => Expression::$result_ty(lhs $op rhs),
+            _ => Expression::Operation(Box::new(Operation::$og_ty(lhs, rhs))),
+        }
+    }};
+}
+use const_propagate_binary_operation;
+
+macro_rules! const_propagate_unary_operation {
+    ($const_vars:ident, $op:tt $rhs:expr, $rhs_ty:ident, $result_ty:ident, $og_ty:ident) => {{
+        let rhs = propagate_const($const_vars, $rhs);
+
+        match &rhs.0.expr {
+            Expression::$rhs_ty(rhs) => Expression::$result_ty($op rhs),
+            _ => Expression::Operation(Box::new(Operation::$og_ty(rhs))),
+        }
+    }};
+}
+use const_propagate_unary_operation;
