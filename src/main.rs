@@ -105,15 +105,17 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
             println!("{:?}", mir);
         }
     } else {
-        for error in errors {
+        for error in &errors {
             print_error(input, error)?;
         }
+
+        eprintln!("{} errors found", errors.len());
     }
 
     Ok(())
 }
 
-fn print_error(input: &str, error: error::Error) -> std::io::Result<()> {
+fn print_error(input: &str, error: &error::Error) -> std::io::Result<()> {
     let mut color_generator = ColorGenerator::new();
 
     let message = error.message();
