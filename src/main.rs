@@ -10,6 +10,7 @@ mod const_eval;
 mod error;
 mod lexer;
 mod mir;
+mod mir_no_span;
 mod parser;
 mod scopes;
 mod typecheck;
@@ -99,6 +100,8 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
 
     if errors.is_empty() {
         if let Some(mir) = mir {
+            let mir = mir_no_span::mir_remove_span(mir);
+
             println!("{:?}", mir);
         }
     } else {
