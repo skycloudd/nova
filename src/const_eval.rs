@@ -5,143 +5,127 @@ use crate::{
     Spanned,
 };
 
-pub fn const_eval<'file>(
-    ast: &mut [Spanned<TypedStatement<'_, 'file>>],
-) -> Result<(), Vec<Box<Error<'file>>>> {
+pub fn const_eval<'src, 'file>(
+    ast: Vec<Spanned<'file, TypedStatement<'src, 'file>>>,
+) -> (
+    Option<Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+    Vec<Box<Error<'file>>>,
+) {
     let mut errors = vec![];
 
     let mut const_vars = Scopes::new();
 
+    let mut statements = vec![];
+
     for statement in ast {
-        if let Err(errs) = const_eval_statement(&mut const_vars, statement) {
-            errors.extend(errs);
+        if let Some(statement) = const_eval_statement(&mut const_vars, &mut errors, statement) {
+            statements.push(statement);
         }
     }
 
     if errors.is_empty() {
-        Ok(())
+        (Some(statements), errors)
     } else {
-        Err(errors)
+        (None, errors)
     }
 }
 
 fn const_eval_statement<'src, 'file>(
     const_vars: &mut Scopes<&'src str, Spanned<'file, ConstValue<'file>>>,
-    statement: &mut Spanned<TypedStatement<'src, 'file>>,
-) -> Result<(), Vec<Box<Error<'file>>>> {
+    errors: &mut Vec<Box<Error<'file>>>,
+    statement: Spanned<'file, TypedStatement<'src, 'file>>,
+) -> Option<Spanned<'file, TypedStatement<'src, 'file>>> {
     match statement.0 {
-        TypedStatement::Expr(ref mut expr) => {
-            *expr = propagate_const(const_vars, expr);
+        TypedStatement::Expr(expr) => Some(TypedStatement::Expr(propagate_const(const_vars, expr))),
+        TypedStatement::BuiltinPrint(expr) => Some(TypedStatement::BuiltinPrint(propagate_const(
+            const_vars, expr,
+        ))),
+        TypedStatement::Loop(statements) => {
+            let mut stmts = vec![];
 
-            Ok(())
-        }
-        TypedStatement::BuiltinPrint(ref mut expr) => {
-            *expr = propagate_const(const_vars, expr);
-
-            Ok(())
-        }
-        TypedStatement::Loop(ref mut statements) => {
-            let mut errors = vec![];
-
-            const_vars.push_scope();
-
-            for statement in &mut statements.0 {
-                if let Err(errs) = const_eval_statement(const_vars, statement) {
-                    errors.extend(errs);
+            for statement in statements.0 {
+                if let Some(statement) = const_eval_statement(const_vars, errors, statement) {
+                    stmts.push(statement);
                 }
             }
 
-            const_vars.pop_scope();
-
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(errors)
-            }
+            Some(TypedStatement::Loop((stmts, statements.1)))
         }
         TypedStatement::If {
-            ref mut condition,
-            ref mut then_branch,
-            ref mut else_branch,
+            condition,
+            then_branch,
+            else_branch,
         } => {
-            *condition = propagate_const(const_vars, condition);
+            let condition = propagate_const(const_vars, condition);
 
-            let mut errors = vec![];
+            let mut then = vec![];
 
-            const_vars.push_scope();
-
-            for statement in &mut then_branch.0 {
-                if let Err(errs) = const_eval_statement(const_vars, statement) {
-                    errors.extend(errs);
+            for statement in then_branch.0 {
+                if let Some(statement) = const_eval_statement(const_vars, errors, statement) {
+                    then.push(statement);
                 }
             }
 
-            const_vars.pop_scope();
+            let else_ = else_branch.map(|else_branch| {
+                let mut else_ = vec![];
 
-            if let Some(else_branch) = else_branch {
-                const_vars.push_scope();
-
-                for statement in &mut else_branch.0 {
-                    if let Err(errs) = const_eval_statement(const_vars, statement) {
-                        errors.extend(errs);
+                for statement in else_branch.0 {
+                    if let Some(statement) = const_eval_statement(const_vars, errors, statement) {
+                        else_.push(statement);
                     }
                 }
 
-                const_vars.pop_scope();
+                (else_, else_branch.1)
+            });
+
+            Some(TypedStatement::If {
+                condition,
+                then_branch: (then, then_branch.1),
+                else_branch: else_,
+            })
+        }
+        TypedStatement::Let { name, value } => {
+            let value = propagate_const(const_vars, value);
+
+            Some(TypedStatement::Let { name, value })
+        }
+        TypedStatement::Const { name, value: expr } => {
+            let span = expr.1;
+
+            match const_eval_expr(const_vars, expr) {
+                Ok(value) => {
+                    const_vars.insert(name.0, value.clone());
+
+                    Some(TypedStatement::Const {
+                        name,
+                        value: (value.0.into(), span),
+                    })
+                }
+                Err(error) => {
+                    errors.push(error);
+
+                    None
+                }
             }
-
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(errors)
-            }
         }
-        TypedStatement::Let {
-            name: _,
-            ref mut value,
-        } => {
-            *value = propagate_const(const_vars, value);
+        TypedStatement::Assign { name, value } => {
+            let value = propagate_const(const_vars, value);
 
-            Ok(())
+            Some(TypedStatement::Assign { name, value })
         }
-        TypedStatement::Const {
-            name,
-            ref mut value,
-        } => {
-            let const_value = const_eval_expr(const_vars, value).map_err(|err| vec![err])?;
-
-            *value = (
-                TypedExpression {
-                    expr: const_value.0.clone().into(),
-                    ty: value.0.ty,
-                },
-                value.1,
-            );
-
-            const_vars.insert(name.0, const_value);
-
-            Ok(())
-        }
-        TypedStatement::Assign {
-            name: _,
-            ref mut value,
-        } => {
-            *value = propagate_const(const_vars, value);
-
-            Ok(())
-        }
-        TypedStatement::Break => Ok(()),
-        TypedStatement::Continue => Ok(()),
+        TypedStatement::Break => Some(TypedStatement::Break),
+        TypedStatement::Continue => Some(TypedStatement::Continue),
     }
+    .map(|stmt| (stmt, statement.1))
 }
 
 fn const_eval_expr<'file>(
     const_vars: &mut Scopes<&str, Spanned<ConstValue<'file>>>,
-    expr: &Spanned<'file, TypedExpression<'_, 'file>>,
+    expr: Spanned<'file, TypedExpression<'_, 'file>>,
 ) -> Result<Spanned<'file, ConstValue<'file>>, Box<Error<'file>>> {
     Ok((
-        match &expr.0.expr {
-            Expression::Variable(name) => match const_vars.get(name) {
+        match expr.0.expr {
+            Expression::Variable(name) => match const_vars.get(&name) {
                 Some(value) => value.0.clone(),
                 None => {
                     return Err(Box::new(Error::UnknownConstVariable {
@@ -150,24 +134,20 @@ fn const_eval_expr<'file>(
                     }))
                 }
             },
-            Expression::Boolean(value) => ConstValue::Boolean(*value),
-            Expression::Integer(value) => ConstValue::Integer(*value),
-            Expression::Float(value) => ConstValue::Float(*value),
-            Expression::Colour { r, g, b } => ConstValue::Colour {
-                r: *r,
-                g: *g,
-                b: *b,
-            },
+            Expression::Boolean(value) => ConstValue::Boolean(value),
+            Expression::Integer(value) => ConstValue::Integer(value),
+            Expression::Float(value) => ConstValue::Float(value),
+            Expression::Colour { r, g, b } => ConstValue::Colour { r, g, b },
             Expression::Vector { x, y } => {
-                let x = const_eval_expr(const_vars, x)?;
-                let y = const_eval_expr(const_vars, y)?;
+                let x = const_eval_expr(const_vars, *x)?;
+                let y = const_eval_expr(const_vars, *y)?;
 
                 ConstValue::Vector {
                     x: Box::new(x),
                     y: Box::new(y),
                 }
             }
-            Expression::Operation(operation) => match operation.as_ref() {
+            Expression::Operation(operation) => match *operation {
                 Operation::IntegerEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
@@ -427,313 +407,247 @@ fn const_eval_expr<'file>(
 
 fn propagate_const<'src, 'file>(
     const_vars: &mut Scopes<&'src str, Spanned<ConstValue<'file>>>,
-    expr: &Spanned<'file, TypedExpression<'src, 'file>>,
+    expr: Spanned<'file, TypedExpression<'src, 'file>>,
 ) -> Spanned<'file, TypedExpression<'src, 'file>> {
     (
         TypedExpression {
-            expr: match &expr.0.expr {
-                Expression::Variable(name) => match const_vars.get(name) {
+            expr: match expr.0.expr {
+                Expression::Variable(name) => match const_vars.get(&name) {
                     Some(value) => Expression::from(value.0.clone()),
                     None => Expression::Variable(name),
                 },
-                Expression::Boolean(value) => Expression::Boolean(*value),
-                Expression::Integer(value) => Expression::Integer(*value),
-                Expression::Float(value) => Expression::Float(*value),
-                Expression::Colour { r, g, b } => Expression::Colour {
-                    r: *r,
-                    g: *g,
-                    b: *b,
-                },
+                Expression::Boolean(value) => Expression::Boolean(value),
+                Expression::Integer(value) => Expression::Integer(value),
+                Expression::Float(value) => Expression::Float(value),
+                Expression::Colour { r, g, b } => Expression::Colour { r, g, b },
                 Expression::Vector { x, y } => Expression::Vector {
-                    x: Box::new(propagate_const(const_vars, x)),
-                    y: Box::new(propagate_const(const_vars, y)),
+                    x: Box::new(propagate_const(const_vars, *x)),
+                    y: Box::new(propagate_const(const_vars, *y)),
                 },
-                Expression::Operation(operation) => match operation.as_ref() {
+                Expression::Operation(operation) => match *operation {
                     Operation::IntegerEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             ==,
-                            Integer,
-                            Integer,
-                            Boolean,
+                            Integer, Integer => Boolean,
                             IntegerEquals
                         )
                     }
                     Operation::IntegerNotEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             !=,
-                            Integer,
-                            Integer,
-                            Boolean,
+                            Integer, Integer => Boolean,
                             IntegerNotEquals
                         )
                     }
                     Operation::IntegerPlus(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             +,
-                            Integer,
-                            Integer,
-                            Integer,
+                            Integer, Integer => Integer,
                             IntegerPlus
                         )
                     }
                     Operation::IntegerMinus(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             -,
-                            Integer,
-                            Integer,
-                            Integer,
+                            Integer, Integer => Integer,
                             IntegerMinus
                         )
                     }
                     Operation::IntegerMultiply(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             *,
-                            Integer,
-                            Integer,
-                            Integer,
+                            Integer, Integer => Integer,
                             IntegerMultiply
                         )
                     }
                     Operation::IntegerDivide(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             /,
-                            Integer,
-                            Integer,
-                            Integer,
+                            Integer, Integer => Integer,
                             IntegerDivide
                         )
                     }
                     Operation::IntegerGreaterThanEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             >=,
-                            Integer,
-                            Integer,
-                            Boolean,
+                            Integer, Integer => Boolean,
                             IntegerGreaterThanEquals
                         )
                     }
                     Operation::IntegerLessThanEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             <=,
-                            Integer,
-                            Integer,
-                            Boolean,
+                            Integer, Integer => Boolean,
                             IntegerLessThanEquals
                         )
                     }
                     Operation::IntegerGreaterThan(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             >,
-                            Integer,
-                            Integer,
-                            Boolean,
+                            Integer, Integer => Boolean,
                             IntegerGreaterThan
                         )
                     }
                     Operation::IntegerLessThan(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             <,
-                            Integer,
-                            Integer,
-                            Boolean,
+                            Integer, Integer => Boolean,
                             IntegerLessThan
                         )
                     }
                     Operation::FloatEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             ==,
-                            Float,
-                            Float,
-                            Boolean,
+                            Float, Float => Boolean,
                             FloatEquals
                         )
                     }
                     Operation::FloatNotEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             !=,
-                            Float,
-                            Float,
-                            Boolean,
+                            Float, Float => Boolean,
                             FloatNotEquals
                         )
                     }
                     Operation::FloatPlus(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             +,
-                            Float,
-                            Float,
-                            Float,
+                            Float, Float => Float,
                             FloatPlus
                         )
                     }
                     Operation::FloatMinus(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             -,
-                            Float,
-                            Float,
-                            Float,
+                            Float, Float => Float,
                             FloatMinus
                         )
                     }
                     Operation::FloatMultiply(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             *,
-                            Float,
-                            Float,
-                            Float,
+                            Float, Float => Float,
                             FloatMultiply
                         )
                     }
                     Operation::FloatDivide(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             /,
-                            Float,
-                            Float,
-                            Float,
+                            Float, Float => Float,
                             FloatDivide
                         )
                     }
                     Operation::FloatGreaterThanEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             >=,
-                            Float,
-                            Float,
-                            Boolean,
+                            Float, Float => Boolean,
                             FloatGreaterThanEquals
                         )
                     }
                     Operation::FloatLessThanEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             <=,
-                            Float,
-                            Float,
-                            Boolean,
+                            Float, Float => Boolean,
                             FloatLessThanEquals
                         )
                     }
                     Operation::FloatGreaterThan(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             >,
-                            Float,
-                            Float,
-                            Boolean,
+                            Float, Float => Boolean,
                             FloatGreaterThan
                         )
                     }
                     Operation::FloatLessThan(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             <,
-                            Float,
-                            Float,
-                            Boolean,
+                            Float, Float => Boolean,
                             FloatLessThan
                         )
                     }
                     Operation::BooleanEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             ==,
-                            Boolean,
-                            Boolean,
-                            Boolean,
+                            Boolean, Boolean => Boolean,
                             BooleanEquals
                         )
                     }
                     Operation::BooleanNotEquals(lhs, rhs) => {
                         const_propagate_binary_operation!(
                             const_vars,
-                            lhs,
-                            rhs,
+                            lhs, rhs,
                             !=,
-                            Boolean,
-                            Boolean,
-                            Boolean,
+                            Boolean, Boolean => Boolean,
                             BooleanNotEquals
                         )
                     }
                     Operation::IntegerNegate(rhs) => {
                         const_propagate_unary_operation!(
                             const_vars,
-                            -rhs,
-                            Integer,
-                            Integer,
+                            rhs,
+                            -,
+                            Integer => Integer,
                             IntegerNegate
                         )
                     }
                     Operation::FloatNegate(rhs) => {
                         const_propagate_unary_operation!(
                             const_vars,
-                            -rhs,
-                            Float,
-                            Float,
+                            rhs,
+                            -,
+                            Float => Float,
                             FloatNegate
                         )
                     }
                     Operation::BooleanNot(rhs) => {
                         const_propagate_unary_operation!(
-                            const_vars, !rhs, Boolean, Boolean, BooleanNot
+                            const_vars,
+                            rhs,
+                            !,
+                            Boolean => Boolean,
+                            BooleanNot
                         )
                     }
                 },
@@ -787,6 +701,24 @@ impl<'src, 'file> From<ConstValue<'file>> for Expression<'src, 'file> {
     }
 }
 
+impl<'src, 'file> From<ConstValue<'file>> for TypedExpression<'src, 'file> {
+    fn from(expr: ConstValue<'file>) -> Self {
+        let expr = expr.into();
+
+        let ty = match &expr {
+            Expression::Boolean(_) => Type::Boolean,
+            Expression::Integer(_) => Type::Integer,
+            Expression::Float(_) => Type::Float,
+            Expression::Colour { .. } => Type::Colour,
+            Expression::Vector { .. } => Type::Vector,
+            Expression::Operation(_) => unreachable!(),
+            Expression::Variable(_) => unreachable!(),
+        };
+
+        TypedExpression { expr, ty }
+    }
+}
+
 macro_rules! const_eval_binary_operation {
     ($const_vars:ident, $lhs:expr, $rhs:expr, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $op:tt) => {{
         let lhs = const_eval_expr($const_vars, $lhs)?;
@@ -813,7 +745,7 @@ macro_rules! const_eval_unary_operation {
 use const_eval_unary_operation;
 
 macro_rules! const_propagate_binary_operation {
-    ($const_vars:ident, $lhs:expr, $rhs:expr, $op:tt, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $og_ty:ident) => {{
+    ($const_vars:ident, $lhs:expr, $rhs:expr, $op:tt, $lhs_ty:ident, $rhs_ty:ident => $result_ty:ident, $og_ty:ident) => {{
         let lhs = propagate_const($const_vars, $lhs);
         let rhs = propagate_const($const_vars, $rhs);
 
@@ -826,7 +758,7 @@ macro_rules! const_propagate_binary_operation {
 use const_propagate_binary_operation;
 
 macro_rules! const_propagate_unary_operation {
-    ($const_vars:ident, $op:tt $rhs:expr, $rhs_ty:ident, $result_ty:ident, $og_ty:ident) => {{
+    ($const_vars:ident, $rhs:expr, $op:tt, $rhs_ty:ident => $result_ty:ident, $og_ty:ident) => {{
         let rhs = propagate_const($const_vars, $rhs);
 
         match &rhs.0.expr {

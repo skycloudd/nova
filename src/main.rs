@@ -90,13 +90,11 @@ fn run(args: &Args) -> std::io::Result<()> {
         }
     }
 
-    let mut mir = typed_ast.map(mir::build_mir);
+    let mir = typed_ast.map(mir::build_mir);
 
-    if let Some(mir) = mir.as_mut() {
-        if let Err(errs) = const_eval::const_eval(mir) {
-            errors.extend(map_boxed_errors(errs));
-        }
-    };
+    let (mir, const_eval_errors) = mir.map_or((None, vec![]), |mir| const_eval::const_eval(mir));
+
+    errors.extend(map_boxed_errors(const_eval_errors));
 
     if args.mir {
         if let Some(mir) = &mir {
