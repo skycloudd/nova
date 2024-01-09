@@ -5,7 +5,9 @@ use crate::{
     Spanned,
 };
 
-pub fn const_eval(ast: &mut [Spanned<TypedStatement>]) -> Result<(), Vec<Error>> {
+pub fn const_eval<'file>(
+    ast: &mut [Spanned<TypedStatement<'_, 'file>>],
+) -> Result<(), Vec<Error<'file>>> {
     let mut errors = vec![];
 
     let mut const_vars = Scopes::new();
@@ -23,10 +25,10 @@ pub fn const_eval(ast: &mut [Spanned<TypedStatement>]) -> Result<(), Vec<Error>>
     }
 }
 
-fn const_eval_statement<'src>(
-    const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
-    statement: &mut Spanned<TypedStatement<'src>>,
-) -> Result<(), Vec<Error>> {
+fn const_eval_statement<'src, 'file>(
+    const_vars: &mut Scopes<&'src str, Spanned<'file, ConstValue<'file>>>,
+    statement: &mut Spanned<TypedStatement<'src, 'file>>,
+) -> Result<(), Vec<Error<'file>>> {
     match statement.0 {
         TypedStatement::Expr(ref mut expr) => {
             *expr = propagate_const(const_vars, expr);
@@ -133,10 +135,10 @@ fn const_eval_statement<'src>(
     }
 }
 
-fn const_eval_expr<'src>(
-    const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
-    expr: &Spanned<TypedExpression<'src>>,
-) -> Result<Spanned<ConstValue>, Error> {
+fn const_eval_expr<'src, 'file>(
+    const_vars: &mut Scopes<&'src str, Spanned<ConstValue<'file>>>,
+    expr: &Spanned<'file, TypedExpression<'_, 'file>>,
+) -> Result<Spanned<'file, ConstValue<'file>>, Error<'file>> {
     Ok((
         match &expr.0.expr {
             Expression::Variable(name) => match const_vars.get(name) {
@@ -423,10 +425,10 @@ fn const_eval_expr<'src>(
     ))
 }
 
-fn propagate_const<'src>(
-    const_vars: &mut Scopes<&'src str, Spanned<ConstValue>>,
-    expr: &Spanned<TypedExpression<'src>>,
-) -> Spanned<TypedExpression<'src>> {
+fn propagate_const<'src, 'file>(
+    const_vars: &mut Scopes<&'src str, Spanned<ConstValue<'file>>>,
+    expr: &Spanned<'file, TypedExpression<'src, 'file>>,
+) -> Spanned<'file, TypedExpression<'src, 'file>> {
     (
         TypedExpression {
             expr: match &expr.0.expr {
@@ -792,7 +794,7 @@ fn propagate_const<'src>(
 }
 
 #[derive(Clone, PartialEq)]
-enum ConstValue {
+enum ConstValue<'file> {
     Boolean(bool),
     Integer(i32),
     Float(f32),
@@ -802,13 +804,13 @@ enum ConstValue {
         b: u8,
     },
     Vector {
-        x: Box<Spanned<ConstValue>>,
-        y: Box<Spanned<ConstValue>>,
+        x: Box<Spanned<'file, ConstValue<'file>>>,
+        y: Box<Spanned<'file, ConstValue<'file>>>,
     },
 }
 
-impl From<ConstValue> for Expression<'_> {
-    fn from(expr: ConstValue) -> Self {
+impl<'src, 'file> From<ConstValue<'file>> for Expression<'src, 'file> {
+    fn from(expr: ConstValue<'file>) -> Self {
         match expr {
             ConstValue::Boolean(value) => Expression::Boolean(value),
             ConstValue::Integer(value) => Expression::Integer(value),

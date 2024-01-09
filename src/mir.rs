@@ -7,39 +7,39 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TypedStatement<'src> {
-    Expr(Spanned<TypedExpression<'src>>),
-    BuiltinPrint(Spanned<TypedExpression<'src>>),
-    Loop(Spanned<Vec<Spanned<TypedStatement<'src>>>>),
+pub enum TypedStatement<'src, 'file> {
+    Expr(Spanned<'file, TypedExpression<'src, 'file>>),
+    BuiltinPrint(Spanned<'file, TypedExpression<'src, 'file>>),
+    Loop(Spanned<'file, Vec<Spanned<'file, TypedStatement<'src, 'file>>>>),
     If {
-        condition: Spanned<TypedExpression<'src>>,
-        then_branch: Spanned<Vec<Spanned<TypedStatement<'src>>>>,
-        else_branch: Option<Spanned<Vec<Spanned<TypedStatement<'src>>>>>,
+        condition: Spanned<'file, TypedExpression<'src, 'file>>,
+        then_branch: Spanned<'file, Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+        else_branch: Option<Spanned<'file, Vec<Spanned<'file, TypedStatement<'src, 'file>>>>>,
     },
     Let {
-        name: Spanned<&'src str>,
-        value: Spanned<TypedExpression<'src>>,
+        name: Spanned<'file, &'src str>,
+        value: Spanned<'file, TypedExpression<'src, 'file>>,
     },
     Const {
-        name: Spanned<&'src str>,
-        value: Spanned<TypedExpression<'src>>,
+        name: Spanned<'file, &'src str>,
+        value: Spanned<'file, TypedExpression<'src, 'file>>,
     },
     Assign {
-        name: Spanned<&'src str>,
-        value: Spanned<TypedExpression<'src>>,
+        name: Spanned<'file, &'src str>,
+        value: Spanned<'file, TypedExpression<'src, 'file>>,
     },
     Break,
     Continue,
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<'src> {
-    pub expr: Expression<'src>,
+pub struct TypedExpression<'src, 'file> {
+    pub expr: Expression<'src, 'file>,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression<'src> {
+pub enum Expression<'src, 'file> {
     Variable(&'src str),
     Boolean(bool),
     Integer(i32),
@@ -50,108 +50,108 @@ pub enum Expression<'src> {
         b: u8,
     },
     Vector {
-        x: Box<Spanned<TypedExpression<'src>>>,
-        y: Box<Spanned<TypedExpression<'src>>>,
+        x: Box<Spanned<'file, TypedExpression<'src, 'file>>>,
+        y: Box<Spanned<'file, TypedExpression<'src, 'file>>>,
     },
-    Operation(Box<Operation<'src>>),
+    Operation(Box<Operation<'src, 'file>>),
 }
 
 #[derive(Debug)]
-pub enum Operation<'src> {
+pub enum Operation<'src, 'file> {
     IntegerEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerNotEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerPlus(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerMinus(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerMultiply(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerDivide(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerGreaterThanEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerLessThanEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerGreaterThan(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     IntegerLessThan(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
 
     FloatEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatNotEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatPlus(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatMinus(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatMultiply(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatDivide(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatGreaterThanEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatLessThanEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatGreaterThan(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     FloatLessThan(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
 
     BooleanEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
     BooleanNotEquals(
-        Spanned<TypedExpression<'src>>,
-        Spanned<TypedExpression<'src>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
+        Spanned<'file, TypedExpression<'src, 'file>>,
     ),
 
-    IntegerNegate(Spanned<TypedExpression<'src>>),
-    FloatNegate(Spanned<TypedExpression<'src>>),
-    BooleanNot(Spanned<TypedExpression<'src>>),
+    IntegerNegate(Spanned<'file, TypedExpression<'src, 'file>>),
+    FloatNegate(Spanned<'file, TypedExpression<'src, 'file>>),
+    BooleanNot(Spanned<'file, TypedExpression<'src, 'file>>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -175,11 +175,15 @@ impl From<typed::Type> for Type {
     }
 }
 
-pub fn build_mir(ast: Vec<Spanned<Statement<'_>>>) -> Vec<Spanned<TypedStatement<'_>>> {
+pub fn build_mir<'src, 'file>(
+    ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
+) -> Vec<Spanned<'file, TypedStatement<'src, 'file>>> {
     ast.into_iter().map(build_mir_statement).collect()
 }
 
-fn build_mir_statement(statement: Spanned<Statement<'_>>) -> Spanned<TypedStatement<'_>> {
+fn build_mir_statement<'src, 'file>(
+    statement: Spanned<'file, Statement<'src, 'file>>,
+) -> Spanned<'file, TypedStatement<'src, 'file>> {
     (
         match statement.0 {
             Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(expr)),
@@ -220,7 +224,9 @@ fn build_mir_statement(statement: Spanned<Statement<'_>>) -> Spanned<TypedStatem
     )
 }
 
-fn build_mir_expr(expr: Spanned<TypedExpr<'_>>) -> Spanned<TypedExpression<'_>> {
+fn build_mir_expr<'src, 'file>(
+    expr: Spanned<'file, TypedExpr<'src, 'file>>,
+) -> Spanned<'file, TypedExpression<'src, 'file>> {
     (
         TypedExpression {
             expr: match expr.0.expr {

@@ -3,26 +3,26 @@ use crate::Spanned;
 macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
         #[derive(Debug)]
-        pub enum $name<'src> {
-            Expr(Spanned<$expr<'src>>),
-            BuiltinPrint(Spanned<$expr<'src>>),
-            Loop(Spanned<Vec<Spanned<Self>>>),
+        pub enum $name<'src, 'file> {
+            Expr(Spanned<'file, $expr<'src, 'file>>),
+            BuiltinPrint(Spanned<'file, $expr<'src, 'file>>),
+            Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
             If {
-                condition: Spanned<$expr<'src>>,
-                then_branch: Spanned<Vec<Spanned<Self>>>,
-                else_branch: Option<Spanned<Vec<Spanned<Self>>>>,
+                condition: Spanned<'file, $expr<'src, 'file>>,
+                then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
+                else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
             },
             Let {
-                name: Spanned<&'src str>,
-                value: Spanned<$expr<'src>>,
+                name: Spanned<'file, &'src str>,
+                value: Spanned<'file, $expr<'src, 'file>>,
             },
             Const {
-                name: Spanned<&'src str>,
-                value: Spanned<$expr<'src>>,
+                name: Spanned<'file, &'src str>,
+                value: Spanned<'file, $expr<'src, 'file>>,
             },
             Assign {
-                name: Spanned<&'src str>,
-                value: Spanned<$expr<'src>>,
+                name: Spanned<'file, &'src str>,
+                value: Spanned<'file, $expr<'src, 'file>>,
             },
             Break,
             Continue,
@@ -35,7 +35,7 @@ ast_statement!(Statement, Expr);
 macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
         #[derive(Debug)]
-        pub enum $name<'src> {
+        pub enum $name<'src, 'file> {
             Variable(&'src str),
             Boolean(bool),
             Integer(i32),
@@ -46,15 +46,18 @@ macro_rules! ast_expr {
                 b: u8,
             },
             Vector {
-                x: Box<Spanned<$self_expr<'src>>>,
-                y: Box<Spanned<$self_expr<'src>>>,
+                x: Box<Spanned<'file, $self_expr<'src, 'file>>>,
+                y: Box<Spanned<'file, $self_expr<'src, 'file>>>,
             },
             Binary(
-                Box<Spanned<$self_expr<'src>>>,
-                Spanned<BinaryOp>,
-                Box<Spanned<$self_expr<'src>>>,
+                Box<Spanned<'file, $self_expr<'src, 'file>>>,
+                Spanned<'file, BinaryOp>,
+                Box<Spanned<'file, $self_expr<'src, 'file>>>,
             ),
-            Unary(Spanned<UnaryOp>, Box<Spanned<$self_expr<'src>>>),
+            Unary(
+                Spanned<'file, UnaryOp>,
+                Box<Spanned<'file, $self_expr<'src, 'file>>>,
+            ),
         }
     };
 }
@@ -114,8 +117,8 @@ pub mod typed {
     ast_statement!(TypedStatement, TypedExpr);
 
     #[derive(Debug)]
-    pub struct TypedExpr<'src> {
-        pub expr: Expr<'src>,
+    pub struct TypedExpr<'src, 'file> {
+        pub expr: Expr<'src, 'file>,
         pub ty: Type,
     }
 

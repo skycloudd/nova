@@ -3,54 +3,54 @@ use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
 use std::borrow::Cow;
 
-pub enum Error {
+pub enum Error<'file> {
     ExpectedFound {
         expected: Vec<String>,
         found: Option<String>,
-        span: Span,
+        span: Span<'file>,
     },
     Custom {
         message: String,
-        span: Span,
+        span: Span<'file>,
     },
     UnknownConstVariable {
         name: String,
-        span: Span,
+        span: Span<'file>,
     },
     UndefinedVariable {
         name: String,
-        span: Span,
+        span: Span<'file>,
     },
     UnknownType {
-        span: Span,
+        span: Span<'file>,
     },
     IncompatibleTypes {
         a: String,
-        a_span: Span,
+        a_span: Span<'file>,
         b: String,
-        b_span: Span,
+        b_span: Span<'file>,
     },
     BinaryOp {
         lhs: String,
-        lhs_span: Span,
+        lhs_span: Span<'file>,
         rhs: String,
-        rhs_span: Span,
+        rhs_span: Span<'file>,
         op: String,
-        op_span: Span,
+        op_span: Span<'file>,
     },
     UnaryOp {
         ty: String,
-        ty_span: Span,
+        ty_span: Span<'file>,
         op: String,
-        op_span: Span,
+        op_span: Span<'file>,
     },
     ConstAlreadyDefined {
         name: String,
-        span: Span,
+        span: Span<'file>,
     },
 }
 
-impl Error {
+impl Error<'_> {
     pub fn message(&self) -> Cow<'_, str> {
         match self {
             Error::ExpectedFound {
@@ -191,8 +191,8 @@ impl Error {
     }
 }
 
-pub fn convert_error(error: Rich<'_, String, Span>) -> Vec<Error> {
-    fn convert(reason: &RichReason<'_, String>, span: Span) -> Vec<Error> {
+pub fn convert_error<'file>(error: Rich<'_, String, Span<'file>>) -> Vec<Error<'file>> {
+    fn convert<'file>(reason: &RichReason<'_, String>, span: Span<'file>) -> Vec<Error<'file>> {
         match reason {
             RichReason::ExpectedFound { expected, found } => {
                 let expected = expected.iter().map(|e| e.to_string()).collect();

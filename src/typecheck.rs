@@ -9,9 +9,12 @@ use crate::{
 };
 use rustc_hash::FxHashMap;
 
-pub fn typecheck<'src>(
-    ast: &[Spanned<Statement<'src>>],
-) -> (Option<Vec<Spanned<TypedStatement<'src>>>>, Vec<Error>) {
+pub fn typecheck<'src: 'file, 'file>(
+    ast: &[Spanned<'file, Statement<'src, 'file>>],
+) -> (
+    Option<Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+    Vec<Error<'file>>,
+) {
     Typechecker::new().typecheck_ast(ast)
 }
 
@@ -21,7 +24,7 @@ struct Typechecker<'src> {
     const_variables: Scopes<&'src str, TypeId>,
 }
 
-impl<'src> Typechecker<'src> {
+impl Typechecker<'_> {
     fn new() -> Self {
         Self {
             engine: Engine::new(),
@@ -42,8 +45,8 @@ impl<'src> Typechecker<'src> {
 
     fn typecheck_ast(
         &mut self,
-        ast: &[Spanned<Statement<'src>>],
-    ) -> (Option<Vec<Spanned<TypedStatement<'src>>>>, Vec<Error>) {
+        ast: &[Spanned<Statement>],
+    ) -> (Option<Vec<Spanned<TypedStatement>>>, Vec<Error>) {
         let mut statements = vec![];
         let mut errors = vec![];
 
@@ -59,8 +62,8 @@ impl<'src> Typechecker<'src> {
 
     fn typecheck_statement(
         &mut self,
-        statement: &Spanned<Statement<'src>>,
-    ) -> Result<Spanned<TypedStatement<'src>>, Error> {
+        statement: &Spanned<Statement>,
+    ) -> Result<Spanned<TypedStatement>, Error> {
         Ok((
             match &statement.0 {
                 Statement::Expr(expr) => {
@@ -192,10 +195,7 @@ impl<'src> Typechecker<'src> {
         ))
     }
 
-    fn typecheck_expr(
-        &mut self,
-        expr: &Spanned<Expr<'src>>,
-    ) -> Result<Spanned<TypedExpr<'src>>, Error> {
+    fn typecheck_expr(&mut self, expr: &Spanned<Expr>) -> Result<Spanned<TypedExpr>, Error> {
         Ok((
             match &expr.0 {
                 Expr::Variable(var) => {
@@ -466,7 +466,7 @@ impl std::fmt::Display for TypeInfo {
     }
 }
 
-fn type_to_typeinfo(ty: Spanned<&Type>) -> Spanned<TypeInfo> {
+fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
     (
         match ty.0 {
             Type::Boolean => TypeInfo::Boolean,

@@ -1,9 +1,13 @@
 #![forbid(unsafe_code)]
 
-use ariadne::{ColorGenerator, Label, Report, Source};
+use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
 use error::convert_error;
-use std::{fmt::Display, fs::read_to_string, path::PathBuf};
+use std::{
+    fmt::Display,
+    fs::read_to_string,
+    path::{Path, PathBuf},
+};
 
 mod ast;
 mod const_eval;
@@ -40,15 +44,17 @@ struct Args {
 fn main() -> std::io::Result<()> {
     let args = <Args as clap::Parser>::parse();
 
-    let input = read_to_string(&args.filename)?;
-
-    run(&input, &args)
+    run(&args)
 }
 
-fn run(input: &str, args: &Args) -> std::io::Result<()> {
+fn run(args: &Args) -> std::io::Result<()> {
+    let input = read_to_string(&args.filename)?;
+
     let mut errors = vec![];
 
-    let (tokens, lex_errors) = lexer::lexer().parse(input).into_output_errors();
+    let (tokens, lex_errors) = lexer::lexer()
+        .parse(input.map_span(|s| Span::new(&args.filename, s.into_range())))
+        .into_output_errors();
 
     errors.extend(map_errors(lex_errors));
 
@@ -59,8 +65,10 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
     }
 
     let (ast, parse_errors) = tokens.as_ref().map_or((None, vec![]), |tokens| {
+        let eoi_span = Span::new(&args.filename, input.len()..input.len());
+
         parser::parser()
-            .parse(tokens.spanned((input.len()..input.len()).into()))
+            .parse(tokens.spanned(eoi_span))
             .into_output_errors()
     });
 
@@ -106,7 +114,7 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
         }
     } else {
         for error in &errors {
-            print_error(input, error)?;
+            print_error(&args.filename, error)?;
         }
 
         eprintln!("{} errors found", errors.len());
@@ -115,21 +123,21 @@ fn run(input: &str, args: &Args) -> std::io::Result<()> {
     Ok(())
 }
 
-fn print_error(input: &str, error: &error::Error) -> std::io::Result<()> {
+fn print_error(filename: &Path, error: &error::Error) -> std::io::Result<()> {
     let mut color_generator = ColorGenerator::new();
 
     let message = error.message();
     let spans = error.spans();
     let note = error.note();
 
-    let offset = spans.iter().map(|s| s.1.start).min().unwrap_or(0);
+    let offset = spans.iter().map(|s| s.1 .0.start()).min().unwrap_or(0);
 
-    let mut report = Report::build(ariadne::ReportKind::Error, (), offset);
+    let mut report = Report::build(ariadne::ReportKind::Error, filename, offset);
 
     report.set_message(message);
 
     for span in spans {
-        let mut label = Label::new(span.1.into_range()).with_color(color_generator.next());
+        let mut label = Label::new(span.1).with_color(color_generator.next());
 
         if let Some(message) = span.0 {
             label = label.with_message(message);
@@ -142,10 +150,12 @@ fn print_error(input: &str, error: &error::Error) -> std::io::Result<()> {
         report.set_note(note);
     }
 
-    report.finish().eprint(Source::from(input))
+    report.finish().eprint(FileCache::default())
 }
 
-fn map_errors<T: Clone + Display>(errors: Vec<Rich<'_, T, Span>>) -> Vec<error::Error> {
+fn map_errors<'file, T: Clone + Display>(
+    errors: Vec<Rich<'_, T, Span<'file>>>,
+) -> Vec<error::Error<'file>> {
     errors
         .into_iter()
         .map(|e| e.map_token(|t| t.to_string()))
@@ -153,5 +163,54 @@ fn map_errors<T: Clone + Display>(errors: Vec<Rich<'_, T, Span>>) -> Vec<error::
         .collect()
 }
 
-pub type Span = SimpleSpan<usize>;
-pub type Spanned<T> = (T, Span);
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
+pub type Spanned<'file, T> = (T, Span<'file>);
+
+impl<'file> Span<'file> {
+    pub fn new(context: &'file Path, range: std::ops::Range<usize>) -> Span<'file> {
+        Span(SimpleSpan::<usize, &'file Path>::new(context, range))
+    }
+
+    pub fn union(self, other: Span<'file>) -> Span<'file> {
+        Span(self.0.union(other.0))
+    }
+}
+
+impl<'file> chumsky::span::Span for Span<'file> {
+    type Context = &'file Path;
+
+    type Offset = usize;
+
+    fn new(context: Self::Context, range: std::ops::Range<Self::Offset>) -> Self {
+        Span::new(context, range)
+    }
+
+    fn context(&self) -> Self::Context {
+        todo!()
+    }
+
+    fn start(&self) -> Self::Offset {
+        todo!()
+    }
+
+    fn end(&self) -> Self::Offset {
+        todo!()
+    }
+}
+
+impl<'file> ariadne::Span for Span<'file> {
+    type SourceId = Path;
+
+    fn source(&self) -> &Self::SourceId {
+        &self.0.context()
+    }
+
+    fn start(&self) -> usize {
+        self.0.start()
+    }
+
+    fn end(&self) -> usize {
+        self.0.end()
+    }
+}

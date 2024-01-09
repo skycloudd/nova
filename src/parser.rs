@@ -5,22 +5,26 @@ use crate::{
 };
 use chumsky::{input::SpannedInput, prelude::*};
 
-type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
+type ParserInput<'tokens, 'src, 'file> =
+    SpannedInput<Token<'src>, Span<'file>, &'tokens [(Token<'src>, Span<'file>)]>;
 
-type ParserError<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
+type ParserError<'tokens, 'src, 'file> = extra::Err<Rich<'tokens, Token<'src>, Span<'file>>>;
 
-pub fn parser<'tokens, 'src: 'tokens>() -> impl Parser<
+pub fn parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
     'tokens,
-    ParserInput<'tokens, 'src>,
-    Vec<Spanned<Statement<'src>>>,
-    ParserError<'tokens, 'src>,
+    ParserInput<'tokens, 'src, 'file>,
+    Vec<Spanned<'file, Statement<'src, 'file>>>,
+    ParserError<'tokens, 'src, 'file>,
 > {
     statement_parser().repeated().collect().then_ignore(end())
 }
 
-fn statement_parser<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Statement<'src>>, ParserError<'tokens, 'src>>
-{
+fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, Statement<'src, 'file>>,
+    ParserError<'tokens, 'src, 'file>,
+> {
     recursive(|statement| {
         let expr = expr_parser()
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
@@ -121,9 +125,12 @@ fn statement_parser<'tokens, 'src: 'tokens>(
     })
 }
 
-fn expr_parser<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Expr<'src>>, ParserError<'tokens, 'src>>
-{
+fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, Expr<'src, 'file>>,
+    ParserError<'tokens, 'src, 'file>,
+> {
     recursive(|expression| {
         let variable = select! {
             Token::Variable(name) => name
@@ -195,10 +202,10 @@ fn expr_parser<'tokens, 'src: 'tokens>(
 
         let unary = unary_op
             .repeated()
-            .foldr(atom, |op: (_, SimpleSpan), expr: (_, SimpleSpan)| {
-                let span = op.1.start..expr.1.end;
+            .foldr(atom, |op: (_, Span), expr: (_, Span)| {
+                let span = Span::union(op.1, expr.1);
 
-                (Expr::Unary(op, Box::new(expr)), span.into())
+                (Expr::Unary(op, Box::new(expr)), span)
             })
             .boxed();
 
@@ -211,7 +218,7 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         let factor = unary
             .clone()
             .foldl(factor_op.then(unary).repeated(), |lhs, (op, rhs)| {
-                let span = lhs.1.start..rhs.1.end;
+                let span = Span::union(lhs.1, rhs.1);
 
                 (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
             })
@@ -226,7 +233,7 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         let sum = factor
             .clone()
             .foldl(sum_op.then(factor).repeated(), |lhs, (op, rhs)| {
-                let span = lhs.1.start..rhs.1.end;
+                let span = Span::union(lhs.1, rhs.1);
 
                 (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
             })
@@ -243,7 +250,7 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         let relational = sum
             .clone()
             .foldl(relational_op.then(sum).repeated(), |lhs, (op, rhs)| {
-                let span = lhs.1.start..rhs.1.end;
+                let span = Span::union(lhs.1, rhs.1);
 
                 (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
             })
@@ -258,7 +265,7 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         relational
             .clone()
             .foldl(equality_op.then(relational).repeated(), |lhs, (op, rhs)| {
-                let span = lhs.1.start..rhs.1.end;
+                let span = Span::union(lhs.1, rhs.1);
 
                 (Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span.into())
             })
@@ -266,9 +273,12 @@ fn expr_parser<'tokens, 'src: 'tokens>(
     })
 }
 
-fn ident<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<&'src str>, ParserError<'tokens, 'src>>
-{
+fn ident<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, &'src str>,
+    ParserError<'tokens, 'src, 'file>,
+> {
     select! {
         Token::Variable(name) => name
     }

@@ -1,5 +1,6 @@
-use crate::{Span, Spanned};
-use chumsky::prelude::*;
+use chumsky::{input::MappedSpan, prelude::*};
+
+use crate::Span;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Token<'src> {
@@ -125,8 +126,15 @@ impl std::fmt::Display for Op {
     }
 }
 
-pub fn lexer<'src>(
-) -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char, Span>>> {
+pub fn lexer<'src, 'file: 'src, F>() -> impl Parser<
+    'src,
+    MappedSpan<Span<'file>, &'src str, F>,
+    Vec<(Token<'src>, Span<'file>)>,
+    extra::Err<Rich<'src, char, Span<'file>>>,
+>
+where
+    F: Fn(chumsky::span::SimpleSpan) -> Span<'file> + 'file,
+{
     let variable = text::ident().map(Token::Variable);
 
     let bool = choice((

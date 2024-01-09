@@ -104,13 +104,13 @@ impl From<mir::Type> for Type {
 }
 
 pub fn mir_remove_span<'src>(
-    mir: Vec<Spanned<mir::TypedStatement<'src>>>,
+    mir: Vec<Spanned<mir::TypedStatement<'src, '_>>>,
 ) -> Vec<TypedStatement<'src>> {
     mir.into_iter().map(|s| statement_remove_span(s)).collect()
 }
 
 fn statement_remove_span<'src>(
-    statement: Spanned<mir::TypedStatement<'src>>,
+    statement: Spanned<mir::TypedStatement<'src, '_>>,
 ) -> TypedStatement<'src> {
     match statement.0 {
         mir::TypedStatement::Expr(expr) => TypedStatement::Expr(expression_remove_span(expr)),
@@ -161,7 +161,7 @@ fn statement_remove_span<'src>(
 }
 
 fn expression_remove_span<'src>(
-    expression: Spanned<mir::TypedExpression<'src>>,
+    expression: Spanned<mir::TypedExpression<'src, '_>>,
 ) -> TypedExpression<'src> {
     TypedExpression {
         expr: match expression.0.expr {
@@ -182,7 +182,7 @@ fn expression_remove_span<'src>(
     }
 }
 
-fn operation_remove_span<'src>(operation: mir::Operation<'src>) -> Operation<'src> {
+fn operation_remove_span<'src>(operation: mir::Operation<'src, '_>) -> Operation<'src> {
     match operation {
         mir::Operation::IntegerEquals(lhs, rhs) => {
             Operation::IntegerEquals(expression_remove_span(lhs), expression_remove_span(rhs))
