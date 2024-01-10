@@ -64,7 +64,6 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 just(Token::Kw(Kw::Else))
                     .ignore_then(
                         statement
-                            .clone()
                             .repeated()
                             .collect()
                             .map_with(|body, e| (body, e.span())),
@@ -178,7 +177,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             })
             .boxed();
 
-        let parenthesized_expr = expression.clone().delimited_by(
+        let parenthesized_expr = expression.delimited_by(
             just(Token::Ctrl(Ctrl::LeftParen)),
             just(Token::Ctrl(Ctrl::RightParen)),
         );
