@@ -151,253 +151,187 @@ fn const_eval_expr<'file>(
                 Operation::IntegerEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Boolean,
-                        ==
+                        lhs, rhs,
+                        ==,
+                        Integer, Integer => Boolean
                     )
                 }
                 Operation::IntegerNotEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Boolean,
-                        !=
+                        lhs, rhs,
+                        !=,
+                        Integer, Integer => Boolean
                     )
                 }
                 Operation::IntegerPlus(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Integer,
-                        +
+                        lhs, rhs,
+                        +,
+                        Integer, Integer => Integer
                     )
                 }
                 Operation::IntegerMinus(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Integer,
-                        -
+                        lhs, rhs,
+                        -,
+                        Integer, Integer => Integer
                     )
                 }
                 Operation::IntegerMultiply(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Integer,
-                        *
+                        lhs, rhs,
+                        *,
+                        Integer, Integer => Integer
                     )
                 }
                 Operation::IntegerDivide(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Integer,
-                        /
+                        lhs, rhs,
+                        /,
+                        Integer, Integer => Integer
                     )
                 }
                 Operation::IntegerGreaterThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Boolean,
-                        >=
+                        lhs, rhs,
+                        >=,
+                        Integer, Integer => Boolean
                     )
                 }
                 Operation::IntegerLessThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Boolean,
-                        <=
+                        lhs, rhs,
+                        <=,
+                        Integer, Integer => Boolean
                     )
                 }
                 Operation::IntegerGreaterThan(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Boolean,
-                        >
+                        lhs, rhs,
+                        >,
+                        Integer, Integer => Boolean
                     )
                 }
                 Operation::IntegerLessThan(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Integer,
-                        Integer,
-                        Boolean,
-                        <
+                        lhs, rhs,
+                        <,
+                        Integer, Integer => Boolean
                     )
                 }
                 Operation::FloatEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Boolean,
-                        ==
+                        lhs, rhs,
+                        ==,
+                        Float, Float => Boolean
                     )
                 }
                 Operation::FloatNotEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Boolean,
-                        !=
+                        lhs, rhs,
+                        !=,
+                        Float, Float => Boolean
                     )
                 }
                 Operation::FloatPlus(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Float,
-                        +
+                        lhs, rhs,
+                        +,
+                        Float, Float => Float
                     )
                 }
                 Operation::FloatMinus(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Float,
-                        -
+                        lhs, rhs,
+                        -,
+                        Float, Float => Float
                     )
                 }
                 Operation::FloatMultiply(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Float,
-                        *
+                        lhs, rhs,
+                        *,
+                        Float, Float => Float
                     )
                 }
                 Operation::FloatDivide(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Float,
-                        /
+                        lhs, rhs,
+                        /,
+                        Float, Float => Float
                     )
                 }
                 Operation::FloatGreaterThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Boolean,
-                        >=
+                        lhs, rhs,
+                        >=,
+                        Float, Float => Boolean
                     )
                 }
                 Operation::FloatLessThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Boolean,
-                        <=
+                        lhs, rhs,
+                        <=,
+                        Float, Float => Boolean
                     )
                 }
                 Operation::FloatGreaterThan(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Boolean,
-                        >
+                        lhs, rhs,
+                        >,
+                        Float, Float => Boolean
                     )
                 }
                 Operation::FloatLessThan(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Float,
-                        Float,
-                        Boolean,
-                        <
+                        lhs, rhs,
+                        <,
+                        Float, Float => Boolean
                     )
                 }
                 Operation::BooleanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Boolean,
-                        Boolean,
-                        Boolean,
-                        ==
+                        lhs, rhs,
+                        ==,
+                        Boolean, Boolean => Boolean
                     )
                 }
                 Operation::BooleanNotEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
                         const_vars,
-                        lhs,
-                        rhs,
-                        Boolean,
-                        Boolean,
-                        Boolean,
-                        !=
+                        lhs, rhs,
+                        !=,
+                        Boolean, Boolean => Boolean
                     )
                 }
                 Operation::IntegerNegate(rhs) => {
-                    const_eval_unary_operation!(const_vars, rhs, Integer, Integer, -)
+                    const_eval_unary_operation!(const_vars, rhs, -, Integer => Integer)
                 }
                 Operation::FloatNegate(rhs) => {
-                    const_eval_unary_operation!(const_vars, rhs, Float, Float, -)
+                    const_eval_unary_operation!(const_vars, rhs, -, Float => Float)
                 }
                 Operation::BooleanNot(rhs) => {
-                    const_eval_unary_operation!(const_vars, rhs, Boolean, Boolean, !)
+                    const_eval_unary_operation!(const_vars, rhs, !, Boolean => Boolean)
                 }
             },
         },
@@ -720,7 +654,7 @@ impl<'src, 'file> From<ConstValue<'file>> for TypedExpression<'src, 'file> {
 }
 
 macro_rules! const_eval_binary_operation {
-    ($const_vars:ident, $lhs:expr, $rhs:expr, $lhs_ty:ident, $rhs_ty:ident, $result_ty:ident, $op:tt) => {{
+    ($const_vars:ident, $lhs:expr, $rhs:expr, $op:tt, $lhs_ty:ident, $rhs_ty:ident => $result_ty:ident) => {{
         let lhs = const_eval_expr($const_vars, $lhs)?;
         let rhs = const_eval_expr($const_vars, $rhs)?;
 
@@ -733,7 +667,7 @@ macro_rules! const_eval_binary_operation {
 use const_eval_binary_operation;
 
 macro_rules! const_eval_unary_operation {
-    ($const_vars:ident, $rhs:expr, $rhs_ty:ident, $result_ty:ident, $op:tt) => {{
+    ($const_vars:ident, $rhs:expr, $op:tt, $rhs_ty:ident => $result_ty:ident) => {{
         let rhs = const_eval_expr($const_vars, $rhs)?;
 
         match rhs.0 {
