@@ -2,9 +2,7 @@
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
-use clap::Subcommand;
 use error::{convert_error, Error};
-use rustyline::{error::ReadlineError, DefaultEditor};
 use std::{
     fmt::Display,
     fs::read_to_string,
@@ -23,72 +21,13 @@ mod typecheck;
 
 #[derive(clap::Parser)]
 struct Args {
-    #[command(subcommand)]
-    command: Commands,
+    filename: PathBuf,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Run a file
-    Build { filename: PathBuf },
-
-    /// Run the repl
-    Repl {},
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> std::io::Result<()> {
     let args = <Args as clap::Parser>::parse();
 
-    match args.command {
-        Commands::Build { filename } => Ok(run_filename(&filename)?),
-        Commands::Repl {} => repl(),
-    }
-}
-
-fn repl() -> Result<(), Box<dyn std::error::Error>> {
-    let mut rl = DefaultEditor::new()?;
-
-    loop {
-        let readline = rl.readline(">> ");
-
-        match readline {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str())?;
-
-                run_str(&line)?;
-            }
-            Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
-                break;
-            }
-            Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
-                break;
-            }
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn run_str(input: &str) -> std::io::Result<()> {
-    if let Err(errors) = run(input, Path::new("<stdin>")) {
-        for error in &errors {
-            let report = report(Path::new("<stdin>"), error)?;
-
-            // report.eprint(FileCache::default())?;
-
-            println!("{:?}", report);
-        }
-
-        eprintln!("{} errors found", errors.len());
-    }
-
-    Ok(())
+    run_filename(&args.filename)
 }
 
 fn run_filename(filename: &Path) -> std::io::Result<()> {
