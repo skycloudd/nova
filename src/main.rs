@@ -2,7 +2,9 @@
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
+use clap::Subcommand;
 use error::{convert_error, Error};
+use rustyline::{error::ReadlineError, DefaultEditor};
 use std::{
     fmt::Display,
     fs::read_to_string,
@@ -21,96 +23,66 @@ mod typecheck;
 
 #[derive(clap::Parser)]
 struct Args {
-    /// Input file
-    filename: PathBuf,
-
-    /// Print tokens
-    #[clap(short, long)]
-    tokens: bool,
-
-    /// Print AST
-    #[clap(short, long)]
-    ast: bool,
-
-    /// Print typechecked AST
-    #[clap(short, long)]
-    checked_ast: bool,
-
-    /// Print MIR
-    #[clap(short, long)]
-    mir: bool,
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn main() -> std::io::Result<()> {
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a file
+    Build { filename: PathBuf },
+
+    /// Run the repl
+    Repl {},
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = <Args as clap::Parser>::parse();
 
-    run(&args)
+    match args.command {
+        Commands::Build { filename } => Ok(run_filename(&filename)?),
+        Commands::Repl {} => repl(),
+    }
 }
 
-fn run(args: &Args) -> std::io::Result<()> {
-    let input = read_to_string(&args.filename)?;
+fn repl() -> Result<(), Box<dyn std::error::Error>> {
+    let mut rl = DefaultEditor::new()?;
 
-    let mut errors = vec![];
+    loop {
+        let readline = rl.readline(">> ");
 
-    let (tokens, lex_errors) = lexer::lexer()
-        .parse(input.map_span(|s| Span::new(&args.filename, s.into_range())))
-        .into_output_errors();
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str())?;
 
-    errors.extend(map_errors(lex_errors));
-
-    if args.tokens {
-        if let Some(tokens) = &tokens {
-            dbg!(tokens);
+                run_str(&line)?;
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
         }
     }
 
-    let (ast, parse_errors) = tokens.as_ref().map_or((None, vec![]), |tokens| {
-        let eoi_span = Span::new(&args.filename, input.len()..input.len());
+    Ok(())
+}
 
-        parser::parser()
-            .parse(tokens.spanned(eoi_span))
-            .into_output_errors()
-    });
-
-    errors.extend(map_errors(parse_errors));
-
-    if args.ast {
-        if let Some(ast) = &ast {
-            dbg!(ast);
-        }
-    }
-
-    let (typed_ast, type_errors) = ast.map_or((None, vec![]), typecheck::typecheck);
-
-    errors.extend(map_boxed_errors(type_errors));
-
-    if args.checked_ast {
-        if let Some(typed_ast) = &typed_ast {
-            dbg!(typed_ast);
-        }
-    }
-
-    let mir = typed_ast.map(mir::build_mir);
-
-    let (mir, const_eval_errors) = mir.map_or((None, vec![]), |mir| const_eval::const_eval(mir));
-
-    errors.extend(map_boxed_errors(const_eval_errors));
-
-    if args.mir {
-        if let Some(mir) = &mir {
-            dbg!(mir);
-        }
-    }
-
-    if errors.is_empty() {
-        if let Some(mir) = mir {
-            let mir = mir_no_span::mir_remove_span(mir);
-
-            println!("{:?}", mir);
-        }
-    } else {
+fn run_str(input: &str) -> std::io::Result<()> {
+    if let Err(errors) = run(input, Path::new("<stdin>")) {
         for error in &errors {
-            print_error(&args.filename, error)?;
+            let report = report(Path::new("<stdin>"), error)?;
+
+            // report.eprint(FileCache::default())?;
+
+            println!("{:?}", report);
         }
 
         eprintln!("{} errors found", errors.len());
@@ -119,7 +91,69 @@ fn run(args: &Args) -> std::io::Result<()> {
     Ok(())
 }
 
-fn print_error(filename: &Path, error: &error::Error) -> std::io::Result<()> {
+fn run_filename(filename: &Path) -> std::io::Result<()> {
+    let input = read_to_string(filename)?;
+
+    if let Err(errors) = run(&input, filename) {
+        for error in &errors {
+            report(filename, error)?.eprint(FileCache::default())?;
+        }
+
+        eprintln!("{} errors found", errors.len());
+    }
+
+    Ok(())
+}
+
+fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error<'file>>> {
+    let mut errors = vec![];
+
+    let (tokens, lex_errors) = lexer::lexer()
+        .parse(input.map_span(|s| Span::new(filename, s.into_range())))
+        .into_output_errors();
+
+    errors.extend(map_errors(lex_errors));
+
+    let (ast, parse_errors) = tokens.as_ref().map_or((None, vec![]), |tokens| {
+        let eoi = Span::new(filename, input.len()..input.len());
+
+        parser::parser()
+            .parse(tokens.spanned(eoi))
+            .into_output_errors()
+    });
+
+    errors.extend(map_errors(parse_errors));
+
+    let (typed_ast, type_errors) = ast.map_or((None, vec![]), typecheck::typecheck);
+
+    errors.extend(map_boxed_errors(type_errors));
+
+    let mir = typed_ast.map(mir::build_mir);
+
+    let (mir, const_eval_errors) = mir.map_or((None, vec![]), |mir| const_eval::const_eval(mir));
+
+    errors.extend(map_boxed_errors(const_eval_errors));
+
+    if errors.is_empty() {
+        if let Some(mir) = mir {
+            let mir = mir_no_span::mir_remove_span(mir);
+
+            println!("{:?}", mir);
+        }
+
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn report<'file, 'a, Id>(
+    filename: Id,
+    error: &'file error::Error<'file>,
+) -> std::io::Result<Report<'a, Span<'file>>>
+where
+    Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned>,
+{
     let mut color_generator = ColorGenerator::new();
 
     let message = error.message();
@@ -146,8 +180,10 @@ fn print_error(filename: &Path, error: &error::Error) -> std::io::Result<()> {
         report.set_note(note);
     }
 
-    report.finish().eprint(FileCache::default())
+    Ok(report.finish())
 }
+
+// .eprint(FileCache::default())
 
 fn map_errors<'file, T: Clone + Display>(
     errors: Vec<Rich<'_, T, Span<'file>>>,
