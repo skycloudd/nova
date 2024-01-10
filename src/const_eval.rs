@@ -89,25 +89,15 @@ fn const_eval_statement<'src, 'file>(
 
             Some(TypedStatement::Let { name, value })
         }
-        TypedStatement::Const { name, value: expr } => {
-            let span = expr.1;
+        TypedStatement::Const { name, value: expr } => const_eval_expr(const_vars, errors, expr)
+            .map(|value| {
+                const_vars.insert(name.0, value.clone());
 
-            match const_eval_expr(const_vars, expr) {
-                Ok(value) => {
-                    const_vars.insert(name.0, value.clone());
+                let value = constvalue_to_typed_expression(value);
 
-                    Some(TypedStatement::Const {
-                        name,
-                        value: (value.0.into(), span),
-                    })
-                }
-                Err(error) => {
-                    errors.push(error);
-
-                    None
-                }
-            }
-        }
+                Some(TypedStatement::Const { name, value })
+            })
+            .flatten(),
         TypedStatement::Assign { name, value } => {
             let value = propagate_const(const_vars, value);
 
@@ -121,17 +111,20 @@ fn const_eval_statement<'src, 'file>(
 
 fn const_eval_expr<'file>(
     const_vars: &mut Scopes<&str, Spanned<ConstValue<'file>>>,
+    errors: &mut Vec<Box<Error<'file>>>,
     expr: Spanned<'file, TypedExpression<'_, 'file>>,
-) -> Result<Spanned<'file, ConstValue<'file>>, Box<Error<'file>>> {
-    Ok((
+) -> Option<Spanned<'file, ConstValue<'file>>> {
+    Some((
         match expr.0.expr {
             Expression::Variable(name) => match const_vars.get(&name) {
                 Some(value) => value.0.clone(),
                 None => {
-                    return Err(Box::new(Error::UnknownConstVariable {
+                    errors.push(Box::new(Error::UnknownConstVariable {
                         name: name.to_string(),
                         span: expr.1,
-                    }))
+                    }));
+
+                    return None;
                 }
             },
             Expression::Boolean(value) => ConstValue::Boolean(value),
@@ -139,18 +132,21 @@ fn const_eval_expr<'file>(
             Expression::Float(value) => ConstValue::Float(value),
             Expression::Colour { r, g, b } => ConstValue::Colour { r, g, b },
             Expression::Vector { x, y } => {
-                let x = const_eval_expr(const_vars, *x)?;
-                let y = const_eval_expr(const_vars, *y)?;
+                let x = const_eval_expr(const_vars, errors, *x);
+                let y = const_eval_expr(const_vars, errors, *y);
 
-                ConstValue::Vector {
-                    x: Box::new(x),
-                    y: Box::new(y),
+                match (x, y) {
+                    (Some(x), Some(y)) => ConstValue::Vector {
+                        x: Box::new(x),
+                        y: Box::new(y),
+                    },
+                    _ => return None,
                 }
             }
             Expression::Operation(operation) => match *operation {
                 Operation::IntegerEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         ==,
                         Integer, Integer => Boolean
@@ -158,7 +154,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerNotEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         !=,
                         Integer, Integer => Boolean
@@ -166,7 +162,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerPlus(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         +,
                         Integer, Integer => Integer
@@ -174,7 +170,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerMinus(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         -,
                         Integer, Integer => Integer
@@ -182,7 +178,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerMultiply(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         *,
                         Integer, Integer => Integer
@@ -190,7 +186,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerDivide(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         /,
                         Integer, Integer => Integer
@@ -198,7 +194,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerGreaterThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         >=,
                         Integer, Integer => Boolean
@@ -206,7 +202,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerLessThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         <=,
                         Integer, Integer => Boolean
@@ -214,7 +210,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerGreaterThan(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         >,
                         Integer, Integer => Boolean
@@ -222,7 +218,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::IntegerLessThan(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         <,
                         Integer, Integer => Boolean
@@ -230,7 +226,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         ==,
                         Float, Float => Boolean
@@ -238,7 +234,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatNotEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         !=,
                         Float, Float => Boolean
@@ -246,7 +242,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatPlus(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         +,
                         Float, Float => Float
@@ -254,7 +250,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatMinus(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         -,
                         Float, Float => Float
@@ -262,7 +258,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatMultiply(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         *,
                         Float, Float => Float
@@ -270,7 +266,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatDivide(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         /,
                         Float, Float => Float
@@ -278,7 +274,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatGreaterThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         >=,
                         Float, Float => Boolean
@@ -286,7 +282,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatLessThanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         <=,
                         Float, Float => Boolean
@@ -294,7 +290,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatGreaterThan(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         >,
                         Float, Float => Boolean
@@ -302,7 +298,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::FloatLessThan(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         <,
                         Float, Float => Boolean
@@ -310,7 +306,7 @@ fn const_eval_expr<'file>(
                 }
                 Operation::BooleanEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         ==,
                         Boolean, Boolean => Boolean
@@ -318,20 +314,20 @@ fn const_eval_expr<'file>(
                 }
                 Operation::BooleanNotEquals(lhs, rhs) => {
                     const_eval_binary_operation!(
-                        const_vars,
+                        const_vars, errors,
                         lhs, rhs,
                         !=,
                         Boolean, Boolean => Boolean
                     )
                 }
                 Operation::IntegerNegate(rhs) => {
-                    const_eval_unary_operation!(const_vars, rhs, -, Integer => Integer)
+                    const_eval_unary_operation!(const_vars, errors, rhs, -, Integer => Integer)
                 }
                 Operation::FloatNegate(rhs) => {
-                    const_eval_unary_operation!(const_vars, rhs, -, Float => Float)
+                    const_eval_unary_operation!(const_vars, errors, rhs, -, Float => Float)
                 }
                 Operation::BooleanNot(rhs) => {
-                    const_eval_unary_operation!(const_vars, rhs, !, Boolean => Boolean)
+                    const_eval_unary_operation!(const_vars, errors, rhs, !, Boolean => Boolean)
                 }
             },
         },
@@ -635,28 +631,26 @@ impl<'src, 'file> From<ConstValue<'file>> for Expression<'src, 'file> {
     }
 }
 
-impl<'src, 'file> From<ConstValue<'file>> for TypedExpression<'src, 'file> {
-    fn from(expr: ConstValue<'file>) -> Self {
-        let expr = expr.into();
+fn constvalue_to_typed_expression<'src, 'file>(
+    const_value: Spanned<'file, ConstValue<'file>>,
+) -> Spanned<'file, TypedExpression<'src, 'file>> {
+    let expr = const_value.0.clone().into();
 
-        let ty = match &expr {
-            Expression::Boolean(_) => Type::Boolean,
-            Expression::Integer(_) => Type::Integer,
-            Expression::Float(_) => Type::Float,
-            Expression::Colour { .. } => Type::Colour,
-            Expression::Vector { .. } => Type::Vector,
-            Expression::Operation(_) => unreachable!(),
-            Expression::Variable(_) => unreachable!(),
-        };
+    let ty = match const_value.0 {
+        ConstValue::Boolean(_) => Type::Boolean,
+        ConstValue::Integer(_) => Type::Integer,
+        ConstValue::Float(_) => Type::Float,
+        ConstValue::Colour { .. } => Type::Colour,
+        ConstValue::Vector { .. } => Type::Vector,
+    };
 
-        TypedExpression { expr, ty }
-    }
+    (TypedExpression { expr, ty }, const_value.1)
 }
 
 macro_rules! const_eval_binary_operation {
-    ($const_vars:ident, $lhs:expr, $rhs:expr, $op:tt, $lhs_ty:ident, $rhs_ty:ident => $result_ty:ident) => {{
-        let lhs = const_eval_expr($const_vars, $lhs)?;
-        let rhs = const_eval_expr($const_vars, $rhs)?;
+    ($const_vars:expr, $errors:expr, $lhs:expr, $rhs:expr, $op:tt, $lhs_ty:ident, $rhs_ty:ident => $result_ty:ident) => {{
+        let lhs = const_eval_expr($const_vars, $errors, $lhs)?;
+        let rhs = const_eval_expr($const_vars, $errors, $rhs)?;
 
         match (lhs.0, rhs.0) {
             (ConstValue::$lhs_ty(lhs), ConstValue::$rhs_ty(rhs)) => ConstValue::$result_ty(lhs $op rhs),
@@ -667,8 +661,8 @@ macro_rules! const_eval_binary_operation {
 use const_eval_binary_operation;
 
 macro_rules! const_eval_unary_operation {
-    ($const_vars:ident, $rhs:expr, $op:tt, $rhs_ty:ident => $result_ty:ident) => {{
-        let rhs = const_eval_expr($const_vars, $rhs)?;
+    ($const_vars:expr, $errors:expr, $rhs:expr, $op:tt, $rhs_ty:ident => $result_ty:ident) => {{
+        let rhs = const_eval_expr($const_vars, $errors, $rhs)?;
 
         match rhs.0 {
             ConstValue::$rhs_ty(rhs) => ConstValue::$result_ty($op rhs),

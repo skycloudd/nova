@@ -1,9 +1,10 @@
-use chumsky::{input::MappedSpan, prelude::*};
-
 use crate::Span;
+use chumsky::{input::MappedSpan, prelude::*};
+use std::num::ParseIntError;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Token<'src> {
+    Error,
     Variable(&'src str),
     Boolean(bool),
     Integer(i32),
@@ -61,6 +62,7 @@ pub enum Op {
 impl std::fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Token::Error => write!(f, "error"),
             Token::Variable(v) => write!(f, "{}", v),
             Token::Boolean(b) => write!(f, "{}", b),
             Token::Integer(n) => write!(f, "{}", n),
@@ -196,11 +198,22 @@ where
     let colour = just('#')
         .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
         .map(|bytes| {
-            let r = u8::from_str_radix(&bytes[0], 16).unwrap();
-            let g = u8::from_str_radix(&bytes[1], 16).unwrap();
-            let b = u8::from_str_radix(&bytes[2], 16).unwrap();
+            let r = u8::from_str_radix(&bytes[0], 16)?;
+            let g = u8::from_str_radix(&bytes[1], 16)?;
+            let b = u8::from_str_radix(&bytes[2], 16)?;
 
-            Token::HexCode(r, g, b)
+            Ok(Token::HexCode(r, g, b))
+        })
+        .validate(|res: Result<_, ParseIntError>, e, emitter| match res {
+            Ok(token) => token,
+            Err(err) => {
+                emitter.emit(Rich::custom(
+                    e.span(),
+                    format!("ICE: parsed invalid hex code: {}", err),
+                ));
+
+                Token::Error
+            }
         });
 
     let keyword = choice((
