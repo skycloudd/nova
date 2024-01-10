@@ -95,9 +95,8 @@ fn const_eval_statement<'src, 'file>(
 
                 let value = constvalue_to_typed_expression(value);
 
-                Some(TypedStatement::Const { name, value })
-            })
-            .flatten(),
+                TypedStatement::Const { name, value }
+            }),
         TypedStatement::Assign { name, value } => {
             let value = propagate_const(const_vars, value);
 
