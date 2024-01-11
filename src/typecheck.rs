@@ -170,14 +170,11 @@ fn typecheck_statement<'src, 'file>(
                 let value = typecheck_expression(engine, variables, const_variables, value)?;
                 let value_ty = engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
 
-                let name_ty = match variables.get(&name.0) {
-                    Some(ty) => ty,
-                    None => {
-                        return Err(Box::new(Error::UndefinedVariable {
-                            name: name.0.to_string(),
-                            span: name.1,
-                        }))
-                    }
+                let Some(name_ty) = variables.get(&name.0) else {
+                    return Err(Box::new(Error::UndefinedVariable {
+                        name: name.0.to_string(),
+                        span: name.1,
+                    }));
                 };
 
                 engine.unify(*name_ty, value_ty)?;
@@ -269,8 +266,8 @@ fn typecheck_expression<'src, 'file>(
 
                 engine.unify(lhs_ty, rhs_ty)?;
 
-                use BinaryOp::*;
-                use Type::*;
+                // use BinaryOp::*;
+                // use Type::*;
                 let ty = bin_op!(
                     lhs.0.ty,
                     rhs.0.ty,
@@ -298,7 +295,7 @@ fn typecheck_expression<'src, 'file>(
                     (Float, Float, GreaterThan, Boolean),
                     (Float, Float, LessThan, Boolean)
                 )
-                .map_err(|_| Error::BinaryOp {
+                .map_err(|()| Error::BinaryOp {
                     lhs: lhs.0.ty.to_string(),
                     lhs_span: lhs.1,
                     rhs: rhs.0.ty.to_string(),
@@ -315,8 +312,6 @@ fn typecheck_expression<'src, 'file>(
             Expr::Unary(op, expr) => {
                 let expr = typecheck_expression(engine, variables, const_variables, *expr)?;
 
-                use Type::*;
-                use UnaryOp::*;
                 let ty = unary_op!(
                     expr.0.ty,
                     op.0,
@@ -324,7 +319,7 @@ fn typecheck_expression<'src, 'file>(
                     (Float, Negate, Float),
                     (Boolean, Not, Boolean)
                 )
-                .map_err(|_| Error::UnaryOp {
+                .map_err(|()| Error::UnaryOp {
                     ty: expr.0.ty.to_string(),
                     ty_span: expr.1,
                     op: op.0.to_string(),
@@ -388,10 +383,10 @@ impl<'file> Engine<'file> {
                 Ok(())
             }
 
-            (TypeInfo::Boolean, TypeInfo::Boolean) => Ok(()),
-            (TypeInfo::Integer, TypeInfo::Integer) => Ok(()),
-            (TypeInfo::Float, TypeInfo::Float) => Ok(()),
-            (TypeInfo::Colour, TypeInfo::Colour) => Ok(()),
+            (TypeInfo::Boolean, TypeInfo::Boolean)
+            | (TypeInfo::Integer, TypeInfo::Integer)
+            | (TypeInfo::Float, TypeInfo::Float)
+            | (TypeInfo::Colour, TypeInfo::Colour) => Ok(()),
 
             (a, b) => Err(Box::new(Error::IncompatibleTypes {
                 a: a.to_string(),
@@ -437,7 +432,7 @@ impl std::fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TypeInfo::Unknown => write!(f, "unknown"),
-            TypeInfo::Ref(id) => write!(f, "ref {}", id),
+            TypeInfo::Ref(id) => write!(f, "ref {id}"),
             TypeInfo::Boolean => write!(f, "boolean"),
             TypeInfo::Integer => write!(f, "integer"),
             TypeInfo::Float => write!(f, "float"),
@@ -461,10 +456,10 @@ fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo
 }
 
 macro_rules! bin_op {
-    ($lhs_value:expr, $rhs_value:expr, $op_value:expr, $(($lhs:pat, $rhs:pat, $op:pat, $ret_ty:expr)),*) => {
+    ($lhs_value:expr, $rhs_value:expr, $op_value:expr, $(($lhs:ident, $rhs:ident, $op:ident, $ret_ty:ident)),*) => {
         match ($lhs_value, $rhs_value, $op_value) {
             $(
-                ($lhs, $rhs, $op) => Ok($ret_ty),
+                (Type::$lhs, Type::$rhs, BinaryOp::$op) => Ok(Type::$ret_ty),
             )*
             _ => Err(()),
         }
@@ -473,10 +468,10 @@ macro_rules! bin_op {
 use bin_op;
 
 macro_rules! unary_op {
-    ($value:expr, $op_value:expr, $(($ty:pat, $op:pat, $ret_ty:expr)),*) => {
+    ($value:expr, $op_value:expr, $(($ty:ident, $op:ident, $ret_ty:ident)),*) => {
         match ($value, $op_value) {
             $(
-                ($ty, $op) => Ok($ret_ty),
+                (Type::$ty, UnaryOp::$op) => Ok(Type::$ret_ty),
             )*
             _ => Err(()),
         }

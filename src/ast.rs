@@ -116,6 +116,7 @@ pub mod typed {
 
     ast_statement!(TypedStatement, TypedExpr);
 
+    #[allow(clippy::module_name_repetitions)]
     #[derive(Debug)]
     pub struct TypedExpr<'src, 'file> {
         pub expr: Expr<'src, 'file>,

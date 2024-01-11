@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::float_cmp)]
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
-use error::{convert_error, Error};
+use error::{convert, Error};
 use std::{
     fmt::Display,
     fs::read_to_string,
@@ -35,7 +38,7 @@ fn run_filename(filename: &Path) -> std::io::Result<()> {
 
     if let Err(errors) = run(&input, filename) {
         for error in &errors {
-            report(filename, error)?.eprint(FileCache::default())?;
+            report(filename, error).eprint(FileCache::default())?;
         }
 
         eprintln!("{} errors found", errors.len());
@@ -67,7 +70,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
 
     errors.extend(map_boxed_errors(type_errors));
 
-    let mir = typed_ast.map(mir::build_mir);
+    let mir = typed_ast.map(mir::build);
 
     let (mir, const_eval_errors) = mir.map_or((None, vec![]), |mir| const_eval::const_eval(mir));
 
@@ -77,7 +80,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
         if let Some(mir) = mir {
             let mir = mir_no_span::mir_remove_span(mir);
 
-            println!("{:?}", mir);
+            dbg!(mir);
         }
 
         Ok(())
@@ -86,10 +89,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
     }
 }
 
-fn report<'file, 'a, Id>(
-    filename: Id,
-    error: &'file error::Error<'file>,
-) -> std::io::Result<Report<'a, Span<'file>>>
+fn report<'file, 'a, Id>(filename: Id, error: &'file error::Error<'file>) -> Report<'a, Span<'file>>
 where
     Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned>,
 {
@@ -119,7 +119,7 @@ where
         report.set_note(note);
     }
 
-    Ok(report.finish())
+    report.finish()
 }
 
 // .eprint(FileCache::default())
@@ -130,7 +130,7 @@ fn map_errors<'file, T: Clone + Display>(
     errors
         .into_iter()
         .map(|e| e.map_token(|t| t.to_string()))
-        .flat_map(convert_error)
+        .flat_map(|e| convert(&e))
         .collect()
 }
 
@@ -143,10 +143,12 @@ pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
 pub type Spanned<'file, T> = (T, Span<'file>);
 
 impl<'file> Span<'file> {
+    #[must_use]
     pub fn new(context: &'file Path, range: std::ops::Range<usize>) -> Span<'file> {
         Span(SimpleSpan::<usize, &'file Path>::new(context, range))
     }
 
+    #[must_use]
     pub fn union(self, other: Span<'file>) -> Span<'file> {
         Span(self.0.union(other.0))
     }

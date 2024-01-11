@@ -114,9 +114,10 @@ fn const_eval_expr<'file>(
     expr: Spanned<'file, TypedExpression<'_, 'file>>,
 ) -> Option<Spanned<'file, ConstValue<'file>>> {
     match expr.0.expr {
-        Expression::Variable(name) => match const_vars.get(&name) {
-            Some(value) => Some(value.0.clone()),
-            None => {
+        Expression::Variable(name) => {
+            if let Some(value) = const_vars.get(&name) {
+                Some(value.0.clone())
+            } else {
                 errors.push(Box::new(Error::UnknownConstVariable {
                     name: name.to_string(),
                     span: expr.1,
@@ -124,7 +125,7 @@ fn const_eval_expr<'file>(
 
                 None
             }
-        },
+        }
         Expression::Boolean(value) => Some(ConstValue::Boolean(value)),
         Expression::Integer(value) => Some(ConstValue::Integer(value)),
         Expression::Float(value) => Some(ConstValue::Float(value)),

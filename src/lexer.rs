@@ -63,14 +63,14 @@ impl std::fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Error => write!(f, "error"),
-            Token::Variable(v) => write!(f, "{}", v),
-            Token::Boolean(b) => write!(f, "{}", b),
-            Token::Integer(n) => write!(f, "{}", n),
-            Token::Float(n) => write!(f, "{}", n),
-            Token::Kw(k) => write!(f, "{}", k),
-            Token::Ctrl(c) => write!(f, "{}", c),
-            Token::Op(o) => write!(f, "{}", o),
-            Token::HexCode(r, g, b) => write!(f, "#{:02x}{:02x}{:02x}", r, g, b),
+            Token::Variable(v) => write!(f, "{v}"),
+            Token::Boolean(b) => write!(f, "{b}"),
+            Token::Integer(n) => write!(f, "{n}"),
+            Token::Float(n) => write!(f, "{n}"),
+            Token::Kw(k) => write!(f, "{k}"),
+            Token::Ctrl(c) => write!(f, "{c}"),
+            Token::Op(o) => write!(f, "{o}"),
+            Token::HexCode(r, g, b) => write!(f, "#{r:02x}{g:02x}{b:02x}"),
         }
     }
 }
@@ -209,7 +209,7 @@ where
             Err(err) => {
                 emitter.emit(Rich::custom(
                     e.span(),
-                    format!("ICE: parsed invalid hex code: {}", err),
+                    format!("ICE: parsed invalid hex code: {err}"),
                 ));
 
                 Token::Error

@@ -61,12 +61,11 @@ impl Error<'_> {
             } => {
                 let found = found
                     .as_ref()
-                    .map(|f| f.to_string())
-                    .unwrap_or("end of input".into())
+                    .map_or("end of input".into(), ToString::to_string)
                     .fg(Color::Yellow);
 
                 if expected.is_empty() {
-                    format!("Found {}, expected something else", found).into()
+                    format!("Found {found}, expected something else").into()
                 } else {
                     let expected_string = expected
                         .iter()
@@ -85,10 +84,10 @@ impl Error<'_> {
             }
             Error::Custom { message, span: _ } => message.into(),
             Error::UnknownConstVariable { name, span: _ } => {
-                format!("Unknown const variable `{}`", name).into()
+                format!("Unknown const variable `{name}`").into()
             }
             Error::UndefinedVariable { name, span: _ } => {
-                format!("Undefined variable `{}`", name).into()
+                format!("Undefined variable `{name}`").into()
             }
             Error::UnknownType { span: _ } => "Unknown type".into(),
             Error::IncompatibleTypes {
@@ -96,7 +95,7 @@ impl Error<'_> {
                 a_span: _,
                 b,
                 b_span: _,
-            } => format!("Incompatible types `{}` and `{}`", a, b).into(),
+            } => format!("Incompatible types `{a}` and `{b}`").into(),
             Error::BinaryOp {
                 lhs,
                 lhs_span: _,
@@ -104,15 +103,15 @@ impl Error<'_> {
                 rhs_span: _,
                 op,
                 op_span: _,
-            } => format!("Cannot apply `{}` to `{}` and `{}`", op, lhs, rhs).into(),
+            } => format!("Cannot apply `{op}` to `{lhs}` and `{rhs}`").into(),
             Error::UnaryOp {
                 ty,
                 ty_span: _,
                 op,
                 op_span: _,
-            } => format!("Cannot apply `{}` to `{}`", op, ty).into(),
+            } => format!("Cannot apply `{op}` to `{ty}`").into(),
             Error::ConstAlreadyDefined { name, span: _ } => {
-                format!("Const `{}` already defined", name).into()
+                format!("Const `{name}` already defined").into()
             }
         }
     }
@@ -130,12 +129,12 @@ impl Error<'_> {
             Error::Custom { message: _, span } => vec![(None, *span)],
             Error::UnknownConstVariable { name, span } => {
                 vec![(
-                    Some(format!("Unknown const variable `{}`", name).into()),
+                    Some(format!("Unknown const variable `{name}`").into()),
                     *span,
                 )]
             }
             Error::UndefinedVariable { name, span } => {
-                vec![(Some(format!("Undefined variable `{}`", name).into()), *span)]
+                vec![(Some(format!("Undefined variable `{name}`").into()), *span)]
             }
             Error::UnknownType { span } => vec![(Some("Unknown type".into()), *span)],
             Error::IncompatibleTypes {
@@ -144,8 +143,8 @@ impl Error<'_> {
                 b,
                 b_span,
             } => vec![
-                (Some(format!("`{}`", a).into()), *a_span),
-                (Some(format!("`{}`", b).into()), *b_span),
+                (Some(format!("`{a}`").into()), *a_span),
+                (Some(format!("`{b}`").into()), *b_span),
             ],
             Error::BinaryOp {
                 lhs,
@@ -155,9 +154,9 @@ impl Error<'_> {
                 op,
                 op_span,
             } => vec![
-                (Some(format!("`{}`", lhs).into()), *lhs_span),
-                (Some(format!("`{}`", rhs).into()), *rhs_span),
-                (Some(format!("`{}`", op).into()), *op_span),
+                (Some(format!("`{lhs}`").into()), *lhs_span),
+                (Some(format!("`{rhs}`").into()), *rhs_span),
+                (Some(format!("`{op}`").into()), *op_span),
             ],
             Error::UnaryOp {
                 ty,
@@ -165,12 +164,12 @@ impl Error<'_> {
                 op,
                 op_span,
             } => vec![
-                (Some(format!("`{}`", ty).into()), *ty_span),
-                (Some(format!("`{}`", op).into()), *op_span),
+                (Some(format!("`{ty}`").into()), *ty_span),
+                (Some(format!("`{op}`").into()), *op_span),
             ],
             Error::ConstAlreadyDefined { name, span } => {
                 vec![(
-                    Some(format!("Const `{}` already defined", name).into()),
+                    Some(format!("Const `{name}` already defined").into()),
                     *span,
                 )]
             }
@@ -178,6 +177,7 @@ impl Error<'_> {
     }
 
     pub fn note(&self) -> Option<String> {
+        #[allow(clippy::match_same_arms)]
         match self {
             Error::ExpectedFound { .. } => None,
             Error::Custom { .. } => None,
@@ -192,11 +192,14 @@ impl Error<'_> {
     }
 }
 
-pub fn convert_error<'file>(error: Rich<'_, String, Span<'file>>) -> Vec<Error<'file>> {
-    fn convert<'file>(reason: &RichReason<'_, String>, span: Span<'file>) -> Vec<Error<'file>> {
+pub fn convert<'file>(error: &Rich<'_, String, Span<'file>>) -> Vec<Error<'file>> {
+    fn convert_inner<'file>(
+        reason: &RichReason<'_, String>,
+        span: Span<'file>,
+    ) -> Vec<Error<'file>> {
         match reason {
             RichReason::ExpectedFound { expected, found } => {
-                let expected = expected.iter().map(|e| e.to_string()).collect();
+                let expected = expected.iter().map(ToString::to_string).collect();
 
                 let found = found.as_ref().map(|f| f.to_string());
 
@@ -210,9 +213,12 @@ pub fn convert_error<'file>(error: Rich<'_, String, Span<'file>>) -> Vec<Error<'
                 message: message.to_string(),
                 span,
             }],
-            RichReason::Many(reasons) => reasons.iter().flat_map(|r| convert(r, span)).collect(),
+            RichReason::Many(reasons) => reasons
+                .iter()
+                .flat_map(|r| convert_inner(r, span))
+                .collect(),
         }
     }
 
-    convert(error.reason(), *error.span())
+    convert_inner(error.reason(), *error.span())
 }

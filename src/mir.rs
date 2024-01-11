@@ -175,7 +175,7 @@ impl From<typed::Type> for Type {
     }
 }
 
-pub fn build_mir<'src, 'file>(
+pub fn build<'src, 'file>(
     ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
 ) -> Vec<Spanned<'file, TypedStatement<'src, 'file>>> {
     ast.into_iter().map(build_mir_statement).collect()
@@ -287,6 +287,8 @@ fn build_mir_expr<'src, 'file>(
                 Expr::Unary(op, rhs) => {
                     let rhs = build_mir_expr(*rhs);
 
+                    // TODO: Remove this when more unary operators are added
+                    #[allow(clippy::match_wildcard_for_single_variants)]
                     Expression::Operation(Box::new(match &rhs.0.ty {
                         Type::Integer => match op.0 {
                             UnaryOp::Negate => Operation::IntegerNegate(rhs),
