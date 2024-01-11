@@ -166,11 +166,11 @@ pub enum Type {
 impl From<typed::Type> for Type {
     fn from(ty: typed::Type) -> Self {
         match ty {
-            typed::Type::Boolean => Type::Boolean,
-            typed::Type::Integer => Type::Integer,
-            typed::Type::Float => Type::Float,
-            typed::Type::Colour => Type::Colour,
-            typed::Type::Vector => Type::Vector,
+            typed::Type::Boolean => Self::Boolean,
+            typed::Type::Integer => Self::Integer,
+            typed::Type::Float => Self::Float,
+            typed::Type::Colour => Self::Colour,
+            typed::Type::Vector => Self::Vector,
         }
     }
 }

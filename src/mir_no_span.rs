@@ -94,11 +94,11 @@ pub enum Type {
 impl From<mir::Type> for Type {
     fn from(ty: mir::Type) -> Self {
         match ty {
-            mir::Type::Boolean => Type::Boolean,
-            mir::Type::Integer => Type::Integer,
-            mir::Type::Float => Type::Float,
-            mir::Type::Colour => Type::Colour,
-            mir::Type::Vector => Type::Vector,
+            mir::Type::Boolean => Self::Boolean,
+            mir::Type::Integer => Self::Integer,
+            mir::Type::Float => Self::Float,
+            mir::Type::Colour => Self::Colour,
+            mir::Type::Vector => Self::Vector,
         }
     }
 }

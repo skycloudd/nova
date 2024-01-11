@@ -138,7 +138,7 @@ fn map_boxed_errors(errors: Vec<Box<Error>>) -> Vec<error::Error> {
     errors.into_iter().map(|e| *e).collect()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
 pub type Spanned<'file, T> = (T, Span<'file>);
 

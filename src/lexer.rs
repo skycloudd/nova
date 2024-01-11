@@ -15,7 +15,7 @@ pub enum Token<'src> {
     Op(Op),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kw {
     BuiltinPrint,
     End,
@@ -29,7 +29,7 @@ pub enum Kw {
     Continue,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ctrl {
     LeftParen,
     RightParen,
@@ -41,7 +41,7 @@ pub enum Ctrl {
     Equals,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Op {
     Equals,
     NotEquals,
@@ -78,16 +78,16 @@ impl std::fmt::Display for Token<'_> {
 impl std::fmt::Display for Kw {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Kw::BuiltinPrint => write!(f, "print"),
-            Kw::End => write!(f, "end"),
-            Kw::Loop => write!(f, "loop"),
-            Kw::If => write!(f, "if"),
-            Kw::Else => write!(f, "else"),
-            Kw::Then => write!(f, "then"),
-            Kw::Let => write!(f, "let"),
-            Kw::Const => write!(f, "const"),
-            Kw::Break => write!(f, "break"),
-            Kw::Continue => write!(f, "continue"),
+            Self::BuiltinPrint => write!(f, "print"),
+            Self::End => write!(f, "end"),
+            Self::Loop => write!(f, "loop"),
+            Self::If => write!(f, "if"),
+            Self::Else => write!(f, "else"),
+            Self::Then => write!(f, "then"),
+            Self::Let => write!(f, "let"),
+            Self::Const => write!(f, "const"),
+            Self::Break => write!(f, "break"),
+            Self::Continue => write!(f, "continue"),
         }
     }
 }
@@ -95,14 +95,14 @@ impl std::fmt::Display for Kw {
 impl std::fmt::Display for Ctrl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ctrl::LeftParen => write!(f, "("),
-            Ctrl::RightParen => write!(f, ")"),
-            Ctrl::LeftCurly => write!(f, "{{"),
-            Ctrl::RightCurly => write!(f, "}}"),
-            Ctrl::SemiColon => write!(f, ";"),
-            Ctrl::Comma => write!(f, ","),
-            Ctrl::Pipe => write!(f, "|"),
-            Ctrl::Equals => write!(f, "="),
+            Self::LeftParen => write!(f, "("),
+            Self::RightParen => write!(f, ")"),
+            Self::LeftCurly => write!(f, "{{"),
+            Self::RightCurly => write!(f, "}}"),
+            Self::SemiColon => write!(f, ";"),
+            Self::Comma => write!(f, ","),
+            Self::Pipe => write!(f, "|"),
+            Self::Equals => write!(f, "="),
         }
     }
 }
@@ -110,20 +110,20 @@ impl std::fmt::Display for Ctrl {
 impl std::fmt::Display for Op {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Op::Equals => write!(f, "=="),
-            Op::NotEquals => write!(f, "!="),
+            Self::Equals => write!(f, "=="),
+            Self::NotEquals => write!(f, "!="),
 
-            Op::Plus => write!(f, "+"),
-            Op::Minus => write!(f, "-"),
-            Op::Multiply => write!(f, "*"),
-            Op::Divide => write!(f, "/"),
+            Self::Plus => write!(f, "+"),
+            Self::Minus => write!(f, "-"),
+            Self::Multiply => write!(f, "*"),
+            Self::Divide => write!(f, "/"),
 
-            Op::GreaterThanEquals => write!(f, ">="),
-            Op::LessThanEquals => write!(f, "<="),
-            Op::GreaterThan => write!(f, ">"),
-            Op::LessThan => write!(f, "<"),
+            Self::GreaterThanEquals => write!(f, ">="),
+            Self::LessThanEquals => write!(f, "<="),
+            Self::GreaterThan => write!(f, ">"),
+            Self::LessThan => write!(f, "<"),
 
-            Op::Not => write!(f, "!"),
+            Self::Not => write!(f, "!"),
         }
     }
 }

@@ -81,16 +81,16 @@ pub enum BinaryOp {
 impl std::fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BinaryOp::Equals => write!(f, "=="),
-            BinaryOp::NotEquals => write!(f, "!="),
-            BinaryOp::Plus => write!(f, "+"),
-            BinaryOp::Minus => write!(f, "-"),
-            BinaryOp::Multiply => write!(f, "*"),
-            BinaryOp::Divide => write!(f, "/"),
-            BinaryOp::GreaterThanEquals => write!(f, ">="),
-            BinaryOp::LessThanEquals => write!(f, "<="),
-            BinaryOp::GreaterThan => write!(f, ">"),
-            BinaryOp::LessThan => write!(f, "<"),
+            Self::Equals => write!(f, "=="),
+            Self::NotEquals => write!(f, "!="),
+            Self::Plus => write!(f, "+"),
+            Self::Minus => write!(f, "-"),
+            Self::Multiply => write!(f, "*"),
+            Self::Divide => write!(f, "/"),
+            Self::GreaterThanEquals => write!(f, ">="),
+            Self::LessThanEquals => write!(f, "<="),
+            Self::GreaterThan => write!(f, ">"),
+            Self::LessThan => write!(f, "<"),
         }
     }
 }
@@ -104,8 +104,8 @@ pub enum UnaryOp {
 impl std::fmt::Display for UnaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnaryOp::Negate => write!(f, "-"),
-            UnaryOp::Not => write!(f, "!"),
+            Self::Negate => write!(f, "-"),
+            Self::Not => write!(f, "!"),
         }
     }
 }
@@ -137,11 +137,11 @@ pub mod typed {
     impl std::fmt::Display for Type {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Type::Boolean => write!(f, "boolean"),
-                Type::Integer => write!(f, "integer"),
-                Type::Float => write!(f, "float"),
-                Type::Colour => write!(f, "colour"),
-                Type::Vector => write!(f, "vector"),
+                Self::Boolean => write!(f, "boolean"),
+                Self::Integer => write!(f, "integer"),
+                Self::Float => write!(f, "float"),
+                Self::Colour => write!(f, "colour"),
+                Self::Vector => write!(f, "vector"),
             }
         }
     }

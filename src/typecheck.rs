@@ -431,13 +431,13 @@ enum TypeInfo {
 impl std::fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TypeInfo::Unknown => write!(f, "unknown"),
-            TypeInfo::Ref(id) => write!(f, "ref {id}"),
-            TypeInfo::Boolean => write!(f, "boolean"),
-            TypeInfo::Integer => write!(f, "integer"),
-            TypeInfo::Float => write!(f, "float"),
-            TypeInfo::Colour => write!(f, "colour"),
-            TypeInfo::Vector => write!(f, "vector"),
+            Self::Unknown => write!(f, "unknown"),
+            Self::Ref(id) => write!(f, "ref {id}"),
+            Self::Boolean => write!(f, "boolean"),
+            Self::Integer => write!(f, "integer"),
+            Self::Float => write!(f, "float"),
+            Self::Colour => write!(f, "colour"),
+            Self::Vector => write!(f, "vector"),
         }
     }
 }
