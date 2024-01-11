@@ -52,7 +52,7 @@ fn typecheck_statement<'src, 'file>(
     const_variables: &mut Scopes<&'src str, TypeId>,
     statement: Spanned<'file, Statement<'src, 'file>>,
 ) -> Result<Spanned<'file, TypedStatement<'src, 'file>>, Box<Error<'file>>> {
-    Ok((
+    Ok(Spanned(
         match statement.0 {
             Statement::Expr(expr) => {
                 let expr = typecheck_expression(engine, variables, const_variables, expr)?;
@@ -67,7 +67,7 @@ fn typecheck_statement<'src, 'file>(
             Statement::Loop(statements) => {
                 push_scope(variables, const_variables);
 
-                let statements = (
+                let statements = Spanned(
                     statements
                         .0
                         .into_iter()
@@ -89,15 +89,16 @@ fn typecheck_statement<'src, 'file>(
             } => {
                 let condition =
                     typecheck_expression(engine, variables, const_variables, condition)?;
-                let condition_ty = engine.insert(type_to_typeinfo((&condition.0.ty, condition.1)));
+                let condition_ty =
+                    engine.insert(type_to_typeinfo(Spanned(&condition.0.ty, condition.1)));
 
-                let bool = engine.insert((TypeInfo::Boolean, condition.1));
+                let bool = engine.insert(Spanned(TypeInfo::Boolean, condition.1));
 
                 engine.unify(condition_ty, bool)?;
 
                 push_scope(variables, const_variables);
 
-                let then_branch = (
+                let then_branch = Spanned(
                     then_branch
                         .0
                         .into_iter()
@@ -114,7 +115,7 @@ fn typecheck_statement<'src, 'file>(
                     Some(else_branch) => {
                         push_scope(variables, const_variables);
 
-                        let else_branch = (
+                        let else_branch = Spanned(
                             else_branch
                                 .0
                                 .into_iter()
@@ -145,7 +146,7 @@ fn typecheck_statement<'src, 'file>(
             }
             Statement::Let { name, value } => {
                 let value = typecheck_expression(engine, variables, const_variables, value)?;
-                let value_ty = engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
+                let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
 
                 variables.insert(name.0, value_ty);
 
@@ -153,7 +154,7 @@ fn typecheck_statement<'src, 'file>(
             }
             Statement::Const { name, value } => {
                 let value = typecheck_expression(engine, variables, const_variables, value)?;
-                let value_ty = engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
+                let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
 
                 if variables.contains_key(&name.0) || const_variables.contains_key(&name.0) {
                     return Err(Box::new(Error::ConstAlreadyDefined {
@@ -168,7 +169,7 @@ fn typecheck_statement<'src, 'file>(
             }
             Statement::Assign { name, value } => {
                 let value = typecheck_expression(engine, variables, const_variables, value)?;
-                let value_ty = engine.insert(type_to_typeinfo((&value.0.ty, value.1)));
+                let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
 
                 let Some(name_ty) = variables.get(&name.0) else {
                     return Err(Box::new(Error::UndefinedVariable {
@@ -194,7 +195,7 @@ fn typecheck_expression<'src, 'file>(
     const_variables: &Scopes<&str, TypeId>,
     expr: Spanned<'file, Expr<'src, 'file>>,
 ) -> Result<Spanned<'file, TypedExpr<'src, 'file>>, Box<Error<'file>>> {
-    Ok((
+    Ok(Spanned(
         match expr.0 {
             Expr::Variable(var) => {
                 let var_result = variables.get(&var);
@@ -239,12 +240,12 @@ fn typecheck_expression<'src, 'file>(
                 let x = typecheck_expression(engine, variables, const_variables, *x)?;
                 let y = typecheck_expression(engine, variables, const_variables, *y)?;
 
-                let x_ty = engine.insert(type_to_typeinfo((&x.0.ty, x.1)));
-                let y_ty = engine.insert(type_to_typeinfo((&y.0.ty, y.1)));
+                let x_ty = engine.insert(type_to_typeinfo(Spanned(&x.0.ty, x.1)));
+                let y_ty = engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
 
                 engine.unify(x_ty, y_ty)?;
 
-                let float_ty = engine.insert((TypeInfo::Float, x.1));
+                let float_ty = engine.insert(Spanned(TypeInfo::Float, x.1));
 
                 engine.unify(x_ty, float_ty)?;
                 engine.unify(y_ty, float_ty)?;
@@ -261,13 +262,11 @@ fn typecheck_expression<'src, 'file>(
                 let lhs = typecheck_expression(engine, variables, const_variables, *lhs)?;
                 let rhs = typecheck_expression(engine, variables, const_variables, *rhs)?;
 
-                let lhs_ty = engine.insert(type_to_typeinfo((&lhs.0.ty, lhs.1)));
-                let rhs_ty = engine.insert(type_to_typeinfo((&rhs.0.ty, rhs.1)));
+                let lhs_ty = engine.insert(type_to_typeinfo(Spanned(&lhs.0.ty, lhs.1)));
+                let rhs_ty = engine.insert(type_to_typeinfo(Spanned(&rhs.0.ty, rhs.1)));
 
                 engine.unify(lhs_ty, rhs_ty)?;
 
-                // use BinaryOp::*;
-                // use Type::*;
                 let ty = bin_op!(
                     lhs.0.ty,
                     rhs.0.ty,
@@ -375,11 +374,11 @@ impl<'file> Engine<'file> {
             (_, TypeInfo::Ref(b)) => self.unify(a, *b),
 
             (TypeInfo::Unknown, _) => {
-                self.vars.insert(a, (TypeInfo::Ref(b), var_b.1));
+                self.vars.insert(a, Spanned(TypeInfo::Ref(b), var_b.1));
                 Ok(())
             }
             (_, TypeInfo::Unknown) => {
-                self.vars.insert(b, (TypeInfo::Ref(a), var_a.1));
+                self.vars.insert(b, Spanned(TypeInfo::Ref(a), var_a.1));
                 Ok(())
             }
 
@@ -400,7 +399,7 @@ impl<'file> Engine<'file> {
     fn reconstruct(&self, id: TypeId) -> Result<Spanned<Type>, Box<Error<'file>>> {
         let var = &self.vars[&id];
 
-        Ok((
+        Ok(Spanned(
             match var.0 {
                 TypeInfo::Unknown => return Err(Box::new(Error::UnknownType { span: var.1 })),
                 TypeInfo::Ref(id) => self.reconstruct(id)?.0,
@@ -443,7 +442,7 @@ impl std::fmt::Display for TypeInfo {
 }
 
 const fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
-    (
+    Spanned(
         match ty.0 {
             Type::Boolean => TypeInfo::Boolean,
             Type::Integer => TypeInfo::Integer,

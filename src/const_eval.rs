@@ -49,7 +49,7 @@ fn const_eval_statement<'src, 'file>(
                 }
             }
 
-            Some(TypedStatement::Loop((stmts, statements.1)))
+            Some(TypedStatement::Loop(Spanned(stmts, statements.1)))
         }
         TypedStatement::If {
             condition,
@@ -75,12 +75,12 @@ fn const_eval_statement<'src, 'file>(
                     }
                 }
 
-                (else_, else_branch.1)
+                Spanned(else_, else_branch.1)
             });
 
             Some(TypedStatement::If {
                 condition,
-                then_branch: (then, then_branch.1),
+                then_branch: Spanned(then, then_branch.1),
                 else_branch: else_,
             })
         }
@@ -91,11 +91,12 @@ fn const_eval_statement<'src, 'file>(
         }
         TypedStatement::Const { name, value: expr } => const_eval_expr(const_vars, errors, expr)
             .map(|value| {
-                const_vars.insert(name.0, value.clone());
+                const_vars.insert(&name, value.clone());
 
-                let value = (value.0.into(), value.1);
-
-                TypedStatement::Const { name, value }
+                TypedStatement::Const {
+                    name,
+                    value: Spanned(value.0.into(), value.1),
+                }
             }),
         TypedStatement::Assign { name, value } => {
             let value = propagate_const(const_vars, value);
@@ -105,7 +106,7 @@ fn const_eval_statement<'src, 'file>(
         TypedStatement::Break => Some(TypedStatement::Break),
         TypedStatement::Continue => Some(TypedStatement::Continue),
     }
-    .map(|stmt| (stmt, statement.1))
+    .map(|stmt| Spanned(stmt, statement.1))
 }
 
 fn const_eval_expr<'file>(
@@ -330,14 +331,14 @@ fn const_eval_expr<'file>(
             }
         }),
     }
-    .map(|value| (value, expr.1))
+    .map(|value| Spanned(value, expr.1))
 }
 
 fn propagate_const<'src, 'file>(
     const_vars: &mut Scopes<&'src str, Spanned<ConstValue<'file>>>,
     expr: Spanned<'file, TypedExpression<'src, 'file>>,
 ) -> Spanned<'file, TypedExpression<'src, 'file>> {
-    (
+    Spanned(
         TypedExpression {
             expr: match expr.0.expr {
                 Expression::Variable(name) => const_vars
@@ -611,14 +612,14 @@ impl<'src, 'file> From<ConstValue<'file>> for Expression<'src, 'file> {
             ConstValue::Float(value) => Expression::Float(value),
             ConstValue::Colour { r, g, b } => Expression::Colour { r, g, b },
             ConstValue::Vector { x, y } => Expression::Vector {
-                x: Box::new((
+                x: Box::new(Spanned(
                     TypedExpression {
                         expr: Expression::from(x.0),
                         ty: Type::Integer,
                     },
                     x.1,
                 )),
-                y: Box::new((
+                y: Box::new(Spanned(
                     TypedExpression {
                         expr: Expression::from(y.0),
                         ty: Type::Integer,

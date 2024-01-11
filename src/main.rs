@@ -101,7 +101,7 @@ where
     let spans = error.spans();
     let note = error.note();
 
-    let offset = spans.iter().map(|s| s.1 .0.start()).min().unwrap_or(0);
+    let offset = spans.iter().map(|s| s.1.start()).min().unwrap_or(0);
 
     let mut report = Report::build(ariadne::ReportKind::Error, filename, offset);
 
@@ -124,8 +124,6 @@ where
     report.finish()
 }
 
-// .eprint(FileCache::default())
-
 fn map_errors<'file, T: Clone + Display>(
     errors: Vec<Rich<'_, T, Span<'file>>>,
 ) -> Vec<error::Error<'file>> {
@@ -142,7 +140,6 @@ fn map_boxed_errors(errors: Vec<Box<Error>>) -> Vec<error::Error> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
-pub type Spanned<'file, T> = (T, Span<'file>);
 
 impl<'file> Span<'file> {
     #[must_use]
@@ -191,5 +188,24 @@ impl<'file> ariadne::Span for Span<'file> {
 
     fn end(&self) -> usize {
         self.0.end()
+    }
+}
+
+impl<'file> std::ops::Deref for Span<'file> {
+    type Target = SimpleSpan<usize, &'file Path>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Spanned<'file, T>(pub T, pub Span<'file>);
+
+impl<'file, T> std::ops::Deref for Spanned<'file, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

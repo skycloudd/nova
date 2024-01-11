@@ -184,11 +184,11 @@ pub fn build<'src, 'file>(
 fn build_mir_statement<'src, 'file>(
     statement: Spanned<'file, Statement<'src, 'file>>,
 ) -> Spanned<'file, TypedStatement<'src, 'file>> {
-    (
+    Spanned(
         match statement.0 {
             Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(expr)),
             Statement::BuiltinPrint(expr) => TypedStatement::BuiltinPrint(build_mir_expr(expr)),
-            Statement::Loop(statements) => TypedStatement::Loop((
+            Statement::Loop(statements) => TypedStatement::Loop(Spanned(
                 statements.0.into_iter().map(build_mir_statement).collect(),
                 statements.1,
             )),
@@ -198,12 +198,12 @@ fn build_mir_statement<'src, 'file>(
                 else_branch,
             } => TypedStatement::If {
                 condition: build_mir_expr(condition),
-                then_branch: (
+                then_branch: Spanned(
                     then_branch.0.into_iter().map(build_mir_statement).collect(),
                     then_branch.1,
                 ),
                 else_branch: else_branch
-                    .map(|s| (s.0.into_iter().map(build_mir_statement).collect(), s.1)),
+                    .map(|s| Spanned(s.0.into_iter().map(build_mir_statement).collect(), s.1)),
             },
             Statement::Let { name, value } => TypedStatement::Let {
                 name,
@@ -227,7 +227,7 @@ fn build_mir_statement<'src, 'file>(
 fn build_mir_expr<'src, 'file>(
     expr: Spanned<'file, TypedExpr<'src, 'file>>,
 ) -> Spanned<'file, TypedExpression<'src, 'file>> {
-    (
+    Spanned(
         TypedExpression {
             expr: match expr.0.expr {
                 Expr::Variable(name) => Expression::Variable(name),
@@ -287,7 +287,6 @@ fn build_mir_expr<'src, 'file>(
                 Expr::Unary(op, rhs) => {
                     let rhs = build_mir_expr(*rhs);
 
-                    // TODO: Remove this when more unary operators are added
                     #[allow(clippy::match_wildcard_for_single_variants)]
                     Expression::Operation(Box::new(match &rhs.0.ty {
                         Type::Integer => match op.0 {

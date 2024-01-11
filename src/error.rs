@@ -122,29 +122,32 @@ impl Error<'_> {
                 expected: _,
                 found,
                 span,
-            } => vec![(
+            } => vec![Spanned(
                 Some(format!("Found {}", found.as_ref().unwrap_or(&"EOF".into())).into()),
                 *span,
             )],
-            Error::Custom { message: _, span } => vec![(None, *span)],
+            Error::Custom { message: _, span } => vec![Spanned(None, *span)],
             Error::UnknownConstVariable { name, span } => {
-                vec![(
+                vec![Spanned(
                     Some(format!("Unknown const variable `{name}`").into()),
                     *span,
                 )]
             }
             Error::UndefinedVariable { name, span } => {
-                vec![(Some(format!("Undefined variable `{name}`").into()), *span)]
+                vec![Spanned(
+                    Some(format!("Undefined variable `{name}`").into()),
+                    *span,
+                )]
             }
-            Error::UnknownType { span } => vec![(Some("Unknown type".into()), *span)],
+            Error::UnknownType { span } => vec![Spanned(Some("Unknown type".into()), *span)],
             Error::IncompatibleTypes {
                 a,
                 a_span,
                 b,
                 b_span,
             } => vec![
-                (Some(format!("`{a}`").into()), *a_span),
-                (Some(format!("`{b}`").into()), *b_span),
+                Spanned(Some(format!("`{a}`").into()), *a_span),
+                Spanned(Some(format!("`{b}`").into()), *b_span),
             ],
             Error::BinaryOp {
                 lhs,
@@ -154,9 +157,9 @@ impl Error<'_> {
                 op,
                 op_span,
             } => vec![
-                (Some(format!("`{lhs}`").into()), *lhs_span),
-                (Some(format!("`{rhs}`").into()), *rhs_span),
-                (Some(format!("`{op}`").into()), *op_span),
+                Spanned(Some(format!("`{lhs}`").into()), *lhs_span),
+                Spanned(Some(format!("`{rhs}`").into()), *rhs_span),
+                Spanned(Some(format!("`{op}`").into()), *op_span),
             ],
             Error::UnaryOp {
                 ty,
@@ -164,11 +167,11 @@ impl Error<'_> {
                 op,
                 op_span,
             } => vec![
-                (Some(format!("`{ty}`").into()), *ty_span),
-                (Some(format!("`{op}`").into()), *op_span),
+                Spanned(Some(format!("`{ty}`").into()), *ty_span),
+                Spanned(Some(format!("`{op}`").into()), *op_span),
             ],
             Error::ConstAlreadyDefined { name, span } => {
-                vec![(
+                vec![Spanned(
                     Some(format!("Const `{name}` already defined").into()),
                     *span,
                 )]
