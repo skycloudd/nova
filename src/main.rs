@@ -2,6 +2,8 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::float_cmp)]
+#![warn(clippy::nursery)]
+#![allow(clippy::cognitive_complexity)]
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;

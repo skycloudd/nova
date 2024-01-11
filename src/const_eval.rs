@@ -340,10 +340,11 @@ fn propagate_const<'src, 'file>(
     (
         TypedExpression {
             expr: match expr.0.expr {
-                Expression::Variable(name) => match const_vars.get(&name) {
-                    Some(value) => Expression::from(value.0.clone()),
-                    None => Expression::Variable(name),
-                },
+                Expression::Variable(name) => const_vars
+                    .get(&name)
+                    .map_or(Expression::Variable(name), |value| {
+                        Expression::from(value.0.clone())
+                    }),
                 Expression::Boolean(value) => Expression::Boolean(value),
                 Expression::Integer(value) => Expression::Integer(value),
                 Expression::Float(value) => Expression::Float(value),

@@ -176,7 +176,7 @@ impl Error<'_> {
         }
     }
 
-    pub fn note(&self) -> Option<String> {
+    pub const fn note(&self) -> Option<String> {
         #[allow(clippy::match_same_arms)]
         match self {
             Error::ExpectedFound { .. } => None,

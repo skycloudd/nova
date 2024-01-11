@@ -442,7 +442,7 @@ impl std::fmt::Display for TypeInfo {
     }
 }
 
-fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
+const fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
     (
         match ty.0 {
             Type::Boolean => TypeInfo::Boolean,
