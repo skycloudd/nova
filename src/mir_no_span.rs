@@ -1,40 +1,40 @@
 use crate::{mir, Spanned};
 
 #[derive(Debug)]
-pub enum TypedStatement<'src> {
-    Expr(TypedExpression<'src>),
-    BuiltinPrint(TypedExpression<'src>),
-    Loop(Vec<TypedStatement<'src>>),
+pub enum TypedStatement {
+    Expr(TypedExpression),
+    BuiltinPrint(TypedExpression),
+    Loop(Vec<TypedStatement>),
     If {
-        condition: TypedExpression<'src>,
-        then_branch: Vec<TypedStatement<'src>>,
-        else_branch: Option<Vec<TypedStatement<'src>>>,
+        condition: TypedExpression,
+        then_branch: Vec<TypedStatement>,
+        else_branch: Option<Vec<TypedStatement>>,
     },
     Let {
-        name: &'src str,
-        value: TypedExpression<'src>,
+        name: VarId,
+        value: TypedExpression,
     },
     Const {
-        name: &'src str,
-        value: TypedExpression<'src>,
+        name: VarId,
+        value: TypedExpression,
     },
     Assign {
-        name: &'src str,
-        value: TypedExpression<'src>,
+        name: VarId,
+        value: TypedExpression,
     },
     Break,
     Continue,
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<'src> {
-    pub expr: Expression<'src>,
+pub struct TypedExpression {
+    pub expr: Expression,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression<'src> {
-    Variable(&'src str),
+pub enum Expression {
+    Variable(VarId),
     Boolean(bool),
     Integer(i32),
     Float(f32),
@@ -44,42 +44,44 @@ pub enum Expression<'src> {
         b: u8,
     },
     Vector {
-        x: Box<TypedExpression<'src>>,
-        y: Box<TypedExpression<'src>>,
+        x: Box<TypedExpression>,
+        y: Box<TypedExpression>,
     },
-    Operation(Box<Operation<'src>>),
+    Operation(Box<Operation>),
 }
 
+pub type VarId = usize;
+
 #[derive(Debug)]
-pub enum Operation<'src> {
-    IntegerEquals(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerNotEquals(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerPlus(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerMinus(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerMultiply(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerDivide(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerGreaterThanEquals(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerLessThanEquals(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerGreaterThan(TypedExpression<'src>, TypedExpression<'src>),
-    IntegerLessThan(TypedExpression<'src>, TypedExpression<'src>),
+pub enum Operation {
+    IntegerEquals(TypedExpression, TypedExpression),
+    IntegerNotEquals(TypedExpression, TypedExpression),
+    IntegerPlus(TypedExpression, TypedExpression),
+    IntegerMinus(TypedExpression, TypedExpression),
+    IntegerMultiply(TypedExpression, TypedExpression),
+    IntegerDivide(TypedExpression, TypedExpression),
+    IntegerGreaterThanEquals(TypedExpression, TypedExpression),
+    IntegerLessThanEquals(TypedExpression, TypedExpression),
+    IntegerGreaterThan(TypedExpression, TypedExpression),
+    IntegerLessThan(TypedExpression, TypedExpression),
 
-    FloatEquals(TypedExpression<'src>, TypedExpression<'src>),
-    FloatNotEquals(TypedExpression<'src>, TypedExpression<'src>),
-    FloatPlus(TypedExpression<'src>, TypedExpression<'src>),
-    FloatMinus(TypedExpression<'src>, TypedExpression<'src>),
-    FloatMultiply(TypedExpression<'src>, TypedExpression<'src>),
-    FloatDivide(TypedExpression<'src>, TypedExpression<'src>),
-    FloatGreaterThanEquals(TypedExpression<'src>, TypedExpression<'src>),
-    FloatLessThanEquals(TypedExpression<'src>, TypedExpression<'src>),
-    FloatGreaterThan(TypedExpression<'src>, TypedExpression<'src>),
-    FloatLessThan(TypedExpression<'src>, TypedExpression<'src>),
+    FloatEquals(TypedExpression, TypedExpression),
+    FloatNotEquals(TypedExpression, TypedExpression),
+    FloatPlus(TypedExpression, TypedExpression),
+    FloatMinus(TypedExpression, TypedExpression),
+    FloatMultiply(TypedExpression, TypedExpression),
+    FloatDivide(TypedExpression, TypedExpression),
+    FloatGreaterThanEquals(TypedExpression, TypedExpression),
+    FloatLessThanEquals(TypedExpression, TypedExpression),
+    FloatGreaterThan(TypedExpression, TypedExpression),
+    FloatLessThan(TypedExpression, TypedExpression),
 
-    BooleanEquals(TypedExpression<'src>, TypedExpression<'src>),
-    BooleanNotEquals(TypedExpression<'src>, TypedExpression<'src>),
+    BooleanEquals(TypedExpression, TypedExpression),
+    BooleanNotEquals(TypedExpression, TypedExpression),
 
-    IntegerNegate(TypedExpression<'src>),
-    FloatNegate(TypedExpression<'src>),
-    BooleanNot(TypedExpression<'src>),
+    IntegerNegate(TypedExpression),
+    FloatNegate(TypedExpression),
+    BooleanNot(TypedExpression),
 }
 
 #[derive(Debug)]
@@ -103,15 +105,11 @@ impl From<mir::Type> for Type {
     }
 }
 
-pub fn mir_remove_span<'src>(
-    mir: Vec<Spanned<mir::TypedStatement<'src, '_>>>,
-) -> Vec<TypedStatement<'src>> {
+pub fn mir_remove_span(mir: Vec<Spanned<mir::TypedStatement<'_>>>) -> Vec<TypedStatement> {
     mir.into_iter().map(|s| statement_remove_span(s)).collect()
 }
 
-fn statement_remove_span<'src>(
-    statement: Spanned<mir::TypedStatement<'src, '_>>,
-) -> TypedStatement<'src> {
+fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedStatement {
     match statement.0 {
         mir::TypedStatement::Expr(expr) => TypedStatement::Expr(expression_remove_span(expr)),
         mir::TypedStatement::BuiltinPrint(expr) => {
@@ -160,9 +158,7 @@ fn statement_remove_span<'src>(
     }
 }
 
-fn expression_remove_span<'src>(
-    expression: Spanned<mir::TypedExpression<'src, '_>>,
-) -> TypedExpression<'src> {
+fn expression_remove_span(expression: Spanned<mir::TypedExpression<'_>>) -> TypedExpression {
     TypedExpression {
         expr: match expression.0.expr {
             mir::Expression::Variable(name) => Expression::Variable(name),
@@ -182,7 +178,7 @@ fn expression_remove_span<'src>(
     }
 }
 
-fn operation_remove_span<'src>(operation: mir::Operation<'src, '_>) -> Operation<'src> {
+fn operation_remove_span(operation: mir::Operation<'_>) -> Operation {
     match operation {
         mir::Operation::IntegerEquals(lhs, rhs) => {
             Operation::IntegerEquals(expression_remove_span(lhs), expression_remove_span(rhs))

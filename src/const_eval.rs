@@ -1,14 +1,14 @@
 use crate::{
     error::Error,
-    mir::{Expression, Operation, Type, TypedExpression, TypedStatement},
+    mir::{Expression, Operation, Type, TypedExpression, TypedStatement, VarId},
     scopes::Scopes,
     Spanned,
 };
 
 pub fn const_eval<'src, 'file>(
-    ast: Vec<Spanned<'file, TypedStatement<'src, 'file>>>,
+    ast: Vec<Spanned<'file, TypedStatement<'file>>>,
 ) -> (
-    Option<Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+    Option<Vec<Spanned<'file, TypedStatement<'file>>>>,
     Vec<Box<Error<'file>>>,
 ) {
     let mut errors = vec![];
@@ -31,10 +31,10 @@ pub fn const_eval<'src, 'file>(
 }
 
 fn const_eval_statement<'src, 'file>(
-    const_vars: &mut Scopes<&'src str, Spanned<'file, ConstValue<'file>>>,
+    const_vars: &mut Scopes<VarId, Spanned<'file, ConstValue<'file>>>,
     errors: &mut Vec<Box<Error<'file>>>,
-    statement: Spanned<'file, TypedStatement<'src, 'file>>,
-) -> Option<Spanned<'file, TypedStatement<'src, 'file>>> {
+    statement: Spanned<'file, TypedStatement<'file>>,
+) -> Option<Spanned<'file, TypedStatement<'file>>> {
     match statement.0 {
         TypedStatement::Expr(expr) => Some(TypedStatement::Expr(propagate_const(const_vars, expr))),
         TypedStatement::BuiltinPrint(expr) => Some(TypedStatement::BuiltinPrint(propagate_const(
@@ -91,7 +91,7 @@ fn const_eval_statement<'src, 'file>(
         }
         TypedStatement::Const { name, value: expr } => const_eval_expr(const_vars, errors, expr)
             .map(|value| {
-                const_vars.insert(&name, value.clone());
+                const_vars.insert(*name, value.clone());
 
                 TypedStatement::Const {
                     name,
@@ -110,9 +110,9 @@ fn const_eval_statement<'src, 'file>(
 }
 
 fn const_eval_expr<'file>(
-    const_vars: &mut Scopes<&str, Spanned<ConstValue<'file>>>,
+    const_vars: &mut Scopes<VarId, Spanned<ConstValue<'file>>>,
     errors: &mut Vec<Box<Error<'file>>>,
-    expr: Spanned<'file, TypedExpression<'_, 'file>>,
+    expr: Spanned<'file, TypedExpression<'file>>,
 ) -> Option<Spanned<'file, ConstValue<'file>>> {
     match expr.0.expr {
         Expression::Variable(name) => {
@@ -335,9 +335,9 @@ fn const_eval_expr<'file>(
 }
 
 fn propagate_const<'src, 'file>(
-    const_vars: &mut Scopes<&'src str, Spanned<ConstValue<'file>>>,
-    expr: Spanned<'file, TypedExpression<'src, 'file>>,
-) -> Spanned<'file, TypedExpression<'src, 'file>> {
+    const_vars: &mut Scopes<VarId, Spanned<ConstValue<'file>>>,
+    expr: Spanned<'file, TypedExpression<'file>>,
+) -> Spanned<'file, TypedExpression<'file>> {
     Spanned(
         TypedExpression {
             expr: match expr.0.expr {
@@ -604,7 +604,7 @@ enum ConstValue<'file> {
     },
 }
 
-impl<'src, 'file> From<ConstValue<'file>> for Expression<'src, 'file> {
+impl<'src, 'file> From<ConstValue<'file>> for Expression<'file> {
     fn from(expr: ConstValue<'file>) -> Self {
         match expr {
             ConstValue::Boolean(value) => Expression::Boolean(value),
@@ -631,7 +631,7 @@ impl<'src, 'file> From<ConstValue<'file>> for Expression<'src, 'file> {
     }
 }
 
-impl<'src, 'file> From<ConstValue<'file>> for TypedExpression<'src, 'file> {
+impl<'src, 'file> From<ConstValue<'file>> for TypedExpression<'file> {
     fn from(const_value: ConstValue<'file>) -> Self {
         let expr = const_value.clone().into();
 
