@@ -402,18 +402,16 @@ impl<'file> Engine<'file> {
     fn reconstruct(&self, id: TypeId) -> Result<Spanned<Type>, Box<Error<'file>>> {
         let var = &self.vars[&id];
 
-        Ok(Spanned(
-            match var.0 {
-                TypeInfo::Unknown => return Err(Box::new(Error::UnknownType { span: var.1 })),
-                TypeInfo::Ref(id) => self.reconstruct(id)?.0,
-                TypeInfo::Boolean => Type::Boolean,
-                TypeInfo::Integer => Type::Integer,
-                TypeInfo::Float => Type::Float,
-                TypeInfo::Colour => Type::Colour,
-                TypeInfo::Vector => Type::Vector,
-            },
-            var.1,
-        ))
+        match var.0 {
+            TypeInfo::Unknown => Err(Box::new(Error::UnknownType { span: var.1 })),
+            TypeInfo::Ref(id) => Ok(self.reconstruct(id)?.0),
+            TypeInfo::Boolean => Ok(Type::Boolean),
+            TypeInfo::Integer => Ok(Type::Integer),
+            TypeInfo::Float => Ok(Type::Float),
+            TypeInfo::Colour => Ok(Type::Colour),
+            TypeInfo::Vector => Ok(Type::Vector),
+        }
+        .map(|ty| Spanned(ty, var.1))
     }
 }
 
@@ -445,17 +443,6 @@ impl std::fmt::Display for TypeInfo {
 }
 
 fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
-    // Spanned(
-    //     match ty.0 {
-    //         Type::Boolean => TypeInfo::Boolean,
-    //         Type::Integer => TypeInfo::Integer,
-    //         Type::Float => TypeInfo::Float,
-    //         Type::Colour => TypeInfo::Colour,
-    //         Type::Vector => TypeInfo::Vector,
-    //     },
-    //     ty.1,
-    // )
-
     ty.map(|ty| match ty {
         Type::Boolean => TypeInfo::Boolean,
         Type::Integer => TypeInfo::Integer,
