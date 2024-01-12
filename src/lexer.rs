@@ -1,5 +1,5 @@
 use crate::Span;
-use chumsky::{input::MappedSpan, prelude::*};
+use chumsky::{input::WithContext, prelude::*};
 use std::num::ParseIntError;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -128,15 +128,12 @@ impl std::fmt::Display for Op {
     }
 }
 
-pub fn lexer<'src, 'file: 'src, F>() -> impl Parser<
+pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     'src,
-    MappedSpan<Span<'file>, &'src str, F>,
+    WithContext<Span<'file>, &'src str>,
     Vec<(Token<'src>, Span<'file>)>,
     extra::Err<Rich<'src, char, Span<'file>>>,
->
-where
-    F: Fn(chumsky::span::SimpleSpan) -> Span<'file> + 'file,
-{
+> {
     let variable = text::ident().map(Token::Variable);
 
     let bool = choice((

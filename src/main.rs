@@ -54,7 +54,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer()
-        .parse(input.map_span(|s| Span::new(filename, s.into_range())))
+        .parse(input.with_context(filename))
         .into_output_errors();
 
     errors.extend(map_errors(lex_errors));
@@ -83,7 +83,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
         if let Ok(mir) = mir {
             let mir = mir_no_span::mir_remove_span(mir);
 
-            println!("{:?}", mir);
+            println!("{mir:?}");
         }
 
         Ok(())
