@@ -1,6 +1,5 @@
-use std::path::Path;
-
 use chumsky::prelude::*;
+use std::path::Path;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
