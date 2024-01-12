@@ -8,12 +8,14 @@ use chumsky::{input::SpannedInput, prelude::*};
 type ParserInput<'tokens, 'src, 'file> =
     SpannedInput<Token<'src>, Span<'file>, &'tokens [(Token<'src>, Span<'file>)]>;
 
+type ParserOutput<'tokens, 'src, 'file> = Vec<Spanned<'file, Statement<'src, 'file>>>;
+
 type ParserError<'tokens, 'src, 'file> = extra::Err<Rich<'tokens, Token<'src>, Span<'file>>>;
 
 pub fn parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
     'tokens,
     ParserInput<'tokens, 'src, 'file>,
-    Vec<Spanned<'file, Statement<'src, 'file>>>,
+    ParserOutput<'tokens, 'src, 'file>,
     ParserError<'tokens, 'src, 'file>,
 > {
     statement_parser().repeated().collect().then_ignore(end())

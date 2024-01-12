@@ -128,11 +128,17 @@ impl std::fmt::Display for Op {
     }
 }
 
+type LexerInput<'tokens, 'src, 'file> = WithContext<Span<'file>, &'src str>;
+
+type LexerOutput<'tokens, 'src, 'file> = Vec<(Token<'src>, Span<'file>)>;
+
+type LexerError<'tokens, 'src, 'file> = extra::Err<Rich<'src, char, Span<'file>>>;
+
 pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     'src,
-    WithContext<Span<'file>, &'src str>,
-    Vec<(Token<'src>, Span<'file>)>,
-    extra::Err<Rich<'src, char, Span<'file>>>,
+    LexerInput<'src, 'src, 'file>,
+    LexerOutput<'src, 'src, 'file>,
+    LexerError<'src, 'src, 'file>,
 > {
     let variable = text::ident().map(Token::Variable);
 
