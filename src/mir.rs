@@ -4,7 +4,7 @@ use crate::{
         BinaryOp, UnaryOp,
     },
     scopes::Scopes,
-    Spanned,
+    span::Spanned,
 };
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use crate::Spanned;
+use crate::span::Spanned;
 
 macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
@@ -111,8 +111,9 @@ impl std::fmt::Display for UnaryOp {
 }
 
 pub mod typed {
-    use crate::ast::{BinaryOp, UnaryOp};
-    use crate::Spanned;
+    // use crate::ast::{BinaryOp, UnaryOp};
+    // use crate::span::Spanned;
+    use super::*;
 
     ast_statement!(TypedStatement, TypedExpr);
 

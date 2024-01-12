@@ -5,7 +5,7 @@ use crate::{
     },
     error::Error,
     scopes::Scopes,
-    Spanned,
+    span::Spanned,
 };
 use rustc_hash::FxHashMap;
 

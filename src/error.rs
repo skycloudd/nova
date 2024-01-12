@@ -1,4 +1,4 @@
-use crate::{Span, Spanned};
+use crate::span::{Span, Spanned};
 use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
 use std::borrow::Cow;

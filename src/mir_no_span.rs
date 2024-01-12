@@ -1,4 +1,4 @@
-use crate::{mir, Spanned};
+use crate::{mir, span::Spanned};
 
 #[derive(Debug)]
 pub enum TypedStatement {

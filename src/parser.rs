@@ -1,7 +1,7 @@
 use crate::{
     ast::{BinaryOp, Expr, Statement, UnaryOp},
     lexer::{Ctrl, Kw, Op, Token},
-    Span, Spanned,
+    span::{Span, Spanned},
 };
 use chumsky::{input::SpannedInput, prelude::*};
 

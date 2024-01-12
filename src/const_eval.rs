@@ -2,7 +2,7 @@ use crate::{
     error::Error,
     mir::{Expression, Operation, Type, TypedExpression, TypedStatement, VarId},
     scopes::Scopes,
-    Spanned,
+    span::Spanned,
 };
 
 pub fn const_eval<'file>(
