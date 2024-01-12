@@ -111,9 +111,8 @@ impl std::fmt::Display for UnaryOp {
 }
 
 pub mod typed {
-    // use crate::ast::{BinaryOp, UnaryOp};
-    // use crate::span::Spanned;
-    use super::*;
+    use super::{BinaryOp, UnaryOp};
+    use crate::span::Spanned;
 
     ast_statement!(TypedStatement, TypedExpr);
 
