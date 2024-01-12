@@ -162,11 +162,11 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 just(Token::Ctrl(Ctrl::LeftCurly)),
                 just(Token::Ctrl(Ctrl::RightCurly)),
             )
-            .map_with(|(x, y), e| {
+            .map_with(|(x, y): (Spanned<Expr>, _), e| {
                 Spanned(
                     Expr::Vector {
-                        x: Box::new(x),
-                        y: Box::new(y),
+                        x: x.map(Box::new),
+                        y: y.map(Box::new),
                     },
                     e.span(),
                 )
@@ -197,10 +197,10 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
 
         let unary = unary_op
             .repeated()
-            .foldr(atom, |op: Spanned<_>, expr: Spanned<_>| {
+            .foldr(atom, |op, expr| {
                 let span = Span::union(op.1, expr.1);
 
-                Spanned(Expr::Unary(op, Box::new(expr)), span)
+                Spanned(Expr::Unary(op, expr.map(Box::new)), span)
             })
             .boxed();
 
@@ -215,7 +215,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(factor_op.then(unary).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
+                Spanned(Expr::Binary(lhs.map(Box::new), op, rhs.map(Box::new)), span)
             })
             .boxed();
 
@@ -230,7 +230,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(sum_op.then(factor).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
+                Spanned(Expr::Binary(lhs.map(Box::new), op, rhs.map(Box::new)), span)
             })
             .boxed();
 
@@ -247,7 +247,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(relational_op.then(sum).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
+                Spanned(Expr::Binary(lhs.map(Box::new), op, rhs.map(Box::new)), span)
             })
             .boxed();
 
@@ -262,7 +262,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .foldl(equality_op.then(relational).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(Box::new(lhs), op, Box::new(rhs)), span)
+                Spanned(Expr::Binary(lhs.map(Box::new), op, rhs.map(Box::new)), span)
             })
             .boxed()
     })

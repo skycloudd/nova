@@ -51,8 +51,8 @@ pub enum Expression<'file> {
         b: u8,
     },
     Vector {
-        x: Box<Spanned<'file, TypedExpression<'file>>>,
-        y: Box<Spanned<'file, TypedExpression<'file>>>,
+        x: Spanned<'file, Box<TypedExpression<'file>>>,
+        y: Spanned<'file, Box<TypedExpression<'file>>>,
     },
     Operation(Box<Operation<'file>>),
 }
@@ -217,149 +217,134 @@ fn build_mir_statement<'src, 'file>(
     var_id_map: &mut VarIdMap<'src>,
     statement: Spanned<'file, Statement<'src, 'file>>,
 ) -> Spanned<'file, TypedStatement<'file>> {
-    Spanned(
-        match statement.0 {
-            Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(var_id_map, expr)),
-            Statement::BuiltinPrint(expr) => {
-                TypedStatement::BuiltinPrint(build_mir_expr(var_id_map, expr))
-            }
-            Statement::Loop(statements) => TypedStatement::Loop(Spanned(
-                statements
-                    .0
-                    .into_iter()
+    statement.map(|statement| match statement {
+        Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(var_id_map, expr)),
+        Statement::BuiltinPrint(expr) => {
+            TypedStatement::BuiltinPrint(build_mir_expr(var_id_map, expr))
+        }
+        Statement::Loop(statements) => TypedStatement::Loop(statements.map(|s| {
+            s.into_iter()
+                .map(|stmt| build_mir_statement(var_id_map, stmt))
+                .collect()
+        })),
+        Statement::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => TypedStatement::If {
+            condition: build_mir_expr(var_id_map, condition),
+            then_branch: then_branch.map(|s| {
+                s.into_iter()
                     .map(|stmt| build_mir_statement(var_id_map, stmt))
-                    .collect(),
-                statements.1,
-            )),
-            Statement::If {
-                condition,
-                then_branch,
-                else_branch,
-            } => TypedStatement::If {
-                condition: build_mir_expr(var_id_map, condition),
-                then_branch: Spanned(
-                    then_branch
-                        .0
-                        .into_iter()
+                    .collect()
+            }),
+            else_branch: else_branch.map(|s| {
+                s.map(|s| {
+                    s.into_iter()
                         .map(|stmt| build_mir_statement(var_id_map, stmt))
-                        .collect(),
-                    then_branch.1,
-                ),
-                else_branch: else_branch.map(|s| {
-                    Spanned(
-                        s.0.into_iter()
-                            .map(|stmt| build_mir_statement(var_id_map, stmt))
-                            .collect(),
-                        s.1,
-                    )
-                }),
-            },
-            Statement::Let { name, value } => TypedStatement::Let {
-                name: Spanned(var_id_map.get_or_insert(name.0), name.1),
-                value: build_mir_expr(var_id_map, value),
-            },
-            Statement::Const { name, value } => TypedStatement::Const {
-                name: Spanned(var_id_map.get_or_insert(name.0), name.1),
-                value: build_mir_expr(var_id_map, value),
-            },
-            Statement::Assign { name, value } => TypedStatement::Assign {
-                name: Spanned(var_id_map.get_or_insert(name.0), name.1),
-                value: build_mir_expr(var_id_map, value),
-            },
-            Statement::Break => TypedStatement::Break,
-            Statement::Continue => TypedStatement::Continue,
+                        .collect()
+                })
+            }),
         },
-        statement.1,
-    )
+        Statement::Let { name, value } => TypedStatement::Let {
+            name: name.map(|name| var_id_map.get_or_insert(name)),
+            value: build_mir_expr(var_id_map, value),
+        },
+        Statement::Const { name, value } => TypedStatement::Const {
+            name: name.map(|name| var_id_map.get_or_insert(name)),
+            value: build_mir_expr(var_id_map, value),
+        },
+        Statement::Assign { name, value } => TypedStatement::Assign {
+            name: name.map(|name| var_id_map.get_or_insert(name)),
+            value: build_mir_expr(var_id_map, value),
+        },
+        Statement::Break => TypedStatement::Break,
+        Statement::Continue => TypedStatement::Continue,
+    })
 }
 
 fn build_mir_expr<'src, 'file>(
     var_id_map: &mut VarIdMap<'src>,
     expr: Spanned<'file, TypedExpr<'src, 'file>>,
 ) -> Spanned<'file, TypedExpression<'file>> {
-    Spanned(
-        TypedExpression {
-            expr: match expr.0.expr {
-                Expr::Variable(name) => Expression::Variable(var_id_map.get_or_insert(name)),
-                Expr::Boolean(value) => Expression::Boolean(value),
-                Expr::Integer(value) => Expression::Integer(value),
-                Expr::Float(value) => Expression::Float(value),
-                Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
-                Expr::Vector { x, y } => Expression::Vector {
-                    x: Box::new(build_mir_expr(var_id_map, *x)),
-                    y: Box::new(build_mir_expr(var_id_map, *y)),
-                },
-                Expr::Binary(lhs, op, rhs) => {
-                    let lhs = build_mir_expr(var_id_map, *lhs);
-                    let rhs = build_mir_expr(var_id_map, *rhs);
-
-                    Expression::Operation(Box::new(match (&lhs.0.ty, &rhs.0.ty) {
-                        (Type::Integer, Type::Integer) => match op.0 {
-                            BinaryOp::Equals => Operation::IntegerEquals(lhs, rhs),
-                            BinaryOp::NotEquals => Operation::IntegerNotEquals(lhs, rhs),
-                            BinaryOp::Plus => Operation::IntegerPlus(lhs, rhs),
-                            BinaryOp::Minus => Operation::IntegerMinus(lhs, rhs),
-                            BinaryOp::Multiply => Operation::IntegerMultiply(lhs, rhs),
-                            BinaryOp::Divide => Operation::IntegerDivide(lhs, rhs),
-                            BinaryOp::GreaterThanEquals => {
-                                Operation::IntegerGreaterThanEquals(lhs, rhs)
-                            }
-                            BinaryOp::LessThanEquals => Operation::IntegerLessThanEquals(lhs, rhs),
-                            BinaryOp::GreaterThan => Operation::IntegerGreaterThan(lhs, rhs),
-                            BinaryOp::LessThan => Operation::IntegerLessThan(lhs, rhs),
-                        },
-
-                        (Type::Float, Type::Float) => match op.0 {
-                            BinaryOp::Equals => Operation::FloatEquals(lhs, rhs),
-                            BinaryOp::NotEquals => Operation::FloatNotEquals(lhs, rhs),
-                            BinaryOp::Plus => Operation::FloatPlus(lhs, rhs),
-                            BinaryOp::Minus => Operation::FloatMinus(lhs, rhs),
-                            BinaryOp::Multiply => Operation::FloatMultiply(lhs, rhs),
-                            BinaryOp::Divide => Operation::FloatDivide(lhs, rhs),
-                            BinaryOp::GreaterThanEquals => {
-                                Operation::FloatGreaterThanEquals(lhs, rhs)
-                            }
-                            BinaryOp::LessThanEquals => Operation::FloatLessThanEquals(lhs, rhs),
-                            BinaryOp::GreaterThan => Operation::FloatGreaterThan(lhs, rhs),
-                            BinaryOp::LessThan => Operation::FloatLessThan(lhs, rhs),
-                        },
-
-                        (Type::Boolean, Type::Boolean) => match op.0 {
-                            BinaryOp::Equals => Operation::BooleanEquals(lhs, rhs),
-                            BinaryOp::NotEquals => Operation::BooleanNotEquals(lhs, rhs),
-
-                            _ => unreachable!(),
-                        },
-
-                        _ => unreachable!(),
-                    }))
-                }
-                Expr::Unary(op, rhs) => {
-                    let rhs = build_mir_expr(var_id_map, *rhs);
-
-                    #[allow(clippy::match_wildcard_for_single_variants)]
-                    Expression::Operation(Box::new(match &rhs.0.ty {
-                        Type::Integer => match op.0 {
-                            UnaryOp::Negate => Operation::IntegerNegate(rhs),
-
-                            _ => unreachable!(),
-                        },
-                        Type::Float => match op.0 {
-                            UnaryOp::Negate => Operation::FloatNegate(rhs),
-
-                            _ => unreachable!(),
-                        },
-                        Type::Boolean => match op.0 {
-                            UnaryOp::Not => Operation::BooleanNot(rhs),
-
-                            _ => unreachable!(),
-                        },
-                        _ => unreachable!(),
-                    }))
-                }
+    expr.map(|expr| TypedExpression {
+        expr: match expr.expr {
+            Expr::Variable(name) => Expression::Variable(var_id_map.get_or_insert(name)),
+            Expr::Boolean(value) => Expression::Boolean(value),
+            Expr::Integer(value) => Expression::Integer(value),
+            Expr::Float(value) => Expression::Float(value),
+            Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
+            Expr::Vector { x, y } => Expression::Vector {
+                x: build_mir_expr(var_id_map, x.map(|x| *x)).map(Box::new),
+                y: build_mir_expr(var_id_map, y.map(|y| *y)).map(Box::new),
             },
-            ty: expr.0.ty.into(),
+            Expr::Binary(lhs, op, rhs) => {
+                let lhs = build_mir_expr(var_id_map, lhs.map(|l| *l));
+                let rhs = build_mir_expr(var_id_map, rhs.map(|r| *r));
+
+                Expression::Operation(Box::new(match (&lhs.0.ty, &rhs.0.ty) {
+                    (Type::Integer, Type::Integer) => match op.0 {
+                        BinaryOp::Equals => Operation::IntegerEquals(lhs, rhs),
+                        BinaryOp::NotEquals => Operation::IntegerNotEquals(lhs, rhs),
+                        BinaryOp::Plus => Operation::IntegerPlus(lhs, rhs),
+                        BinaryOp::Minus => Operation::IntegerMinus(lhs, rhs),
+                        BinaryOp::Multiply => Operation::IntegerMultiply(lhs, rhs),
+                        BinaryOp::Divide => Operation::IntegerDivide(lhs, rhs),
+                        BinaryOp::GreaterThanEquals => {
+                            Operation::IntegerGreaterThanEquals(lhs, rhs)
+                        }
+                        BinaryOp::LessThanEquals => Operation::IntegerLessThanEquals(lhs, rhs),
+                        BinaryOp::GreaterThan => Operation::IntegerGreaterThan(lhs, rhs),
+                        BinaryOp::LessThan => Operation::IntegerLessThan(lhs, rhs),
+                    },
+
+                    (Type::Float, Type::Float) => match op.0 {
+                        BinaryOp::Equals => Operation::FloatEquals(lhs, rhs),
+                        BinaryOp::NotEquals => Operation::FloatNotEquals(lhs, rhs),
+                        BinaryOp::Plus => Operation::FloatPlus(lhs, rhs),
+                        BinaryOp::Minus => Operation::FloatMinus(lhs, rhs),
+                        BinaryOp::Multiply => Operation::FloatMultiply(lhs, rhs),
+                        BinaryOp::Divide => Operation::FloatDivide(lhs, rhs),
+                        BinaryOp::GreaterThanEquals => Operation::FloatGreaterThanEquals(lhs, rhs),
+                        BinaryOp::LessThanEquals => Operation::FloatLessThanEquals(lhs, rhs),
+                        BinaryOp::GreaterThan => Operation::FloatGreaterThan(lhs, rhs),
+                        BinaryOp::LessThan => Operation::FloatLessThan(lhs, rhs),
+                    },
+
+                    (Type::Boolean, Type::Boolean) => match op.0 {
+                        BinaryOp::Equals => Operation::BooleanEquals(lhs, rhs),
+                        BinaryOp::NotEquals => Operation::BooleanNotEquals(lhs, rhs),
+
+                        _ => unreachable!(),
+                    },
+
+                    _ => unreachable!(),
+                }))
+            }
+            Expr::Unary(op, rhs) => {
+                let rhs = build_mir_expr(var_id_map, rhs.map(|r| *r));
+
+                #[allow(clippy::match_wildcard_for_single_variants)]
+                Expression::Operation(Box::new(match &rhs.0.ty {
+                    Type::Integer => match op.0 {
+                        UnaryOp::Negate => Operation::IntegerNegate(rhs),
+
+                        _ => unreachable!(),
+                    },
+                    Type::Float => match op.0 {
+                        UnaryOp::Negate => Operation::FloatNegate(rhs),
+
+                        _ => unreachable!(),
+                    },
+                    Type::Boolean => match op.0 {
+                        UnaryOp::Not => Operation::BooleanNot(rhs),
+
+                        _ => unreachable!(),
+                    },
+                    _ => unreachable!(),
+                }))
+            }
         },
-        expr.1,
-    )
+        ty: expr.ty.into(),
+    })
 }

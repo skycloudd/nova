@@ -12,7 +12,7 @@ use rustc_hash::FxHashMap;
 pub fn typecheck<'src, 'file>(
     ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
 ) -> (
-    Option<Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+    Result<Vec<Spanned<'file, TypedStatement<'src, 'file>>>, ()>,
     Vec<Box<Error<'file>>>,
 ) {
     typecheck_ast(ast)
@@ -21,7 +21,7 @@ pub fn typecheck<'src, 'file>(
 fn typecheck_ast<'src, 'file>(
     ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
 ) -> (
-    Option<Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+    Result<Vec<Spanned<'file, TypedStatement<'src, 'file>>>, ()>,
     Vec<Box<Error<'file>>>,
 ) {
     let mut engine = Engine::new();
@@ -40,9 +40,9 @@ fn typecheck_ast<'src, 'file>(
     }
 
     if errors.is_empty() {
-        (Some(typed_ast), errors)
+        (Ok(typed_ast), errors)
     } else {
-        (None, errors)
+        (Err(()), errors)
     }
 }
 
@@ -237,8 +237,8 @@ fn typecheck_expression<'src, 'file>(
                 ty: Type::Colour,
             },
             Expr::Vector { x, y } => {
-                let x = typecheck_expression(engine, variables, const_variables, *x)?;
-                let y = typecheck_expression(engine, variables, const_variables, *y)?;
+                let x = typecheck_expression(engine, variables, const_variables, x.map(|x| *x))?;
+                let y = typecheck_expression(engine, variables, const_variables, y.map(|y| *y))?;
 
                 let x_ty = engine.insert(type_to_typeinfo(Spanned(&x.0.ty, x.1)));
                 let y_ty = engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
@@ -252,15 +252,17 @@ fn typecheck_expression<'src, 'file>(
 
                 TypedExpr {
                     expr: typed::Expr::Vector {
-                        x: Box::new(x),
-                        y: Box::new(y),
+                        x: x.map(Box::new),
+                        y: y.map(Box::new),
                     },
                     ty: Type::Vector,
                 }
             }
             Expr::Binary(lhs, op, rhs) => {
-                let lhs = typecheck_expression(engine, variables, const_variables, *lhs)?;
-                let rhs = typecheck_expression(engine, variables, const_variables, *rhs)?;
+                let lhs =
+                    typecheck_expression(engine, variables, const_variables, lhs.map(|l| *l))?;
+                let rhs =
+                    typecheck_expression(engine, variables, const_variables, rhs.map(|r| *r))?;
 
                 let lhs_ty = engine.insert(type_to_typeinfo(Spanned(&lhs.0.ty, lhs.1)));
                 let rhs_ty = engine.insert(type_to_typeinfo(Spanned(&rhs.0.ty, rhs.1)));
@@ -304,12 +306,13 @@ fn typecheck_expression<'src, 'file>(
                 })?;
 
                 TypedExpr {
-                    expr: typed::Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
+                    expr: typed::Expr::Binary(lhs.map(Box::new), op, rhs.map(Box::new)),
                     ty,
                 }
             }
             Expr::Unary(op, expr) => {
-                let expr = typecheck_expression(engine, variables, const_variables, *expr)?;
+                let expr =
+                    typecheck_expression(engine, variables, const_variables, expr.map(|e| *e))?;
 
                 let ty = unary_op!(
                     expr.0.ty,
@@ -326,7 +329,7 @@ fn typecheck_expression<'src, 'file>(
                 })?;
 
                 TypedExpr {
-                    expr: typed::Expr::Unary(op, Box::new(expr)),
+                    expr: typed::Expr::Unary(op, expr.map(Box::new)),
                     ty,
                 }
             }
@@ -441,17 +444,25 @@ impl std::fmt::Display for TypeInfo {
     }
 }
 
-const fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
-    Spanned(
-        match ty.0 {
-            Type::Boolean => TypeInfo::Boolean,
-            Type::Integer => TypeInfo::Integer,
-            Type::Float => TypeInfo::Float,
-            Type::Colour => TypeInfo::Colour,
-            Type::Vector => TypeInfo::Vector,
-        },
-        ty.1,
-    )
+fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
+    // Spanned(
+    //     match ty.0 {
+    //         Type::Boolean => TypeInfo::Boolean,
+    //         Type::Integer => TypeInfo::Integer,
+    //         Type::Float => TypeInfo::Float,
+    //         Type::Colour => TypeInfo::Colour,
+    //         Type::Vector => TypeInfo::Vector,
+    //     },
+    //     ty.1,
+    // )
+
+    ty.map(|ty| match ty {
+        Type::Boolean => TypeInfo::Boolean,
+        Type::Integer => TypeInfo::Integer,
+        Type::Float => TypeInfo::Float,
+        Type::Colour => TypeInfo::Colour,
+        Type::Vector => TypeInfo::Vector,
+    })
 }
 
 macro_rules! bin_op {

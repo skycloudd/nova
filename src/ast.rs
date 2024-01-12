@@ -46,17 +46,17 @@ macro_rules! ast_expr {
                 b: u8,
             },
             Vector {
-                x: Box<Spanned<'file, $self_expr<'src, 'file>>>,
-                y: Box<Spanned<'file, $self_expr<'src, 'file>>>,
+                x: Spanned<'file, Box<$self_expr<'src, 'file>>>,
+                y: Spanned<'file, Box<$self_expr<'src, 'file>>>,
             },
             Binary(
-                Box<Spanned<'file, $self_expr<'src, 'file>>>,
+                Spanned<'file, Box<$self_expr<'src, 'file>>>,
                 Spanned<'file, BinaryOp>,
-                Box<Spanned<'file, $self_expr<'src, 'file>>>,
+                Spanned<'file, Box<$self_expr<'src, 'file>>>,
             ),
             Unary(
                 Spanned<'file, UnaryOp>,
-                Box<Spanned<'file, $self_expr<'src, 'file>>>,
+                Spanned<'file, Box<$self_expr<'src, 'file>>>,
             ),
         }
     };

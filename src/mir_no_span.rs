@@ -167,8 +167,8 @@ fn expression_remove_span(expression: Spanned<mir::TypedExpression<'_>>) -> Type
             mir::Expression::Float(value) => Expression::Float(value),
             mir::Expression::Colour { r, g, b } => Expression::Colour { r, g, b },
             mir::Expression::Vector { x, y } => Expression::Vector {
-                x: Box::new(expression_remove_span(*x)),
-                y: Box::new(expression_remove_span(*y)),
+                x: Box::new(expression_remove_span(x.map(|x| *x))),
+                y: Box::new(expression_remove_span(y.map(|y| *y))),
             },
             mir::Expression::Operation(operation) => {
                 Expression::Operation(Box::new(operation_remove_span(*operation)))

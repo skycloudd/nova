@@ -4,6 +4,7 @@
 #![allow(clippy::float_cmp)]
 #![warn(clippy::nursery)]
 #![allow(clippy::cognitive_complexity)]
+#![allow(clippy::type_complexity)]
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
@@ -68,21 +69,21 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
 
     errors.extend(map_errors(parse_errors));
 
-    let (typed_ast, type_errors) = ast.map_or((None, vec![]), typecheck::typecheck);
+    let (typed_ast, type_errors) = ast.map_or((Err(()), vec![]), typecheck::typecheck);
 
     errors.extend(map_boxed_errors(type_errors));
 
     let mir = typed_ast.map(mir::build);
 
-    let (mir, const_eval_errors) = mir.map_or((None, vec![]), |mir| const_eval::const_eval(mir));
+    let (mir, const_eval_errors) = mir.map_or((Err(()), vec![]), |mir| const_eval::const_eval(mir));
 
     errors.extend(map_boxed_errors(const_eval_errors));
 
     if errors.is_empty() {
-        if let Some(mir) = mir {
+        if let Ok(mir) = mir {
             let mir = mir_no_span::mir_remove_span(mir);
 
-            dbg!(mir);
+            println!("{:?}", mir);
         }
 
         Ok(())
@@ -201,6 +202,12 @@ impl<'file> std::ops::Deref for Span<'file> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Spanned<'file, T>(pub T, pub Span<'file>);
+
+impl<'file, T> Spanned<'file, T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<'file, U> {
+        Spanned(f(self.0), self.1)
+    }
+}
 
 impl<'file, T> std::ops::Deref for Spanned<'file, T> {
     type Target = T;
