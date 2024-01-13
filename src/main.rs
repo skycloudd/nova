@@ -86,10 +86,10 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
         if let Ok(mir) = mir {
             let mir = mir_no_span::mir_remove_span(mir);
 
-            let lir = low_ir::lower(mir);
+            let low_ir = low_ir::lower(mir);
 
-            for lir in lir {
-                println!("{}", lir);
+            for bb in low_ir {
+                println!("{bb}");
             }
         }
 

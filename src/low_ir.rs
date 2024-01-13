@@ -98,11 +98,11 @@ pub enum Type {
 impl From<mir::Type> for Type {
     fn from(ty: mir::Type) -> Self {
         match ty {
-            mir::Type::Boolean => Type::Boolean,
-            mir::Type::Integer => Type::Integer,
-            mir::Type::Float => Type::Float,
-            mir::Type::Colour => Type::Colour,
-            mir::Type::Vector => Type::Vector,
+            mir::Type::Boolean => Self::Boolean,
+            mir::Type::Integer => Self::Integer,
+            mir::Type::Float => Self::Float,
+            mir::Type::Colour => Self::Colour,
+            mir::Type::Vector => Self::Vector,
         }
     }
 }
@@ -148,9 +148,11 @@ impl LoweringContext {
     }
 
     fn finish(&mut self, terminator: Terminator) {
-        if self.current().terminator.is_some() {
-            panic!("block {} already finished", self.current_block);
-        }
+        assert!(
+            self.current().terminator.is_none(),
+            "block {} already finished",
+            self.current_block
+        );
 
         self.current_mut().terminator = Some(terminator);
     }
@@ -191,7 +193,7 @@ impl LoweringContext {
     fn lower_statement(&mut self, statement: mir::TypedStatement) -> bool {
         match statement {
             mir::TypedStatement::Expr(expr) => {
-                let expr = self.lower_expression(expr);
+                let expr = Self::lower_expression(expr);
 
                 self.current_mut()
                     .instructions
@@ -200,7 +202,7 @@ impl LoweringContext {
                 false
             }
             mir::TypedStatement::BuiltinPrint(expr) => {
-                let expr = self.lower_expression(expr);
+                let expr = Self::lower_expression(expr);
 
                 self.current_mut()
                     .instructions
@@ -238,7 +240,7 @@ impl LoweringContext {
                 then_branch,
                 else_branch,
             } => {
-                let condition = self.lower_expression(condition);
+                let condition = Self::lower_expression(condition);
 
                 let then_block = self.new_block();
 
@@ -278,17 +280,9 @@ impl LoweringContext {
 
                 false
             }
-            mir::TypedStatement::Let { name, value } => {
-                let value = self.lower_expression(value);
-
-                self.current_mut()
-                    .instructions
-                    .push(Instruction::Let { name, value });
-
-                false
-            }
-            mir::TypedStatement::Const { name, value } => {
-                let value = self.lower_expression(value);
+            mir::TypedStatement::Let { name, value }
+            | mir::TypedStatement::Const { name, value } => {
+                let value = Self::lower_expression(value);
 
                 self.current_mut()
                     .instructions
@@ -297,7 +291,7 @@ impl LoweringContext {
                 false
             }
             mir::TypedStatement::Assign { name, value } => {
-                let value = self.lower_expression(value);
+                let value = Self::lower_expression(value);
 
                 self.current_mut()
                     .instructions
@@ -322,7 +316,7 @@ impl LoweringContext {
         }
     }
 
-    fn lower_expression(&mut self, expression: mir::TypedExpression) -> TypedExpression {
+    fn lower_expression(expression: mir::TypedExpression) -> TypedExpression {
         TypedExpression {
             expr: match expression.expr {
                 mir::Expression::Variable(name) => Expression::Variable(name),
@@ -331,117 +325,117 @@ impl LoweringContext {
                 mir::Expression::Float(value) => Expression::Float(value),
                 mir::Expression::Colour { r, g, b } => Expression::Colour { r, g, b },
                 mir::Expression::Vector { x, y } => Expression::Vector {
-                    x: Box::new(self.lower_expression(*x)),
-                    y: Box::new(self.lower_expression(*y)),
+                    x: Box::new(Self::lower_expression(*x)),
+                    y: Box::new(Self::lower_expression(*y)),
                 },
                 mir::Expression::Operation(operation) => {
                     Expression::Operation(Box::new(match *operation {
                         mir::Operation::IntegerEquals(lhs, rhs) => Operation::IntegerEquals(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerNotEquals(lhs, rhs) => Operation::IntegerNotEquals(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerPlus(lhs, rhs) => Operation::IntegerPlus(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerMinus(lhs, rhs) => Operation::IntegerMinus(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerMultiply(lhs, rhs) => Operation::IntegerMultiply(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerDivide(lhs, rhs) => Operation::IntegerDivide(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerGreaterThanEquals(lhs, rhs) => {
                             Operation::IntegerGreaterThanEquals(
-                                self.lower_expression(lhs),
-                                self.lower_expression(rhs),
+                                Self::lower_expression(lhs),
+                                Self::lower_expression(rhs),
                             )
                         }
                         mir::Operation::IntegerLessThanEquals(lhs, rhs) => {
                             Operation::IntegerLessThanEquals(
-                                self.lower_expression(lhs),
-                                self.lower_expression(rhs),
+                                Self::lower_expression(lhs),
+                                Self::lower_expression(rhs),
                             )
                         }
                         mir::Operation::IntegerGreaterThan(lhs, rhs) => {
                             Operation::IntegerGreaterThan(
-                                self.lower_expression(lhs),
-                                self.lower_expression(rhs),
+                                Self::lower_expression(lhs),
+                                Self::lower_expression(rhs),
                             )
                         }
                         mir::Operation::IntegerLessThan(lhs, rhs) => Operation::IntegerLessThan(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatEquals(lhs, rhs) => Operation::FloatEquals(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatNotEquals(lhs, rhs) => Operation::FloatNotEquals(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatPlus(lhs, rhs) => Operation::FloatPlus(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatMinus(lhs, rhs) => Operation::FloatMinus(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatMultiply(lhs, rhs) => Operation::FloatMultiply(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatDivide(lhs, rhs) => Operation::FloatDivide(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatGreaterThanEquals(lhs, rhs) => {
                             Operation::FloatGreaterThanEquals(
-                                self.lower_expression(lhs),
-                                self.lower_expression(rhs),
+                                Self::lower_expression(lhs),
+                                Self::lower_expression(rhs),
                             )
                         }
                         mir::Operation::FloatLessThanEquals(lhs, rhs) => {
                             Operation::FloatLessThanEquals(
-                                self.lower_expression(lhs),
-                                self.lower_expression(rhs),
+                                Self::lower_expression(lhs),
+                                Self::lower_expression(rhs),
                             )
                         }
                         mir::Operation::FloatGreaterThan(lhs, rhs) => Operation::FloatGreaterThan(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::FloatLessThan(lhs, rhs) => Operation::FloatLessThan(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::BooleanEquals(lhs, rhs) => Operation::BooleanEquals(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::BooleanNotEquals(lhs, rhs) => Operation::BooleanNotEquals(
-                            self.lower_expression(lhs),
-                            self.lower_expression(rhs),
+                            Self::lower_expression(lhs),
+                            Self::lower_expression(rhs),
                         ),
                         mir::Operation::IntegerNegate(value) => {
-                            Operation::IntegerNegate(self.lower_expression(value))
+                            Operation::IntegerNegate(Self::lower_expression(value))
                         }
                         mir::Operation::FloatNegate(value) => {
-                            Operation::FloatNegate(self.lower_expression(value))
+                            Operation::FloatNegate(Self::lower_expression(value))
                         }
                         mir::Operation::BooleanNot(value) => {
-                            Operation::BooleanNot(self.lower_expression(value))
+                            Operation::BooleanNot(Self::lower_expression(value))
                         }
                     }))
                 }
@@ -452,7 +446,7 @@ impl LoweringContext {
 }
 
 mod print {
-    use super::*;
+    use super::{BasicBlock, Expression, Instruction, Operation, Terminator};
 
     impl std::fmt::Display for BasicBlock {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -500,14 +494,14 @@ mod print {
                 write!(f, ";")
             }
             Instruction::Let { name, value } => {
-                write!(f, "let var_{} = ", name)?;
+                write!(f, "let var_{name} = ")?;
 
                 print_expression(f, &value.expr)?;
 
                 write!(f, ";")
             }
             Instruction::Assign { name, value } => {
-                write!(f, "var_{} = ", name)?;
+                write!(f, "var_{name} = ")?;
 
                 print_expression(f, &value.expr)?;
 
@@ -521,7 +515,7 @@ mod print {
         terminator: &Terminator,
     ) -> std::fmt::Result {
         match terminator {
-            Terminator::Goto(block) => write!(f, "goto bb{};", block),
+            Terminator::Goto(block) => write!(f, "goto bb{block};"),
             Terminator::If {
                 condition,
                 then_block,
@@ -531,7 +525,7 @@ mod print {
 
                 print_expression(f, &condition.expr)?;
 
-                write!(f, " then bb{} else bb{};", then_block, else_block)
+                write!(f, " then bb{then_block} else bb{else_block};")
             }
             Terminator::Finish => write!(f, "finish;"),
         }
@@ -542,10 +536,10 @@ mod print {
         expression: &Expression,
     ) -> std::fmt::Result {
         match expression {
-            Expression::Variable(name) => write!(f, "var_{}", name),
-            Expression::Boolean(value) => write!(f, "{}", value),
-            Expression::Integer(value) => write!(f, "{}", value),
-            Expression::Float(value) => write!(f, "{}", value),
+            Expression::Variable(name) => write!(f, "var_{name}"),
+            Expression::Boolean(value) => write!(f, "{value}"),
+            Expression::Integer(value) => write!(f, "{value}"),
+            Expression::Float(value) => write!(f, "{value}"),
 
             Expression::Colour { r, g, b } => write!(f, "#{r:2x}{g:2x}{b:2x}"),
             Expression::Vector { x, y } => {
