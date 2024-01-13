@@ -20,6 +20,7 @@ mod ast;
 mod const_eval;
 mod error;
 mod lexer;
+mod low_ir;
 mod mir;
 mod mir_no_span;
 mod parser;
@@ -85,7 +86,9 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
         if let Ok(mir) = mir {
             let mir = mir_no_span::mir_remove_span(mir);
 
-            println!("{mir:?}");
+            let lir = low_ir::lower(mir);
+
+            println!("{:#?}", lir);
         }
 
         Ok(())
