@@ -261,8 +261,13 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         keyword, bool, variable, float, integer, colour, operator, ctrl,
     ));
 
+    let comment = just("//")
+        .then(any().and_is(just('\n').not()).repeated())
+        .padded();
+
     token
         .map_with(|tok, e| (tok, e.span()))
+        .padded_by(comment.repeated())
         .padded()
         .repeated()
         .collect()
