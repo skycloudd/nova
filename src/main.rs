@@ -88,7 +88,9 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
 
             let lir = low_ir::lower(mir);
 
-            println!("{:#?}", lir);
+            for lir in lir {
+                println!("{}", lir);
+            }
         }
 
         Ok(())

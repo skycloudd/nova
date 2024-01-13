@@ -2,6 +2,7 @@ use crate::mir_no_span as mir;
 
 #[derive(Debug)]
 pub struct BasicBlock {
+    id: BasicBlockId,
     instructions: Vec<Instruction>,
     terminator: Option<Terminator>,
 }
@@ -126,6 +127,7 @@ impl LoweringContext {
         let id = self.blocks.len();
 
         self.blocks.push(BasicBlock {
+            id,
             instructions: vec![],
             terminator: None,
         });
@@ -445,6 +447,299 @@ impl LoweringContext {
                 }
             },
             ty: expression.ty.into(),
+        }
+    }
+}
+
+mod print {
+    use super::*;
+
+    impl std::fmt::Display for BasicBlock {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            print_basic_block(f, self)
+        }
+    }
+
+    fn print_basic_block(f: &mut std::fmt::Formatter<'_>, block: &BasicBlock) -> std::fmt::Result {
+        writeln!(f, "bb{}:", block.id)?;
+
+        for instruction in &block.instructions {
+            write!(f, "    ")?;
+
+            print_instruction(f, instruction)?;
+
+            writeln!(f)?;
+        }
+
+        if let Some(terminator) = &block.terminator {
+            write!(f, "    ")?;
+
+            print_terminator(f, terminator)?;
+
+            writeln!(f)?;
+        }
+
+        Ok(())
+    }
+
+    fn print_instruction(
+        f: &mut std::fmt::Formatter<'_>,
+        instruction: &Instruction,
+    ) -> std::fmt::Result {
+        match instruction {
+            Instruction::Expr(expr) => {
+                print_expression(f, &expr.expr)?;
+
+                write!(f, ";")
+            }
+            Instruction::BuiltinPrint(expr) => {
+                write!(f, "print ")?;
+
+                print_expression(f, &expr.expr)?;
+
+                write!(f, ";")
+            }
+            Instruction::Let { name, value } => {
+                write!(f, "let var_{} = ", name)?;
+
+                print_expression(f, &value.expr)?;
+
+                write!(f, ";")
+            }
+            Instruction::Assign { name, value } => {
+                write!(f, "var_{} = ", name)?;
+
+                print_expression(f, &value.expr)?;
+
+                write!(f, ";")
+            }
+        }
+    }
+
+    fn print_terminator(
+        f: &mut std::fmt::Formatter<'_>,
+        terminator: &Terminator,
+    ) -> std::fmt::Result {
+        match terminator {
+            Terminator::Goto(block) => write!(f, "goto bb{};", block),
+            Terminator::If {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                write!(f, "if ")?;
+
+                print_expression(f, &condition.expr)?;
+
+                write!(f, " then bb{} else bb{};", then_block, else_block)
+            }
+            Terminator::Finish => write!(f, "finish;"),
+        }
+    }
+
+    fn print_expression(
+        f: &mut std::fmt::Formatter<'_>,
+        expression: &Expression,
+    ) -> std::fmt::Result {
+        match expression {
+            Expression::Variable(name) => write!(f, "var_{}", name),
+            Expression::Boolean(value) => write!(f, "{}", value),
+            Expression::Integer(value) => write!(f, "{}", value),
+            Expression::Float(value) => write!(f, "{}", value),
+
+            Expression::Colour { r, g, b } => write!(f, "#{r:2x}{g:2x}{b:2x}"),
+            Expression::Vector { x, y } => {
+                write!(f, "{{ ")?;
+
+                print_expression(f, &x.expr)?;
+
+                write!(f, ", ")?;
+
+                print_expression(f, &y.expr)?;
+
+                write!(f, " }}")
+            }
+            Expression::Operation(operation) => {
+                write!(f, "(")?;
+
+                print_operation(f, operation)?;
+
+                write!(f, ")")
+            }
+        }
+    }
+
+    fn print_operation(f: &mut std::fmt::Formatter<'_>, operation: &Operation) -> std::fmt::Result {
+        match operation {
+            Operation::IntegerEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " == ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerNotEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " != ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerPlus(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " + ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerMinus(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " - ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerMultiply(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " * ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerDivide(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " / ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerGreaterThanEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " >= ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerLessThanEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " <= ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerGreaterThan(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " > ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerLessThan(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " < ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " == ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatNotEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " != ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatPlus(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " + ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatMinus(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " - ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatMultiply(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " * ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatDivide(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " / ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatGreaterThanEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " >= ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatLessThanEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " <= ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatGreaterThan(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " > ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::FloatLessThan(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " < ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::BooleanEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " == ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::BooleanNotEquals(lhs, rhs) => {
+                print_expression(f, &lhs.expr)?;
+
+                write!(f, " != ")?;
+
+                print_expression(f, &rhs.expr)
+            }
+            Operation::IntegerNegate(value) => {
+                write!(f, "-")?;
+
+                print_expression(f, &value.expr)
+            }
+            Operation::FloatNegate(value) => {
+                write!(f, "-")?;
+
+                print_expression(f, &value.expr)
+            }
+            Operation::BooleanNot(value) => {
+                write!(f, "!")?;
+
+                print_expression(f, &value.expr)
+            }
         }
     }
 }
