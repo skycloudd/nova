@@ -31,6 +31,7 @@ pub enum Instruction {
 #[derive(Debug)]
 pub struct TypedExpression {
     expr: Expression,
+    #[allow(dead_code)]
     ty: Type,
 }
 
