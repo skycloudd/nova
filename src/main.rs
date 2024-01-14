@@ -95,7 +95,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
                 println!("{bb}\n");
             }
 
-            low_ir::eval::evaluate(&low_ir)
+            low_ir::eval::evaluate(&low_ir);
         }
 
         Ok(())
