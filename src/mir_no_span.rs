@@ -127,21 +127,42 @@ fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedSt
             condition,
             then_branch,
             else_branch,
-        } => TypedStatement::If {
-            condition: expression_remove_span(condition),
-            then_branch: then_branch
-                .0
-                .into_iter()
-                .map(|s| statement_remove_span(s))
-                .collect(),
-            else_branch: else_branch.map(|statements| {
-                statements
+        } => {
+            let condition = expression_remove_span(condition);
+
+            if let Expression::Boolean(value) = condition.expr {
+                TypedStatement::Block(
+                    if value {
+                        then_branch.0
+                    } else {
+                        else_branch.map_or(vec![], |statements| statements.0)
+                    }
+                    .into_iter()
+                    .map(|s| statement_remove_span(s))
+                    .collect(),
+                )
+            } else {
+                let then_branch = then_branch
                     .0
                     .into_iter()
                     .map(|s| statement_remove_span(s))
-                    .collect()
-            }),
-        },
+                    .collect();
+
+                let else_branch = else_branch.map(|statements| {
+                    statements
+                        .0
+                        .into_iter()
+                        .map(|s| statement_remove_span(s))
+                        .collect()
+                });
+
+                TypedStatement::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                }
+            }
+        }
         mir::TypedStatement::For {
             name,
             start,

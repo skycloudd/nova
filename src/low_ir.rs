@@ -7,7 +7,7 @@ pub struct UnfinishedBasicBlock {
     terminator: Option<Terminator>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BasicBlock {
     id: BasicBlockId,
     instructions: Vec<Instruction>,
@@ -30,6 +30,10 @@ impl BasicBlock {
     pub fn set_terminator(&mut self, terminator: Terminator) {
         self.terminator = terminator;
     }
+
+    pub fn instructions_mut(&mut self) -> &mut Vec<Instruction> {
+        &mut self.instructions
+    }
 }
 
 impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
@@ -44,7 +48,7 @@ impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Terminator {
     Goto(BasicBlockId),
     If {
@@ -57,7 +61,7 @@ pub enum Terminator {
 
 pub type BasicBlockId = usize;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Expr(TypedExpression),
     BuiltinPrint(TypedExpression),
@@ -65,14 +69,13 @@ pub enum Instruction {
     Assign { name: VarId, value: TypedExpression },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpression {
-    expr: Expression,
-    #[allow(dead_code)]
-    ty: Type,
+    pub expr: Expression,
+    pub ty: Type,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Variable(VarId),
     Boolean(bool),
@@ -92,7 +95,7 @@ pub enum Expression {
 
 pub type VarId = usize;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Operation {
     IntegerEquals(TypedExpression, TypedExpression),
     IntegerNotEquals(TypedExpression, TypedExpression),
@@ -124,7 +127,7 @@ pub enum Operation {
     BooleanNot(TypedExpression),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
     Boolean,
     Integer,
@@ -240,8 +243,6 @@ impl LoweringContext {
                 self.current_mut()
                     .instructions
                     .push(Instruction::Expr(expr));
-
-                false
             }
             mir::TypedStatement::BuiltinPrint(expr) => {
                 let expr = Self::lower_expression(expr);
@@ -249,8 +250,6 @@ impl LoweringContext {
                 self.current_mut()
                     .instructions
                     .push(Instruction::BuiltinPrint(expr));
-
-                false
             }
             mir::TypedStatement::Loop(statements) => {
                 let loop_start = self.new_block();
@@ -274,8 +273,6 @@ impl LoweringContext {
                 self.finish_checked(Terminator::Goto(loop_start));
 
                 self.switch_to(merge_block);
-
-                false
             }
             mir::TypedStatement::Block(statements) => {
                 for statement in statements {
@@ -283,8 +280,6 @@ impl LoweringContext {
                         break;
                     }
                 }
-
-                false
             }
             mir::TypedStatement::If {
                 condition,
@@ -330,8 +325,6 @@ impl LoweringContext {
                 }
 
                 self.switch_to(merge_block);
-
-                false
             }
             mir::TypedStatement::Let { name, value }
             | mir::TypedStatement::Const { name, value } => {
@@ -340,8 +333,6 @@ impl LoweringContext {
                 self.current_mut()
                     .instructions
                     .push(Instruction::Let { name, value });
-
-                false
             }
             mir::TypedStatement::Assign { name, value } => {
                 let value = Self::lower_expression(value);
@@ -349,24 +340,24 @@ impl LoweringContext {
                 self.current_mut()
                     .instructions
                     .push(Instruction::Assign { name, value });
-
-                false
             }
             mir::TypedStatement::Break => {
                 let merge_block = self.loop_stack_top().1;
 
                 self.finish(Terminator::Goto(merge_block));
 
-                true
+                return true;
             }
             mir::TypedStatement::Continue => {
                 let loop_block = self.loop_stack_top().0;
 
                 self.finish(Terminator::Goto(loop_block));
 
-                true
+                return true;
             }
         }
+
+        false
     }
 
     fn lower_expression(expression: mir::TypedExpression) -> TypedExpression {
@@ -589,7 +580,7 @@ mod print {
             Expression::Integer(value) => write!(f, "{value}"),
             Expression::Float(value) => write!(f, "{value}"),
 
-            Expression::Colour { r, g, b } => write!(f, "#{r:2x}{g:2x}{b:2x}"),
+            Expression::Colour { r, g, b } => write!(f, "#{r:02x}{g:02x}{b:02x}"),
             Expression::Vector { x, y } => {
                 write!(f, "{{ ")?;
 
