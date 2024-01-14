@@ -1,4 +1,4 @@
-use crate::{mir, span::Spanned};
+use crate::{mir, span::Spanned, FloatTy, IntTy};
 
 #[derive(Debug)]
 pub enum TypedStatement {
@@ -36,8 +36,8 @@ pub struct TypedExpression {
 pub enum Expression {
     Variable(VarId),
     Boolean(bool),
-    Integer(i32),
-    Float(f32),
+    Integer(IntTy),
+    Float(FloatTy),
     Colour {
         r: u8,
         g: u8,

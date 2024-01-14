@@ -7,11 +7,11 @@ builtin_print__ number == 7;
 let x = one;
 
 loop
-    builtin_print__ x;
+    if x < number then
+        builtin_print__ x;
 
-    x = x + 1;
-
-    if x == number then
+        x = x + 1;
+    else
         break;
     end
 end

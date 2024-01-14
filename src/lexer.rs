@@ -1,4 +1,4 @@
-use crate::Span;
+use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
 use std::num::ParseIntError;
 
@@ -7,8 +7,8 @@ pub enum Token<'src> {
     Error,
     Variable(&'src str),
     Boolean(bool),
-    Integer(i32),
-    Float(f32),
+    Integer(IntTy),
+    Float(FloatTy),
     HexCode(u8, u8, u8),
     Kw(Kw),
     Ctrl(Ctrl),
@@ -161,7 +161,7 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .then_ignore(just('.'))
         .then(text::digits(10))
         .to_slice()
-        .validate(|n: &str, e, emitter| match n.parse::<f32>() {
+        .validate(|n: &str, e, emitter| match n.parse() {
             Ok(n) => n,
             Err(err) => {
                 emitter.emit(Rich::custom(e.span(), err));

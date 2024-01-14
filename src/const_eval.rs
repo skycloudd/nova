@@ -3,6 +3,7 @@ use crate::{
     mir::{Expression, Operation, Type, TypedExpression, TypedStatement, VarId},
     scopes::Scopes,
     span::Spanned,
+    FloatTy, IntTy,
 };
 
 pub fn const_eval<'file>(
@@ -588,8 +589,8 @@ fn propagate_const<'file>(
 #[derive(Clone, PartialEq)]
 enum ConstValue<'file> {
     Boolean(bool),
-    Integer(i32),
-    Float(f32),
+    Integer(IntTy),
+    Float(FloatTy),
     Colour {
         r: u8,
         g: u8,

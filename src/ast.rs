@@ -38,8 +38,8 @@ macro_rules! ast_expr {
         pub enum $name<'src, 'file> {
             Variable(&'src str),
             Boolean(bool),
-            Integer(i32),
-            Float(f32),
+            Integer(crate::IntTy),
+            Float(crate::FloatTy),
             Colour {
                 r: u8,
                 g: u8,

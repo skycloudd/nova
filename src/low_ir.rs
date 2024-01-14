@@ -1,10 +1,29 @@
-use crate::mir_no_span as mir;
+use crate::{mir_no_span as mir, FloatTy, IntTy};
+
+#[derive(Debug)]
+pub struct UnfinishedBasicBlock {
+    id: BasicBlockId,
+    instructions: Vec<Instruction>,
+    terminator: Option<Terminator>,
+}
 
 #[derive(Debug)]
 pub struct BasicBlock {
     id: BasicBlockId,
     instructions: Vec<Instruction>,
-    terminator: Option<Terminator>,
+    terminator: Terminator,
+}
+
+impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
+    type Error = ();
+
+    fn try_from(block: UnfinishedBasicBlock) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: block.id,
+            instructions: block.instructions,
+            terminator: block.terminator.ok_or(())?,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -39,8 +58,8 @@ pub struct TypedExpression {
 pub enum Expression {
     Variable(VarId),
     Boolean(bool),
-    Integer(i32),
-    Float(f32),
+    Integer(IntTy),
+    Float(FloatTy),
     Colour {
         r: u8,
         g: u8,
@@ -115,10 +134,14 @@ pub fn lower(ast: Vec<mir::TypedStatement>) -> Vec<BasicBlock> {
         loop_stack: Vec::new(),
     }
     .lower(ast)
+    .into_iter()
+    .map(TryInto::try_into)
+    .collect::<Result<Vec<_>, _>>()
+    .unwrap()
 }
 
 struct LoweringContext {
-    blocks: Vec<BasicBlock>,
+    blocks: Vec<UnfinishedBasicBlock>,
     current_block: BasicBlockId,
     loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
 }
@@ -127,7 +150,7 @@ impl LoweringContext {
     fn new_block(&mut self) -> BasicBlockId {
         let id = self.blocks.len();
 
-        self.blocks.push(BasicBlock {
+        self.blocks.push(UnfinishedBasicBlock {
             id,
             instructions: vec![],
             terminator: None,
@@ -140,11 +163,11 @@ impl LoweringContext {
         self.current_block = block;
     }
 
-    fn current(&self) -> &BasicBlock {
+    fn current(&self) -> &UnfinishedBasicBlock {
         self.blocks.get(self.current_block).unwrap()
     }
 
-    fn current_mut(&mut self) -> &mut BasicBlock {
+    fn current_mut(&mut self) -> &mut UnfinishedBasicBlock {
         self.blocks.get_mut(self.current_block).unwrap()
     }
 
@@ -176,7 +199,7 @@ impl LoweringContext {
         *self.loop_stack.last().unwrap()
     }
 
-    fn lower(mut self, ast: Vec<mir::TypedStatement>) -> Vec<BasicBlock> {
+    fn lower(mut self, ast: Vec<mir::TypedStatement>) -> Vec<UnfinishedBasicBlock> {
         self.blocks = vec![];
 
         let start = self.new_block();
@@ -466,13 +489,8 @@ mod print {
             writeln!(f)?;
         }
 
-        if let Some(terminator) = &block.terminator {
-            write!(f, "    ")?;
-
-            print_terminator(f, terminator)?;
-
-            writeln!(f)?;
-        }
+        write!(f, "    ")?;
+        print_terminator(f, &block.terminator)?;
 
         Ok(())
     }
@@ -734,6 +752,358 @@ mod print {
                 write!(f, "!")?;
 
                 print_expression(f, &value.expr)
+            }
+        }
+    }
+}
+
+pub mod eval {
+    use crate::{FloatTy, IntTy};
+
+    use super::{BasicBlock, BasicBlockId, Expression, Instruction, Operation, Terminator, VarId};
+    use rustc_hash::FxHashMap;
+
+    pub fn evaluate(blocks: &[BasicBlock]) {
+        let mut state = State::new();
+
+        state.evaluate_basic_block(blocks, 0);
+    }
+
+    #[derive(Clone)]
+    enum Value {
+        Boolean(bool),
+        Integer(IntTy),
+        Float(FloatTy),
+        Colour { r: u8, g: u8, b: u8 },
+        Vector { x: Box<Value>, y: Box<Value> },
+    }
+
+    impl std::fmt::Display for Value {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Boolean(value) => write!(f, "{value}"),
+                Self::Integer(value) => write!(f, "{value}"),
+                Self::Float(value) => write!(f, "{value}"),
+                Self::Colour { r, g, b } => write!(f, "#{r:02x}{g:02x}{b:02x}"),
+                Self::Vector { x, y } => write!(f, "{{ {x}, {y} }}"),
+            }
+        }
+    }
+
+    enum ControlFlow {
+        Goto(BasicBlockId),
+        Finish,
+    }
+
+    struct State {
+        variables: FxHashMap<VarId, Value>,
+    }
+
+    impl State {
+        fn new() -> Self {
+            Self {
+                variables: FxHashMap::default(),
+            }
+        }
+
+        fn evaluate_basic_block(&mut self, blocks: &[BasicBlock], block: BasicBlockId) {
+            let mut next_block = block;
+
+            loop {
+                let block = &blocks[next_block];
+
+                for instruction in &block.instructions {
+                    self.evaluate_instruction(instruction);
+                }
+
+                match self.evaluate_terminator(&block.terminator) {
+                    ControlFlow::Goto(block) => next_block = block,
+                    ControlFlow::Finish => break,
+                }
+            }
+        }
+
+        fn evaluate_instruction(&mut self, instruction: &Instruction) {
+            match instruction {
+                Instruction::Expr(expr) => {
+                    self.evaluate_expression(&expr.expr);
+                }
+                Instruction::BuiltinPrint(expr) => {
+                    let value = self.evaluate_expression(&expr.expr);
+
+                    println!("{value}");
+                }
+                Instruction::Let { name, value } | Instruction::Assign { name, value } => {
+                    let value = self.evaluate_expression(&value.expr);
+
+                    self.variables.insert(*name, value);
+                }
+            }
+        }
+
+        fn evaluate_terminator(&mut self, terminator: &Terminator) -> ControlFlow {
+            match terminator {
+                Terminator::Goto(block) => ControlFlow::Goto(*block),
+                Terminator::If {
+                    condition,
+                    then_block,
+                    else_block,
+                } => {
+                    let condition = self.evaluate_expression(&condition.expr);
+
+                    match condition {
+                        Value::Boolean(true) => ControlFlow::Goto(*then_block),
+                        Value::Boolean(false) => ControlFlow::Goto(*else_block),
+                        _ => unreachable!(),
+                    }
+                }
+                Terminator::Finish => ControlFlow::Finish,
+            }
+        }
+
+        fn evaluate_expression(&self, expr: &Expression) -> Value {
+            match expr {
+                Expression::Variable(name) => self.variables[name].clone(),
+                Expression::Boolean(value) => Value::Boolean(*value),
+                Expression::Integer(value) => Value::Integer(*value),
+                Expression::Float(value) => Value::Float(*value),
+                Expression::Colour { r, g, b } => Value::Colour {
+                    r: *r,
+                    g: *g,
+                    b: *b,
+                },
+                Expression::Vector { x, y } => Value::Vector {
+                    x: Box::new(self.evaluate_expression(&x.expr)),
+                    y: Box::new(self.evaluate_expression(&y.expr)),
+                },
+                Expression::Operation(operation) => self.evaluate_operation(operation),
+            }
+        }
+
+        fn evaluate_operation(&self, operation: &Operation) -> Value {
+            match operation {
+                Operation::IntegerEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Boolean(lhs == rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerNotEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Boolean(lhs != rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerPlus(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Integer(lhs + rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerMinus(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Integer(lhs - rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerMultiply(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Integer(lhs * rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerDivide(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Integer(lhs / rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerGreaterThanEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Boolean(lhs >= rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerLessThanEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Boolean(lhs <= rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerGreaterThan(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Boolean(lhs > rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerLessThan(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Integer(lhs), Value::Integer(rhs)) => Value::Boolean(lhs < rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Boolean(lhs == rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatNotEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Boolean(lhs != rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatPlus(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatMinus(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs - rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatMultiply(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs * rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatDivide(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs / rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatGreaterThanEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Boolean(lhs >= rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatLessThanEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Boolean(lhs <= rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatGreaterThan(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Boolean(lhs > rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatLessThan(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Float(lhs), Value::Float(rhs)) => Value::Boolean(lhs < rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::BooleanEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Boolean(lhs), Value::Boolean(rhs)) => Value::Boolean(lhs == rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::BooleanNotEquals(lhs, rhs) => {
+                    let lhs = self.evaluate_expression(&lhs.expr);
+                    let rhs = self.evaluate_expression(&rhs.expr);
+
+                    match (lhs, rhs) {
+                        (Value::Boolean(lhs), Value::Boolean(rhs)) => Value::Boolean(lhs != rhs),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::IntegerNegate(value) => {
+                    let value = self.evaluate_expression(&value.expr);
+
+                    match value {
+                        Value::Integer(value) => Value::Integer(-value),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::FloatNegate(value) => {
+                    let value = self.evaluate_expression(&value.expr);
+
+                    match value {
+                        Value::Float(value) => Value::Float(-value),
+                        _ => unreachable!(),
+                    }
+                }
+                Operation::BooleanNot(value) => {
+                    let value = self.evaluate_expression(&value.expr);
+
+                    match value {
+                        Value::Boolean(value) => Value::Boolean(!value),
+                        _ => unreachable!(),
+                    }
+                }
             }
         }
     }

@@ -28,6 +28,9 @@ mod scopes;
 mod span;
 mod typecheck;
 
+type IntTy = i32;
+type FloatTy = f32;
+
 #[derive(clap::Parser)]
 struct Args {
     filename: PathBuf,
@@ -88,9 +91,11 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
 
             let low_ir = low_ir::lower(mir);
 
-            for bb in low_ir {
-                println!("{bb}");
+            for bb in &low_ir {
+                println!("{bb}\n");
             }
+
+            low_ir::eval::evaluate(&low_ir)
         }
 
         Ok(())
