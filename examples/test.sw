@@ -4,16 +4,8 @@ const number = one + six;
 
 builtin_print__ number == 7;
 
-let x = one;
-
-loop
-    if x < number then
-        builtin_print__ x;
-
-        x = x + 1;
-    else
-        break;
-    end
+for x in one..number do
+    builtin_print__ x;
 end
 
 builtin_print__ #ff77a8;

@@ -144,6 +144,50 @@ fn typecheck_statement<'src, 'file>(
                     else_branch,
                 }
             }
+            Statement::For {
+                name,
+                start,
+                end,
+                inclusive,
+                body,
+            } => {
+                let start = typecheck_expression(engine, variables, const_variables, start)?;
+                let end = typecheck_expression(engine, variables, const_variables, end)?;
+
+                let start_ty = engine.insert(type_to_typeinfo(Spanned(&start.0.ty, start.1)));
+                let end_ty = engine.insert(type_to_typeinfo(Spanned(&end.0.ty, end.1)));
+
+                engine.unify(start_ty, end_ty)?;
+
+                let integer = engine.insert(Spanned(TypeInfo::Integer, start.1));
+
+                engine.unify(start_ty, integer)?;
+                engine.unify(end_ty, integer)?;
+
+                push_scope(variables, const_variables);
+
+                variables.insert(name.0, integer);
+
+                let body = Spanned(
+                    body.0
+                        .into_iter()
+                        .map(|statement| {
+                            typecheck_statement(engine, variables, const_variables, statement)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    body.1,
+                );
+
+                pop_scope(variables, const_variables);
+
+                TypedStatement::For {
+                    name,
+                    start,
+                    end,
+                    inclusive,
+                    body,
+                }
+            }
             Statement::Let { name, value } => {
                 let value = typecheck_expression(engine, variables, const_variables, value)?;
                 let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));

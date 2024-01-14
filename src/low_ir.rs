@@ -269,6 +269,15 @@ impl LoweringContext {
 
                 false
             }
+            mir::TypedStatement::Block(statements) => {
+                for statement in statements {
+                    if self.lower_statement(statement) {
+                        break;
+                    }
+                }
+
+                false
+            }
             mir::TypedStatement::If {
                 condition,
                 then_branch,

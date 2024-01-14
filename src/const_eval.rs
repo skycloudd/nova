@@ -85,6 +85,32 @@ fn const_eval_statement<'file>(
                 else_branch: else_,
             })
         }
+        TypedStatement::For {
+            name,
+            start,
+            end,
+            inclusive,
+            body,
+        } => {
+            let start = propagate_const(const_vars, start);
+            let end = propagate_const(const_vars, end);
+
+            let mut body_stmts = vec![];
+
+            for statement in body.0 {
+                if let Ok(statement) = const_eval_statement(const_vars, errors, statement) {
+                    body_stmts.push(statement);
+                }
+            }
+
+            Ok(TypedStatement::For {
+                name,
+                start,
+                end,
+                inclusive,
+                body: Spanned(body_stmts, body.1),
+            })
+        }
         TypedStatement::Let { name, value } => {
             let value = propagate_const(const_vars, value);
 

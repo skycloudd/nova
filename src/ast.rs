@@ -12,6 +12,13 @@ macro_rules! ast_statement {
                 then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
                 else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
             },
+            For {
+                name: Spanned<'file, &'src str>,
+                start: Spanned<'file, $expr<'src, 'file>>,
+                end: Spanned<'file, $expr<'src, 'file>>,
+                inclusive: bool,
+                body: Spanned<'file, Vec<Spanned<'file, Self>>>,
+            },
             Let {
                 name: Spanned<'file, &'src str>,
                 value: Spanned<'file, $expr<'src, 'file>>,

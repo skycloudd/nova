@@ -66,6 +66,7 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 just(Token::Kw(Kw::Else))
                     .ignore_then(
                         statement
+                            .clone()
                             .repeated()
                             .collect()
                             .map_with(|body, e| Spanned(body, e.span())),
@@ -80,6 +81,34 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 else_branch,
             })
             .boxed();
+
+        let for_ = just(Token::Kw(Kw::For))
+            .ignore_then(ident())
+            .then_ignore(just(Token::Kw(Kw::In)))
+            .then(
+                expr_parser()
+                    .then(choice((
+                        just(Token::Ctrl(Ctrl::Range)).to(false),
+                        just(Token::Ctrl(Ctrl::RangeInclusive)).to(true),
+                    )))
+                    .then(expr_parser()),
+            )
+            .then_ignore(just(Token::Kw(Kw::Do)))
+            .then(
+                statement
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .map_with(|body, e| Spanned(body, e.span()))
+                    .boxed(),
+            )
+            .then_ignore(just(Token::Kw(Kw::End)))
+            .map(|((name, ((start, inclusive), end)), body)| Statement::For {
+                name,
+                start,
+                end,
+                inclusive,
+                body,
+            });
 
         let let_ = just(Token::Kw(Kw::Let))
             .ignore_then(ident())
@@ -115,7 +144,7 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         choice((
-            expr, print, loop_, if_, let_, const_, assign, break_, continue_,
+            expr, print, loop_, if_, for_, let_, const_, assign, break_, continue_,
         ))
         .map_with(|statement, e| Spanned(statement, e.span()))
         .boxed()

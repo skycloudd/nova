@@ -18,6 +18,13 @@ pub enum TypedStatement<'file> {
         then_branch: Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>,
         else_branch: Option<Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>>,
     },
+    For {
+        name: Spanned<'file, VarId>,
+        start: Spanned<'file, TypedExpression<'file>>,
+        end: Spanned<'file, TypedExpression<'file>>,
+        inclusive: bool,
+        body: Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>,
+    },
     Let {
         name: Spanned<'file, VarId>,
         value: Spanned<'file, TypedExpression<'file>>,
@@ -245,6 +252,23 @@ fn build_mir_statement<'src, 'file>(
                         .map(|stmt| build_mir_statement(var_id_map, stmt))
                         .collect()
                 })
+            }),
+        },
+        Statement::For {
+            name,
+            start,
+            end,
+            inclusive,
+            body,
+        } => TypedStatement::For {
+            name: name.map(|name| var_id_map.get_or_insert(name)),
+            start: build_mir_expr(var_id_map, start),
+            end: build_mir_expr(var_id_map, end),
+            inclusive,
+            body: body.map(|s| {
+                s.into_iter()
+                    .map(|stmt| build_mir_statement(var_id_map, stmt))
+                    .collect()
             }),
         },
         Statement::Let { name, value } => TypedStatement::Let {

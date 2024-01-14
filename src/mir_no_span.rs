@@ -5,6 +5,7 @@ pub enum TypedStatement {
     Expr(TypedExpression),
     BuiltinPrint(TypedExpression),
     Loop(Vec<TypedStatement>),
+    Block(Vec<TypedStatement>),
     If {
         condition: TypedExpression,
         then_branch: Vec<TypedStatement>,
@@ -141,6 +142,71 @@ fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedSt
                     .collect()
             }),
         },
+        mir::TypedStatement::For {
+            name,
+            start,
+            end,
+            inclusive,
+            body,
+        } => {
+            let start = expression_remove_span(start);
+            let end = expression_remove_span(end);
+
+            let body = body
+                .0
+                .into_iter()
+                .map(|s| statement_remove_span(s))
+                .chain(std::iter::once(TypedStatement::Assign {
+                    name: name.0,
+                    value: TypedExpression {
+                        expr: Expression::Operation(Box::new(Operation::IntegerPlus(
+                            TypedExpression {
+                                expr: Expression::Variable(name.0),
+                                ty: Type::Integer,
+                            },
+                            TypedExpression {
+                                expr: Expression::Integer(1),
+                                ty: Type::Integer,
+                            },
+                        ))),
+                        ty: Type::Integer,
+                    },
+                }))
+                .collect();
+
+            let condition = TypedExpression {
+                expr: Expression::Operation(Box::new(if inclusive {
+                    Operation::IntegerLessThanEquals(
+                        TypedExpression {
+                            expr: Expression::Variable(name.0),
+                            ty: Type::Integer,
+                        },
+                        end,
+                    )
+                } else {
+                    Operation::IntegerLessThan(
+                        TypedExpression {
+                            expr: Expression::Variable(name.0),
+                            ty: Type::Integer,
+                        },
+                        end,
+                    )
+                })),
+                ty: Type::Boolean,
+            };
+
+            TypedStatement::Block(vec![
+                TypedStatement::Let {
+                    name: name.0,
+                    value: start,
+                },
+                TypedStatement::Loop(vec![TypedStatement::If {
+                    condition,
+                    then_branch: body,
+                    else_branch: Some(vec![TypedStatement::Break]),
+                }]),
+            ])
+        }
         mir::TypedStatement::Let { name, value } => TypedStatement::Let {
             name: name.0,
             value: expression_remove_span(value),

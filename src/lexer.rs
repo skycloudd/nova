@@ -27,6 +27,9 @@ pub enum Kw {
     Const,
     Break,
     Continue,
+    For,
+    Do,
+    In,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +42,8 @@ pub enum Ctrl {
     Comma,
     Pipe,
     Equals,
+    Range,
+    RangeInclusive,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,6 +93,9 @@ impl std::fmt::Display for Kw {
             Self::Const => write!(f, "const"),
             Self::Break => write!(f, "break"),
             Self::Continue => write!(f, "continue"),
+            Self::For => write!(f, "for"),
+            Self::Do => write!(f, "do"),
+            Self::In => write!(f, "in"),
         }
     }
 }
@@ -103,6 +111,8 @@ impl std::fmt::Display for Ctrl {
             Self::Comma => write!(f, ","),
             Self::Pipe => write!(f, "|"),
             Self::Equals => write!(f, "="),
+            Self::Range => write!(f, ".."),
+            Self::RangeInclusive => write!(f, "..="),
         }
     }
 }
@@ -230,9 +240,14 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         text::keyword("const").to(Token::Kw(Kw::Const)),
         text::keyword("break").to(Token::Kw(Kw::Break)),
         text::keyword("continue").to(Token::Kw(Kw::Continue)),
+        text::keyword("for").to(Token::Kw(Kw::For)),
+        text::keyword("do").to(Token::Kw(Kw::Do)),
+        text::keyword("in").to(Token::Kw(Kw::In)),
     ));
 
     let ctrl = choice((
+        just("..=").to(Token::Ctrl(Ctrl::RangeInclusive)),
+        just("..").to(Token::Ctrl(Ctrl::Range)),
         just('(').to(Token::Ctrl(Ctrl::LeftParen)),
         just(')').to(Token::Ctrl(Ctrl::RightParen)),
         just('{').to(Token::Ctrl(Ctrl::LeftCurly)),
