@@ -91,7 +91,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
 
         let low_ir = low_ir::lower(mir);
 
-        let low_ir = optimiser::dead_code_elimination(low_ir);
+        let low_ir = optimiser::optimise(&low_ir);
 
         for bb in low_ir.iter().flatten() {
             println!("{bb}\n");

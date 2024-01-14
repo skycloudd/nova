@@ -7,7 +7,7 @@ pub struct UnfinishedBasicBlock {
     terminator: Option<Terminator>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BasicBlock {
     id: BasicBlockId,
     instructions: Vec<Instruction>,
@@ -19,8 +19,16 @@ impl BasicBlock {
         self.id
     }
 
+    pub fn instructions(&self) -> &[Instruction] {
+        &self.instructions
+    }
+
     pub const fn terminator(&self) -> &Terminator {
         &self.terminator
+    }
+
+    pub fn set_terminator(&mut self, terminator: Terminator) {
+        self.terminator = terminator;
     }
 }
 
@@ -36,7 +44,7 @@ impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Terminator {
     Goto(BasicBlockId),
     If {
@@ -49,7 +57,7 @@ pub enum Terminator {
 
 pub type BasicBlockId = usize;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Instruction {
     Expr(TypedExpression),
     BuiltinPrint(TypedExpression),
@@ -57,14 +65,14 @@ pub enum Instruction {
     Assign { name: VarId, value: TypedExpression },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TypedExpression {
     expr: Expression,
     #[allow(dead_code)]
     ty: Type,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expression {
     Variable(VarId),
     Boolean(bool),
@@ -84,7 +92,7 @@ pub enum Expression {
 
 pub type VarId = usize;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Operation {
     IntegerEquals(TypedExpression, TypedExpression),
     IntegerNotEquals(TypedExpression, TypedExpression),
@@ -116,7 +124,7 @@ pub enum Operation {
     BooleanNot(TypedExpression),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Type {
     Boolean,
     Integer,
