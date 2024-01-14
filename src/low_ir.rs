@@ -14,6 +14,16 @@ pub struct BasicBlock {
     terminator: Terminator,
 }
 
+impl BasicBlock {
+    pub const fn id(&self) -> BasicBlockId {
+        self.id
+    }
+
+    pub const fn terminator(&self) -> &Terminator {
+        &self.terminator
+    }
+}
+
 impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
     type Error = ();
 
@@ -268,14 +278,14 @@ impl LoweringContext {
 
                 let then_block = self.new_block();
 
-                let else_block = self.new_block();
+                let else_block = else_branch.as_ref().map(|_| self.new_block());
 
                 let merge_block = self.new_block();
 
                 self.finish(Terminator::If {
                     condition,
                     then_block,
-                    else_block,
+                    else_block: else_block.unwrap_or(merge_block),
                 });
 
                 self.switch_to(then_block);
@@ -288,17 +298,19 @@ impl LoweringContext {
 
                 self.finish_checked(Terminator::Goto(merge_block));
 
-                self.switch_to(else_block);
+                if let Some(else_block) = else_block {
+                    self.switch_to(else_block);
 
-                if let Some(else_branch) = else_branch {
-                    for statement in else_branch {
-                        if self.lower_statement(statement) {
-                            break;
+                    if let Some(else_branch) = else_branch {
+                        for statement in else_branch {
+                            if self.lower_statement(statement) {
+                                break;
+                            }
                         }
                     }
-                }
 
-                self.finish_checked(Terminator::Goto(merge_block));
+                    self.finish_checked(Terminator::Goto(merge_block));
+                }
 
                 self.switch_to(merge_block);
 
@@ -763,7 +775,7 @@ pub mod eval {
     use super::{BasicBlock, BasicBlockId, Expression, Instruction, Operation, Terminator, VarId};
     use rustc_hash::FxHashMap;
 
-    pub fn evaluate(blocks: &[BasicBlock]) {
+    pub fn evaluate(blocks: &[Option<BasicBlock>]) {
         let mut state = State::new();
 
         state.evaluate_basic_block(blocks, 0);
@@ -806,11 +818,11 @@ pub mod eval {
             }
         }
 
-        fn evaluate_basic_block(&mut self, blocks: &[BasicBlock], block: BasicBlockId) {
+        fn evaluate_basic_block(&mut self, blocks: &[Option<BasicBlock>], block: BasicBlockId) {
             let mut next_block = block;
 
             loop {
-                let block = &blocks[next_block];
+                let block = blocks[next_block].as_ref().unwrap();
 
                 for instruction in &block.instructions {
                     self.evaluate_instruction(instruction);

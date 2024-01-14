@@ -23,6 +23,7 @@ mod lexer;
 mod low_ir;
 mod mir;
 mod mir_no_span;
+mod optimiser;
 mod parser;
 mod scopes;
 mod span;
@@ -86,17 +87,17 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
     errors.extend(map_boxed_errors(const_eval_errors));
 
     if errors.is_empty() {
-        if let Ok(mir) = mir {
-            let mir = mir_no_span::mir_remove_span(mir);
+        let mir = mir_no_span::mir_remove_span(mir.unwrap());
 
-            let low_ir = low_ir::lower(mir);
+        let low_ir = low_ir::lower(mir);
 
-            for bb in &low_ir {
-                println!("{bb}\n");
-            }
+        let low_ir = optimiser::dead_code_elimination(low_ir);
 
-            low_ir::eval::evaluate(&low_ir);
+        for bb in low_ir.iter().flatten() {
+            println!("{bb}\n");
         }
+
+        low_ir::eval::evaluate(&low_ir);
 
         Ok(())
     } else {
