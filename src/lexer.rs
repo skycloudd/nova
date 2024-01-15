@@ -40,7 +40,6 @@ pub enum Ctrl {
     RightCurly,
     SemiColon,
     Comma,
-    Pipe,
     Equals,
     Range,
     RangeInclusive,
@@ -109,7 +108,6 @@ impl std::fmt::Display for Ctrl {
             Self::RightCurly => write!(f, "}}"),
             Self::SemiColon => write!(f, ";"),
             Self::Comma => write!(f, ","),
-            Self::Pipe => write!(f, "|"),
             Self::Equals => write!(f, "="),
             Self::Range => write!(f, ".."),
             Self::RangeInclusive => write!(f, "..="),
@@ -254,7 +252,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just('}').to(Token::Ctrl(Ctrl::RightCurly)),
         just(';').to(Token::Ctrl(Ctrl::SemiColon)),
         just(',').to(Token::Ctrl(Ctrl::Comma)),
-        just('|').to(Token::Ctrl(Ctrl::Pipe)),
         just('=').to(Token::Ctrl(Ctrl::Equals)),
     ));
 
