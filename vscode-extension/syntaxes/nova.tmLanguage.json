@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    "name": "Sowo",
+    "name": "Nova",
     "patterns": [
         {
             "include": "#keywords"
@@ -28,50 +28,50 @@
         "keywords": {
             "patterns": [
                 {
-                    "name": "keyword.control.sowo",
+                    "name": "keyword.control.nova",
                     "match": "\\b(end|loop|if|else|then|break|continue|for|do|in)\\b"
                 },
                 {
-                    "name": "keyword.other.sowo",
+                    "name": "keyword.other.nova",
                     "match": "\\b(let|const)\\b"
                 },
                 {
-                    "name": "keyword.operator.sowo",
+                    "name": "keyword.operator.nova",
                     "match": "(and|==|!=|\\+|-|\\*|/|>=|<=|>|<|\\.\\.|\\.\\.=)"
                 }
             ]
         },
         "strings": {
-            "name": "string.quoted.double.sowo",
+            "name": "string.quoted.double.nova",
             "begin": "\"",
             "end": "\"",
             "patterns": [
                 {
-                    "name": "constant.character.escape.sowo",
+                    "name": "constant.character.escape.nova",
                     "match": "\\\\."
                 }
             ]
         },
         "comments": {
-            "name": "comment.line.double-slash.sowo",
+            "name": "comment.line.double-slash.nova",
             "match": "//.*$"
         },
         "numbers": {
-            "name": "constant.numeric.sowo",
+            "name": "constant.numeric.nova",
             "match": "\\b(\\d+(\\.\\d+)?)\\b"
         },
         "booleans": {
-            "name": "constant.language.boolean.sowo",
+            "name": "constant.language.boolean.nova",
             "match": "\\b(true|false)\\b"
         },
         "variables": {
-            "name": "variable.name.sowo",
+            "name": "variable.name.nova",
             "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b"
         },
         "colour": {
-            "name": "constant.language.colour.sowo",
+            "name": "constant.language.colour.nova",
             "match": "#[0-9a-fA-F]{6}"
         }
     },
-    "scopeName": "source.sowo"
+    "scopeName": "source.nova"
 }

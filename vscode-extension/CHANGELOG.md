@@ -1,6 +1,6 @@
 # Change Log
 
-All notable changes to the "sowo-language" extension will be documented in this file.
+All notable changes to the "nova-language" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 

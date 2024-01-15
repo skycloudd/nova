@@ -1,6 +1,6 @@
-# sowo-language README
+# nova-language README
 
-This is the README for your extension "sowo-language". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "nova-language". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 

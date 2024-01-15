@@ -1,7 +1,7 @@
 {
-    "name": "sowo-language",
-    "displayName": "Sowo language",
-    "description": "Language support for the Sowo programming language",
+    "name": "nova-language",
+    "displayName": "Nova language",
+    "description": "Language support for the Nova programming language",
     "version": "0.0.1",
     "engines": {
         "vscode": "^1.85.0"
@@ -12,23 +12,23 @@
     "contributes": {
         "languages": [
             {
-                "id": "sowo",
+                "id": "nova",
                 "aliases": [
-                    "Sowo",
-                    "sowo"
+                    "Nova",
+                    "nova"
                 ],
                 "extensions": [
-                    ".sw",
-                    ".sowo"
+                    ".nv",
+                    ".nova"
                 ],
                 "configuration": "./language-configuration.json"
             }
         ],
         "grammars": [
             {
-                "language": "sowo",
-                "scopeName": "source.sowo",
-                "path": "./syntaxes/sowo.tmLanguage.json"
+                "language": "nova",
+                "scopeName": "source.nova",
+                "path": "./syntaxes/nova.tmLanguage.json"
             }
         ]
     }
