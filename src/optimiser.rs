@@ -111,6 +111,7 @@ fn dead_code_elimination(blocks: Vec<BasicBlock>) -> Vec<Option<BasicBlock>> {
 fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
     let mut used_variables = vec![];
 
+    #[allow(clippy::useless_asref)] // its not useless tho???
     for block in blocks.as_ref() {
         for instruction in block.instructions() {
             let used = get_used_variables(instruction);
@@ -129,28 +130,31 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
             .retain(|instruction| match instruction {
                 Instruction::Expr(_) => false,
                 Instruction::BuiltinPrint(_) => true,
-                Instruction::Let { name, value: _ } => used_variables.contains(name),
-                Instruction::Assign { name, value: _ } => used_variables.contains(name),
+                Instruction::Let { name, value: _ } | Instruction::Assign { name, value: _ } => {
+                    used_variables.contains(name)
+                }
             });
     }
 }
 
 fn get_used_variables(instruction: &Instruction) -> Vec<VarId> {
     match instruction {
-        Instruction::Expr(expr) => get_used_variables_expr(&expr.expr),
-        Instruction::BuiltinPrint(expr) => get_used_variables_expr(&expr.expr),
-        Instruction::Let { name: _, value } => get_used_variables_expr(&value.expr),
-        Instruction::Assign { name: _, value } => get_used_variables_expr(&value.expr),
+        Instruction::Expr(expr) | Instruction::BuiltinPrint(expr) => {
+            get_used_variables_expr(&expr.expr)
+        }
+        Instruction::Let { name: _, value } | Instruction::Assign { name: _, value } => {
+            get_used_variables_expr(&value.expr)
+        }
     }
 }
 
 fn get_used_variables_expr(expr: &Expression) -> Vec<VarId> {
     match expr {
         Expression::Variable(name) => vec![*name],
-        Expression::Boolean(_) => vec![],
-        Expression::Integer(_) => vec![],
-        Expression::Float(_) => vec![],
-        Expression::Colour { r: _, g: _, b: _ } => vec![],
+        Expression::Boolean(_)
+        | Expression::Integer(_)
+        | Expression::Float(_)
+        | Expression::Colour { r: _, g: _, b: _ } => vec![],
         Expression::Vector { x, y } => {
             let mut used = get_used_variables_expr(&x.expr);
 
@@ -197,12 +201,11 @@ fn get_used_variables_expr(expr: &Expression) -> Vec<VarId> {
 
 fn get_used_variables_terminator(terminator: &Terminator) -> Vec<VarId> {
     match terminator {
-        Terminator::Goto(_) => vec![],
         Terminator::If {
             condition,
             then_block: _,
             else_block: _,
         } => get_used_variables_expr(&condition.expr),
-        Terminator::Finish => vec![],
+        Terminator::Goto(_) | Terminator::Finish => vec![],
     }
 }
