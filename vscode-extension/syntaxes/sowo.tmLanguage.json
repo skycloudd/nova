@@ -1,0 +1,77 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Sowo",
+    "patterns": [
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#booleans"
+        },
+        {
+            "include": "#variables"
+        },
+        {
+            "include": "#colour"
+        }
+    ],
+    "repository": {
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.sowo",
+                    "match": "\\b(end|loop|if|else|then|break|continue|for|do|in)\\b"
+                },
+                {
+                    "name": "keyword.other.sowo",
+                    "match": "\\b(let|const)\\b"
+                },
+                {
+                    "name": "keyword.operator.sowo",
+                    "match": "(and|==|!=|\\+|-|\\*|/|>=|<=|>|<|\\.\\.|\\.\\.=)"
+                }
+            ]
+        },
+        "strings": {
+            "name": "string.quoted.double.sowo",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.sowo",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        "comments": {
+            "name": "comment.line.double-slash.sowo",
+            "match": "//.*$"
+        },
+        "numbers": {
+            "name": "constant.numeric.sowo",
+            "match": "\\b(\\d+(\\.\\d+)?)\\b"
+        },
+        "booleans": {
+            "name": "constant.language.boolean.sowo",
+            "match": "\\b(true|false)\\b"
+        },
+        "variables": {
+            "name": "variable.name.sowo",
+            "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b"
+        },
+        "colour": {
+            "name": "constant.language.colour.sowo",
+            "match": "#[0-9a-fA-F]{6}"
+        }
+    },
+    "scopeName": "source.sowo"
+}
