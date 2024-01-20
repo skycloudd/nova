@@ -145,7 +145,7 @@ impl Codegen<'_> {
 
                     let variable = Variable {
                         variable_id,
-                        name: MyString(format!("var_{}", name)),
+                        name: MyString(format!("var_{name}")),
                         static_type: match value.1 {
                             Type::Boolean => StaticType::Bool,
                             Type::Integer => StaticType::Int,
@@ -253,6 +253,7 @@ impl Codegen<'_> {
                     )
                 }
                 Expression::Operation(operation) => {
+                    #[allow(clippy::match_same_arms)]
                     let dyn_type = match operation.as_ref() {
                         Operation::IntegerEquals(_, _) => DynamicType::BoolEqualNumber,
                         Operation::IntegerNotEquals(_, _) => DynamicType::BoolNotEqualNumber,
