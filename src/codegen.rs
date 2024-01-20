@@ -461,7 +461,7 @@ fn new_novavalue(dynamic_type: DynamicType, value: NewValue) -> NovaValue {
             int_list_value: None,
             sub_values: None,
         },
-        NewValue::Vector(value) => NovaValue {
+        NewValue::_Vector(value) => NovaValue {
             dynamic_type,
             bool_value: false,
             int_value: 0,
@@ -477,7 +477,7 @@ fn new_novavalue(dynamic_type: DynamicType, value: NewValue) -> NovaValue {
             int_list_value: None,
             sub_values: None,
         },
-        NewValue::IntList(value) => NovaValue {
+        NewValue::_IntList(value) => NovaValue {
             dynamic_type,
             bool_value: false,
             int_value: 0,
@@ -518,7 +518,7 @@ enum NewValue {
     Float(f32),
     String(MyString),
     Color(Colour),
-    Vector(Vec2),
-    IntList(MyVec<i32>),
+    _Vector(Vec2),
+    _IntList(MyVec<i32>),
     SubValues(MyVec<NovaValue>),
 }
