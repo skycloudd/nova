@@ -1,9 +1,9 @@
-const n = 5;
+for n in 0..10 do
+    let x = 1;
 
-let x = 1;
+    for i in 2..=n do
+        x = x * i;
+    end
 
-for i in 2..=n do
-    x = x * i;
+    print x;
 end
-
-builtin_print__ x;

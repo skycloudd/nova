@@ -49,6 +49,10 @@ pub enum Error<'file> {
         name: String,
         span: Span<'file>,
     },
+    CantDisplayType {
+        ty: String,
+        span: crate::span::Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -113,6 +117,7 @@ impl Error<'_> {
             Error::ConstAlreadyDefined { name, span: _ } => {
                 format!("Const `{name}` already defined").into()
             }
+            Error::CantDisplayType { ty, span: _ } => format!("Cannot display type `{ty}`").into(),
         }
     }
 
@@ -176,6 +181,12 @@ impl Error<'_> {
                     *span,
                 )]
             }
+            Error::CantDisplayType { ty, span } => {
+                vec![Spanned(
+                    Some(format!("Cannot display type `{ty}`").into()),
+                    *span,
+                )]
+            }
         }
     }
 
@@ -191,6 +202,7 @@ impl Error<'_> {
             Error::BinaryOp { .. } => None,
             Error::UnaryOp { .. } => None,
             Error::ConstAlreadyDefined { .. } => None,
+            Error::CantDisplayType { .. } => None,
         }
     }
 }

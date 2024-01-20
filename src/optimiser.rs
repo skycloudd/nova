@@ -50,22 +50,22 @@ fn simplify_terminators(blocks: &[BasicBlock]) -> Vec<BasicBlock> {
                         }
                     }
 
-                    if let Expression::Boolean(value) = condition.expr {
-                        if value {
-                            new_block.set_terminator(Terminator::Goto(new_then_block_id));
-                        } else {
-                            new_block.set_terminator(Terminator::Goto(*else_block));
-                        }
-
-                        return new_block;
-                    }
-
                     let mut new_else_block_id = *else_block;
 
                     if else_block_.instructions().is_empty() {
                         if let Terminator::Goto(refers) = else_block_.terminator() {
                             new_else_block_id = *refers;
                         }
+                    }
+
+                    if let Expression::Boolean(value) = condition.expr {
+                        if value {
+                            new_block.set_terminator(Terminator::Goto(new_then_block_id));
+                        } else {
+                            new_block.set_terminator(Terminator::Goto(new_else_block_id));
+                        }
+
+                        return new_block;
                     }
 
                     new_block.set_terminator(Terminator::If {
@@ -129,7 +129,7 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
             .instructions_mut()
             .retain(|instruction| match instruction {
                 Instruction::Expr(_) => false,
-                Instruction::BuiltinPrint(_) => true,
+                Instruction::Print(_) => true,
                 Instruction::Let { name, value: _ } | Instruction::Assign { name, value: _ } => {
                     used_variables.contains(name)
                 }
@@ -139,9 +139,7 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
 
 fn get_used_variables(instruction: &Instruction) -> Vec<VarId> {
     match instruction {
-        Instruction::Expr(expr) | Instruction::BuiltinPrint(expr) => {
-            get_used_variables_expr(&expr.expr)
-        }
+        Instruction::Expr(expr) | Instruction::Print(expr) => get_used_variables_expr(&expr.expr),
         Instruction::Let { name: _, value } | Instruction::Assign { name: _, value } => {
             get_used_variables_expr(&value.expr)
         }

@@ -8,5 +8,5 @@ for nth in 0..20 do
         b = c;
     end
 
-    builtin_print__ a;
+    print a;
 end

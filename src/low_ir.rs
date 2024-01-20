@@ -64,7 +64,7 @@ pub type BasicBlockId = usize;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Expr(TypedExpression),
-    BuiltinPrint(TypedExpression),
+    Print(TypedExpression),
     Let { name: VarId, value: TypedExpression },
     Assign { name: VarId, value: TypedExpression },
 }
@@ -244,12 +244,12 @@ impl LoweringContext {
                     .instructions
                     .push(Instruction::Expr(expr));
             }
-            mir::TypedStatement::BuiltinPrint(expr) => {
+            mir::TypedStatement::Print(expr) => {
                 let expr = Self::lower_expression(expr);
 
                 self.current_mut()
                     .instructions
-                    .push(Instruction::BuiltinPrint(expr));
+                    .push(Instruction::Print(expr));
             }
             mir::TypedStatement::Loop(statements) => {
                 let loop_start = self.new_block();
@@ -525,7 +525,7 @@ mod print {
 
                 write!(f, ";")
             }
-            Instruction::BuiltinPrint(expr) => {
+            Instruction::Print(expr) => {
                 write!(f, "print ")?;
 
                 print_expression(f, &expr.expr)?;
@@ -848,7 +848,7 @@ pub mod eval {
                 Instruction::Expr(expr) => {
                     self.evaluate_expression(&expr.expr);
                 }
-                Instruction::BuiltinPrint(expr) => {
+                Instruction::Print(expr) => {
                     let value = self.evaluate_expression(&expr.expr);
 
                     println!("{value}");

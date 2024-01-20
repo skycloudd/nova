@@ -33,10 +33,10 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(Statement::Expr)
             .boxed();
 
-        let print = just(Token::Kw(Kw::BuiltinPrint))
+        let print = just(Token::Kw(Kw::Print))
             .ignore_then(expr_parser())
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map(Statement::BuiltinPrint)
+            .map(Statement::Print)
             .boxed();
 
         let loop_ = just(Token::Kw(Kw::Loop))

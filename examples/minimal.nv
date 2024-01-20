@@ -1,0 +1,6 @@
+let a = 3;
+print a + 2;
+
+for i in 0..10 do
+    print i;
+end

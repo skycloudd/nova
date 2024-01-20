@@ -59,10 +59,20 @@ fn typecheck_statement<'src, 'file>(
 
                 TypedStatement::Expr(expr)
             }
-            Statement::BuiltinPrint(expr) => {
+            Statement::Print(expr) => {
                 let expr = typecheck_expression(engine, variables, const_variables, expr)?;
 
-                TypedStatement::BuiltinPrint(expr)
+                match &expr.0.ty {
+                    Type::Boolean | Type::Integer | Type::Float => {}
+                    ty @ (Type::Colour | Type::Vector) => {
+                        return Err(Box::new(Error::CantDisplayType {
+                            ty: ty.to_string(),
+                            span: expr.1,
+                        }))
+                    }
+                }
+
+                TypedStatement::Print(expr)
             }
             Statement::Loop(statements) => {
                 push_scope(variables, const_variables);

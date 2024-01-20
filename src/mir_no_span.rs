@@ -3,7 +3,7 @@ use crate::{mir, span::Spanned, FloatTy, IntTy};
 #[derive(Debug)]
 pub enum TypedStatement {
     Expr(TypedExpression),
-    BuiltinPrint(TypedExpression),
+    Print(TypedExpression),
     Loop(Vec<TypedStatement>),
     Block(Vec<TypedStatement>),
     If {
@@ -113,9 +113,7 @@ pub fn mir_remove_span(mir: Vec<Spanned<mir::TypedStatement<'_>>>) -> Vec<TypedS
 fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedStatement {
     match statement.0 {
         mir::TypedStatement::Expr(expr) => TypedStatement::Expr(expression_remove_span(expr)),
-        mir::TypedStatement::BuiltinPrint(expr) => {
-            TypedStatement::BuiltinPrint(expression_remove_span(expr))
-        }
+        mir::TypedStatement::Print(expr) => TypedStatement::Print(expression_remove_span(expr)),
         mir::TypedStatement::Loop(statements) => TypedStatement::Loop(
             statements
                 .0

@@ -9,6 +9,7 @@
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
 use error::{convert, Error};
+use low_ir::eval;
 use span::Span;
 use std::{
     fmt::Display,
@@ -17,6 +18,7 @@ use std::{
 };
 
 mod ast;
+mod codegen;
 mod const_eval;
 mod error;
 mod lexer;
@@ -35,29 +37,61 @@ type FloatTy = f32;
 #[derive(clap::Parser)]
 struct Args {
     filename: PathBuf,
+    exolvl_in: PathBuf,
+
+    #[clap(short, long)]
+    eval: bool,
+
+    #[clap(short, long, default_value = "out.exolvl")]
+    out: PathBuf,
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = <Args as clap::Parser>::parse();
 
-    run_filename(&args.filename)
+    run_filename(&args.filename, &args.exolvl_in, args.eval, &args.out)
 }
 
-fn run_filename(filename: &Path) -> std::io::Result<()> {
+fn run_filename(
+    filename: &Path,
+    exolvl_path: &Path,
+    eval: bool,
+    out_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     let input = read_to_string(filename)?;
 
-    if let Err(errors) = run(&input, filename) {
-        for error in &errors {
-            report(filename, error).eprint(FileCache::default())?;
-        }
+    match run(&input, filename) {
+        Ok(low_ir) => {
+            for bb in low_ir.iter().flatten() {
+                println!("{bb}\n");
+            }
 
-        eprintln!("{} errors found", errors.len());
+            if eval {
+                eval::evaluate(&low_ir);
+            }
+
+            let mut exolvl = levelfile::read(exolvl_path)?;
+
+            codegen::codegen(&low_ir, &mut exolvl)?;
+
+            levelfile::write(&exolvl, out_path)?;
+        }
+        Err(errors) => {
+            for error in &errors {
+                report(filename, error).eprint(FileCache::default())?;
+            }
+
+            eprintln!("{} errors found", errors.len());
+        }
     }
 
     Ok(())
 }
 
-fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error<'file>>> {
+fn run<'file>(
+    input: &str,
+    filename: &'file Path,
+) -> Result<Vec<Option<low_ir::BasicBlock>>, Vec<error::Error<'file>>> {
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer()
@@ -93,13 +127,7 @@ fn run<'file>(input: &str, filename: &'file Path) -> Result<(), Vec<error::Error
 
         let low_ir = optimiser::optimise(&low_ir);
 
-        for bb in low_ir.iter().flatten() {
-            println!("{bb}\n");
-        }
-
-        low_ir::eval::evaluate(&low_ir);
-
-        Ok(())
+        Ok(low_ir)
     } else {
         Err(errors)
     }
