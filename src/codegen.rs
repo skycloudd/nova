@@ -11,15 +11,10 @@ use levelfile::{
 };
 use rustc_hash::FxHashMap;
 
-pub fn codegen(
-    low_ir: &[Option<BasicBlock>],
-    exolvl: &mut Exolvl,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut codegen = Codegen::new(exolvl)?;
+pub fn codegen(low_ir: &[Option<BasicBlock>], exolvl: &mut Exolvl) {
+    let mut codegen = Codegen::new(exolvl);
 
     codegen.codegen(low_ir);
-
-    Ok(())
 }
 
 struct Codegen<'a> {
@@ -30,17 +25,13 @@ struct Codegen<'a> {
 }
 
 impl Codegen<'_> {
-    fn new(exolvl: &mut Exolvl) -> Result<Codegen, Box<dyn std::error::Error>> {
-        if !exolvl.level_data.nova_scripts.0.is_empty() {
-            return Err("the level must not have any scripts".into());
-        }
-
-        Ok(Codegen {
+    fn new(exolvl: &mut Exolvl) -> Codegen {
+        Codegen {
             exolvl,
             id_gen: IdGen::new(),
             block_ids: FxHashMap::default(),
             var_ids: FxHashMap::default(),
-        })
+        }
     }
 
     fn codegen(&mut self, low_ir: &[Option<BasicBlock>]) {

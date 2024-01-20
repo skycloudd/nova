@@ -9,11 +9,11 @@
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
 use error::{convert, Error};
-use low_ir::eval;
-use span::Span;
+use span::{Span, Spanned};
 use std::{
     fmt::Display,
     fs::read_to_string,
+    io::Cursor,
     path::{Path, PathBuf},
 };
 
@@ -37,58 +37,81 @@ type FloatTy = f32;
 #[derive(clap::Parser)]
 struct Args {
     filename: PathBuf,
-    exolvl_in: PathBuf,
+
+    #[clap(short, long)]
+    with: Option<PathBuf>,
+
+    #[clap(short, long)]
+    out: Option<PathBuf>,
 
     #[clap(short, long)]
     eval: bool,
-
-    #[clap(short, long, default_value = "out.exolvl")]
-    out: PathBuf,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let args = <Args as clap::Parser>::parse();
 
-    run_filename(&args.filename, &args.exolvl_in, args.eval, &args.out)
-}
-
-fn run_filename(
-    filename: &Path,
-    exolvl_path: &Path,
-    eval: bool,
-    out_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let input = read_to_string(filename)?;
-
-    match run(&input, filename) {
-        Ok(low_ir) => {
-            for bb in low_ir.iter().flatten() {
-                println!("{bb}\n");
-            }
-
-            if eval {
-                eval::evaluate(&low_ir);
-            }
-
-            let mut exolvl = levelfile::read(exolvl_path)?;
-
-            codegen::codegen(&low_ir, &mut exolvl)?;
-
-            levelfile::write(&exolvl, out_path)?;
+    match run(
+        &read_to_string(&args.filename).unwrap(),
+        &args.filename,
+        args.with.as_deref(),
+        args.eval,
+    ) {
+        Ok(out_bytes) => match args.out {
+            Some(out) => std::fs::write(out, out_bytes).unwrap(),
+            None => std::io::Write::write_all(&mut std::io::stdout(), &out_bytes).unwrap(),
+        },
+        Err(RunError::Io(error)) => {
+            eprintln!("Io error: {}", error);
         }
-        Err(errors) => {
+        Err(RunError::LevelFile(error)) => {
+            eprintln!("Error reading level file: {}", error);
+        }
+        Err(RunError::Compile(errors)) => {
             for error in &errors {
-                report(filename, error).eprint(FileCache::default())?;
+                report(&args.filename, error)
+                    .eprint(FileCache::default())
+                    .unwrap();
             }
 
-            eprintln!("{} errors found", errors.len());
+            eprintln!(
+                "{} error{} found",
+                errors.len(),
+                if errors.len() == 1 { "" } else { "s" }
+            );
         }
     }
-
-    Ok(())
 }
 
-fn run<'file>(
+pub fn run<'file>(
+    input: &str,
+    filename: &'file Path,
+    with: Option<&Path>,
+    eval: bool,
+) -> Result<Vec<u8>, RunError<'file>> {
+    let low_ir = run_inner(input, filename).map_err(RunError::Compile)?;
+
+    if eval {
+        low_ir::eval::evaluate(&low_ir);
+    }
+
+    let mut reader = Cursor::new(match with {
+        Some(with) => std::fs::read(with).map_err(RunError::Io)?,
+        None => include_bytes!("default.exolvl").to_vec(),
+    });
+
+    let mut exolvl = levelfile::read(&mut reader).map_err(RunError::LevelFile)?;
+
+    if !exolvl.level_data.nova_scripts.0.is_empty() {
+        return Err(RunError::Compile(vec![Error::LevelFileHasScripts]));
+    }
+
+    codegen::codegen(&low_ir, &mut exolvl);
+
+    Ok(levelfile::write(&exolvl).map_err(RunError::Io)?)
+}
+
+fn run_inner<'file>(
     input: &str,
     filename: &'file Path,
 ) -> Result<Vec<Option<low_ir::BasicBlock>>, Vec<error::Error<'file>>> {
@@ -101,7 +124,8 @@ fn run<'file>(
     errors.extend(map_errors(lex_errors));
 
     let (ast, parse_errors) = tokens.as_ref().map_or((None, vec![]), |tokens| {
-        let eoi = Span::new(filename, input.len()..input.len());
+        let eof = input.chars().count() - 1;
+        let eoi = Span::new(filename, eof..eof);
 
         parser::parser()
             .parse(tokens.spanned(eoi))
@@ -149,10 +173,10 @@ where
 
     report.set_message(message);
 
-    for span in spans {
-        let mut label = Label::new(span.1).with_color(color_generator.next());
+    for Spanned(message, span) in spans {
+        let mut label = Label::new(span).with_color(color_generator.next());
 
-        if let Some(message) = span.0 {
+        if let Some(message) = message {
             label = label.with_message(message);
         }
 
@@ -178,4 +202,10 @@ fn map_errors<'file, T: Clone + Display>(
 
 fn map_boxed_errors(errors: Vec<Box<Error>>) -> Vec<error::Error> {
     errors.into_iter().map(|e| *e).collect()
+}
+
+pub enum RunError<'file> {
+    Io(std::io::Error),
+    LevelFile(binread::Error),
+    Compile(Vec<Error<'file>>),
 }

@@ -307,8 +307,8 @@ dependencies = [
 
 [[package]]
 name = "levelfile"
-version = "0.1.0"
-source = "git+https://github.com/skycloudd/levelfile/#684e9a5c0fb73ab89d4d4add9189c22923e186f1"
+version = "0.2.1"
+source = "git+https://github.com/skycloudd/levelfile/#5e051b276db15680ad74706c90caa2bea208c173"
 dependencies = [
  "binread",
  "binwrite",
@@ -338,6 +338,7 @@ name = "nova"
 version = "0.1.0"
 dependencies = [
  "ariadne",
+ "binread",
  "chumsky",
  "clap",
  "levelfile",

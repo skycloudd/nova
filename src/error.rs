@@ -53,6 +53,7 @@ pub enum Error<'file> {
         ty: String,
         span: crate::span::Span<'file>,
     },
+    LevelFileHasScripts,
 }
 
 impl Error<'_> {
@@ -118,6 +119,7 @@ impl Error<'_> {
                 format!("Const `{name}` already defined").into()
             }
             Error::CantDisplayType { ty, span: _ } => format!("Cannot display type `{ty}`").into(),
+            Error::LevelFileHasScripts => "Level file has scripts".into(),
         }
     }
 
@@ -187,10 +189,11 @@ impl Error<'_> {
                     *span,
                 )]
             }
+            Error::LevelFileHasScripts => vec![],
         }
     }
 
-    pub const fn note(&self) -> Option<String> {
+    pub fn note(&self) -> Option<String> {
         #[allow(clippy::match_same_arms)]
         match self {
             Error::ExpectedFound { .. } => None,
@@ -203,6 +206,9 @@ impl Error<'_> {
             Error::UnaryOp { .. } => None,
             Error::ConstAlreadyDefined { .. } => None,
             Error::CantDisplayType { .. } => None,
+            Error::LevelFileHasScripts => Some(String::from(
+                "The input level file should not have any scripts already present",
+            )),
         }
     }
 }
