@@ -226,22 +226,17 @@ fn typecheck_statement<'src, 'file>(
                 let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
 
                 let Some(name_ty) = variables.get(&name.0) else {
-                    // return Err(Box::new(Error::UndefinedVariable {
-                    //     name: name.0.to_string(),
-                    //     span: name.1,
-                    // }));
-
                     if const_variables.contains_key(&name.0) {
                         return Err(Box::new(Error::AssignToConst {
                             name: name.0.to_string(),
                             span: name.1,
                         }));
-                    } else {
-                        return Err(Box::new(Error::UndefinedVariable {
-                            name: name.0.to_string(),
-                            span: name.1,
-                        }));
                     }
+
+                    return Err(Box::new(Error::UndefinedVariable {
+                        name: name.0.to_string(),
+                        span: name.1,
+                    }));
                 };
 
                 engine.unify(*name_ty, value_ty)?;
