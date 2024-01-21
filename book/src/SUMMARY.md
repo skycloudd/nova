@@ -12,7 +12,7 @@
 -   [Language Tutorial](./language_tutorial.md)
 
     -   [Expressions](./expressions.md)
-    -   [Variables]()
+    -   [Variables](./variables.md)
     -   [Print]()
     -   [If/Else Statements]()
     -   [Loops]()
