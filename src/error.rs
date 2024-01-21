@@ -51,9 +51,13 @@ pub enum Error<'file> {
     },
     CantDisplayType {
         ty: String,
-        span: crate::span::Span<'file>,
+        span: Span<'file>,
     },
     LevelFileHasScripts,
+    AssignToConst {
+        name: String,
+        span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -120,6 +124,9 @@ impl Error<'_> {
             }
             Error::CantDisplayType { ty, span: _ } => format!("Cannot display type `{ty}`").into(),
             Error::LevelFileHasScripts => "Level file has scripts".into(),
+            Error::AssignToConst { name, span: _ } => {
+                format!("Cannot assign to const `{name}`").into()
+            }
         }
     }
 
@@ -190,6 +197,12 @@ impl Error<'_> {
                 )]
             }
             Error::LevelFileHasScripts => vec![],
+            Error::AssignToConst { name, span } => {
+                vec![Spanned(
+                    Some(format!("Cannot assign to const `{name}`").into()),
+                    *span,
+                )]
+            }
         }
     }
 
@@ -209,6 +222,7 @@ impl Error<'_> {
             Error::LevelFileHasScripts => Some(String::from(
                 "The input level file should not have any scripts already present",
             )),
+            Error::AssignToConst { .. } => None,
         }
     }
 }
