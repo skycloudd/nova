@@ -36,7 +36,7 @@ Strings aren't currently implemented in the language. They will be added in the 
 
 ## Literals
 
-Literals are values that are written directly in the code. For example, `5` is a literal for the number 5. `true` is a literal for the boolean value `true`.
+Literals are the most basic expressions. They are the simple values like numbers and booleans.
 
 ### Integers
 
@@ -75,6 +75,8 @@ Colours are represented as hex codes. They are written as `#rrggbb` where `rr` i
 #0000ff // blue
 #ff77a8 // pink
 ```
+
+Transparency is currently unsupported and defaults to `ff` (fully opaque). It will be added in the near future.
 
 ### Vectors
 
