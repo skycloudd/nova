@@ -9,9 +9,9 @@
 
 # Reference Guide
 
--   [Language Tutorial]()
+-   [Language Tutorial](./language_tutorial.md)
 
-    -   [Expressions]()
+    -   [Expressions](./expressions.md)
     -   [Variables]()
     -   [Print]()
     -   [If/Else Statements]()
