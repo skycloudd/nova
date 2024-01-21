@@ -91,7 +91,8 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                         just(Token::Ctrl(Ctrl::Range)).to(false),
                         just(Token::Ctrl(Ctrl::RangeInclusive)).to(true),
                     )))
-                    .then(expr_parser()),
+                    .then(expr_parser())
+                    .boxed(),
             )
             .then_ignore(just(Token::Kw(Kw::Do)))
             .then(
@@ -108,7 +109,8 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 end,
                 inclusive,
                 body,
-            });
+            })
+            .boxed();
 
         let let_ = just(Token::Kw(Kw::Let))
             .ignore_then(ident())
@@ -161,22 +163,26 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
         let variable = select! {
             Token::Variable(name) => name
         }
-        .map_with(|variable, e| Spanned(Expr::Variable(variable), e.span()));
+        .map_with(|variable, e| Spanned(Expr::Variable(variable), e.span()))
+        .boxed();
 
         let boolean = select! {
             Token::Boolean(b) => b
         }
-        .map_with(|boolean, e| Spanned(Expr::Boolean(boolean), e.span()));
+        .map_with(|boolean, e| Spanned(Expr::Boolean(boolean), e.span()))
+        .boxed();
 
         let integer = select! {
             Token::Integer(n) => n
         }
-        .map_with(|integer, e| Spanned(Expr::Integer(integer), e.span()));
+        .map_with(|integer, e| Spanned(Expr::Integer(integer), e.span()))
+        .boxed();
 
         let float = select! {
             Token::Float(n) => n
         }
-        .map_with(|float, e| Spanned(Expr::Float(float), e.span()));
+        .map_with(|float, e| Spanned(Expr::Float(float), e.span()))
+        .boxed();
 
         let colour = select! {
             Token::HexCode(r, g, b) => (r, g, b)
@@ -204,10 +210,12 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             })
             .boxed();
 
-        let parenthesized_expr = expression.delimited_by(
-            just(Token::Ctrl(Ctrl::LeftParen)),
-            just(Token::Ctrl(Ctrl::RightParen)),
-        );
+        let parenthesized_expr = expression
+            .delimited_by(
+                just(Token::Ctrl(Ctrl::LeftParen)),
+                just(Token::Ctrl(Ctrl::RightParen)),
+            )
+            .boxed();
 
         let atom = choice((
             variable,
@@ -309,4 +317,5 @@ fn ident<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
         Token::Variable(name) => name
     }
     .map_with(|name, e| Spanned(name, e.span()))
+    .boxed()
 }

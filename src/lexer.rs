@@ -153,7 +153,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     let bool = choice((
         text::keyword("true").to(Token::Boolean(true)),
         text::keyword("false").to(Token::Boolean(false)),
-    ));
+    ))
+    .boxed();
 
     let integer = text::int(10)
         .validate(|n: &str, e, emitter| match n.parse() {
@@ -163,7 +164,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
                 0
             }
         })
-        .map(Token::Integer);
+        .map(Token::Integer)
+        .boxed();
 
     let float = text::int(10)
         .then_ignore(just('.'))
@@ -176,7 +178,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
                 0.0
             }
         })
-        .map(Token::Float);
+        .map(Token::Float)
+        .boxed();
 
     let hex_byte = choice((
         just('0'),
@@ -204,7 +207,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     ))
     .repeated()
     .exactly(2)
-    .collect::<String>();
+    .collect::<String>()
+    .boxed();
 
     let colour = just('#')
         .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
@@ -225,7 +229,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
 
                 Token::Error
             }
-        });
+        })
+        .boxed();
 
     let keyword = choice((
         text::keyword("print").to(Token::Kw(Kw::Print)),
@@ -241,7 +246,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         text::keyword("for").to(Token::Kw(Kw::For)),
         text::keyword("do").to(Token::Kw(Kw::Do)),
         text::keyword("in").to(Token::Kw(Kw::In)),
-    ));
+    ))
+    .boxed();
 
     let ctrl = choice((
         just("..=").to(Token::Ctrl(Ctrl::RangeInclusive)),
@@ -253,7 +259,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just(';').to(Token::Ctrl(Ctrl::SemiColon)),
         just(',').to(Token::Ctrl(Ctrl::Comma)),
         just('=').to(Token::Ctrl(Ctrl::Equals)),
-    ));
+    ))
+    .boxed();
 
     let operator = choice((
         just("==").to(Token::Op(Op::Equals)),
@@ -267,15 +274,18 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just('>').to(Token::Op(Op::GreaterThan)),
         just('<').to(Token::Op(Op::LessThan)),
         just('!').to(Token::Op(Op::Not)),
-    ));
+    ))
+    .boxed();
 
     let token = choice((
         keyword, bool, variable, float, integer, colour, operator, ctrl,
-    ));
+    ))
+    .boxed();
 
     let comment = just("//")
         .then(any().and_is(just('\n').not()).repeated())
-        .padded();
+        .padded()
+        .boxed();
 
     token
         .map_with(|tok, e| (tok, e.span()))
@@ -284,4 +294,5 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .repeated()
         .collect()
         .then_ignore(end())
+        .boxed()
 }
