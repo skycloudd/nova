@@ -34,13 +34,8 @@ pub fn run<'file>(
     input: &str,
     filename: &'file Path,
     with: Option<&Path>,
-    eval: bool,
 ) -> Result<Vec<u8>, RunError<'file>> {
     let low_ir = run_inner(input, filename).map_err(RunError::Compile)?;
-
-    if eval {
-        low_ir::eval::evaluate(&low_ir);
-    }
 
     let mut reader = Cursor::new(match with {
         Some(with) => std::fs::read(with).map_err(RunError::Io)?,

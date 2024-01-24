@@ -36,4 +36,4 @@ This says that if the variable `my_number` is _equal_ to the number `7`, we prin
 
 ## Final note
 
-A `print` statement actually translates to a "Game Text Show" script in the game! And when you're using the built-in evaluator, it displays text as you'd expect
+A `print` statement actually translates to a "Game Text Show" script in the game!

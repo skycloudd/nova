@@ -11,9 +11,6 @@ struct Args {
 
     #[clap(short, long)]
     out: Option<PathBuf>,
-
-    #[clap(short, long)]
-    eval: bool,
 }
 
 fn main() {
@@ -23,7 +20,6 @@ fn main() {
         &read_to_string(&args.filename).unwrap(),
         &args.filename,
         args.with.as_deref(),
-        args.eval,
     ) {
         Ok(out_bytes) => match args.out {
             Some(out) => std::fs::write(out, out_bytes).unwrap(),
