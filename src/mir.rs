@@ -57,6 +57,7 @@ pub enum Expression<'file> {
         r: u8,
         g: u8,
         b: u8,
+        a: u8,
     },
     Vector {
         x: Spanned<'file, Box<TypedExpression<'file>>>,
@@ -296,7 +297,7 @@ fn build_mir_expr<'src, 'file>(
             Expr::Boolean(value) => Expression::Boolean(value),
             Expr::Integer(value) => Expression::Integer(value),
             Expr::Float(value) => Expression::Float(value),
-            Expr::Colour { r, g, b } => Expression::Colour { r, g, b },
+            Expr::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
             Expr::Vector { x, y } => Expression::Vector {
                 x: build_mir_expr(var_id_map, x.map(|x| *x)).map(Box::new),
                 y: build_mir_expr(var_id_map, y.map(|y| *y)).map(Box::new),

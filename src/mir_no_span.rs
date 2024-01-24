@@ -43,6 +43,7 @@ pub enum Expression {
         r: u8,
         g: u8,
         b: u8,
+        a: u8,
     },
     Vector {
         x: Box<TypedExpression>,
@@ -250,7 +251,7 @@ fn expression_remove_span(expression: Spanned<mir::TypedExpression<'_>>) -> Type
             mir::Expression::Boolean(value) => Expression::Boolean(value),
             mir::Expression::Integer(value) => Expression::Integer(value),
             mir::Expression::Float(value) => Expression::Float(value),
-            mir::Expression::Colour { r, g, b } => Expression::Colour { r, g, b },
+            mir::Expression::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
             mir::Expression::Vector { x, y } => Expression::Vector {
                 x: Box::new(expression_remove_span(x.map(|x| *x))),
                 y: Box::new(expression_remove_span(y.map(|y| *y))),

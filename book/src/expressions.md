@@ -67,16 +67,16 @@ false
 
 ### Colours
 
-Colours are represented as hex codes. They are written as `#rrggbb` where `rr` is the red value, `gg` is the green value, and `bb` is the blue value. Each value is a hexadecimal number between `00` and `ff` (0 and 255 in decimal).
+Colours are represented as hex codes. They are written as `#rrggbbaa` where `rr` is the red value, `gg` is the green value, and `bb` is the blue value. `aa` is an **optional** value for the alpha channel (opacity). Each value is a hexadecimal number between `00` and `ff` (0 and 255 in decimal).
 
 ```swift
 #ff0000 // red
-#00ff00 // green
-#0000ff // blue
+#00ff007f // green, with 50% opacity (7f is 127 in decimal)
+#0000ff00 // blue, but with 0% opacity
 #ff77a8 // pink
 ```
 
-Transparency is currently unsupported and defaults to `ff` (fully opaque). It will be added in the near future.
+Alpha defaults to `ff` if it is not specified.
 
 ### Vectors
 

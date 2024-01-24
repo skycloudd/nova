@@ -51,6 +51,7 @@ macro_rules! ast_expr {
                 r: u8,
                 g: u8,
                 b: u8,
+                a: u8,
             },
             Vector {
                 x: Spanned<'file, Box<$self_expr<'src, 'file>>>,

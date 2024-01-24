@@ -234,13 +234,13 @@ impl Codegen<'_> {
                 Expression::Float(value) => {
                     new_novavalue(DynamicType::FloatConstant, NewValue::Float(*value))
                 }
-                Expression::Colour { r, g, b } => new_novavalue(
+                Expression::Colour { r, g, b, a } => new_novavalue(
                     DynamicType::ColorConstant,
                     NewValue::Color(Colour {
                         r: f32::from(*r) / 255.0,
                         g: f32::from(*g) / 255.0,
                         b: f32::from(*b) / 255.0,
-                        a: 1.0,
+                        a: f32::from(*a) / 255.0,
                     }),
                 ),
                 Expression::Vector { x, y } => {

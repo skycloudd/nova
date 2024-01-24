@@ -155,7 +155,7 @@ fn const_eval_expr<'file>(
         Expression::Boolean(value) => Ok(ConstValue::Boolean(value)),
         Expression::Integer(value) => Ok(ConstValue::Integer(value)),
         Expression::Float(value) => Ok(ConstValue::Float(value)),
-        Expression::Colour { r, g, b } => Ok(ConstValue::Colour { r, g, b }),
+        Expression::Colour { r, g, b, a } => Ok(ConstValue::Colour { r, g, b, a }),
         Expression::Vector { x, y } => {
             let x = const_eval_expr(const_vars, errors, x.map(|x| *x));
             let y = const_eval_expr(const_vars, errors, y.map(|y| *y));
@@ -373,7 +373,7 @@ fn propagate_const<'file>(
             Expression::Boolean(value) => Expression::Boolean(value),
             Expression::Integer(value) => Expression::Integer(value),
             Expression::Float(value) => Expression::Float(value),
-            Expression::Colour { r, g, b } => Expression::Colour { r, g, b },
+            Expression::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
             Expression::Vector { x, y } => Expression::Vector {
                 x: propagate_const(const_vars, x.map(|x| *x)).map(Box::new),
                 y: propagate_const(const_vars, y.map(|y| *y)).map(Box::new),
@@ -619,6 +619,7 @@ enum ConstValue<'file> {
         r: u8,
         g: u8,
         b: u8,
+        a: u8,
     },
     Vector {
         x: Spanned<'file, Box<ConstValue<'file>>>,
@@ -632,7 +633,7 @@ impl<'file> From<ConstValue<'file>> for Expression<'file> {
             ConstValue::Boolean(value) => Expression::Boolean(value),
             ConstValue::Integer(value) => Expression::Integer(value),
             ConstValue::Float(value) => Expression::Float(value),
-            ConstValue::Colour { r, g, b } => Expression::Colour { r, g, b },
+            ConstValue::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
             ConstValue::Vector { x, y } => Expression::Vector {
                 x: x.map(|x| TypedExpression {
                     expr: Expression::from(*x),

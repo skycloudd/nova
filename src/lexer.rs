@@ -9,7 +9,7 @@ pub enum Token<'src> {
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    HexCode(u8, u8, u8),
+    HexCode(u8, u8, u8, Option<u8>),
     Kw(Kw),
     Ctrl(Ctrl),
     Op(Op),
@@ -64,6 +64,7 @@ pub enum Op {
 }
 
 impl std::fmt::Display for Token<'_> {
+    #[allow(clippy::many_single_char_names)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Error => write!(f, "error"),
@@ -74,7 +75,15 @@ impl std::fmt::Display for Token<'_> {
             Token::Kw(k) => write!(f, "{k}"),
             Token::Ctrl(c) => write!(f, "{c}"),
             Token::Op(o) => write!(f, "{o}"),
-            Token::HexCode(r, g, b) => write!(f, "#{r:02x}{g:02x}{b:02x}"),
+            Token::HexCode(r, g, b, a) => write!(
+                f,
+                "#{r:02x}{g:02x}{b:02x}{}",
+                if let Some(a) = a {
+                    format!("{a:02x}")
+                } else {
+                    String::new()
+                },
+            ),
         }
     }
 }
@@ -211,13 +220,18 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     .boxed();
 
     let colour = just('#')
-        .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
-        .map(|bytes| {
-            let r = u8::from_str_radix(&bytes[0], 16)?;
-            let g = u8::from_str_radix(&bytes[1], 16)?;
-            let b = u8::from_str_radix(&bytes[2], 16)?;
+        // .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
+        .ignore_then(hex_byte.clone())
+        .then(hex_byte.clone())
+        .then(hex_byte.clone())
+        .then(hex_byte.or_not())
+        .map(|(((r, g), b), a)| {
+            let r = u8::from_str_radix(&r, 16).unwrap();
+            let g = u8::from_str_radix(&g, 16).unwrap();
+            let b = u8::from_str_radix(&b, 16).unwrap();
+            let a = a.map(|a| u8::from_str_radix(&a, 16).unwrap());
 
-            Ok(Token::HexCode(r, g, b))
+            Ok(Token::HexCode(r, g, b, a))
         })
         .validate(|res: Result<_, ParseIntError>, e, emitter| match res {
             Ok(token) => token,

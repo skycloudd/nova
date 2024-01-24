@@ -185,9 +185,19 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
         .boxed();
 
         let colour = select! {
-            Token::HexCode(r, g, b) => (r, g, b)
+            Token::HexCode(r, g, b, a) => (r, g, b, a)
         }
-        .map_with(|(r, g, b), e| Spanned(Expr::Colour { r, g, b }, e.span()))
+        .map_with(|(r, g, b, a), e| {
+            Spanned(
+                Expr::Colour {
+                    r,
+                    g,
+                    b,
+                    a: a.unwrap_or(255),
+                },
+                e.span(),
+            )
+        })
         .boxed();
 
         let vector = expression

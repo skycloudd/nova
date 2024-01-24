@@ -85,6 +85,7 @@ pub enum Expression {
         r: u8,
         g: u8,
         b: u8,
+        a: u8,
     },
     Vector {
         x: Box<TypedExpression>,
@@ -367,7 +368,7 @@ impl LoweringContext {
                 mir::Expression::Boolean(value) => Expression::Boolean(value),
                 mir::Expression::Integer(value) => Expression::Integer(value),
                 mir::Expression::Float(value) => Expression::Float(value),
-                mir::Expression::Colour { r, g, b } => Expression::Colour { r, g, b },
+                mir::Expression::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
                 mir::Expression::Vector { x, y } => Expression::Vector {
                     x: Box::new(Self::lower_expression(*x)),
                     y: Box::new(Self::lower_expression(*y)),
@@ -580,7 +581,7 @@ mod print {
             Expression::Integer(value) => write!(f, "{value}"),
             Expression::Float(value) => write!(f, "{value}"),
 
-            Expression::Colour { r, g, b } => write!(f, "#{r:02x}{g:02x}{b:02x}"),
+            Expression::Colour { r, g, b, a } => write!(f, "#{r:02x}{g:02x}{b:02x}{a:02x}"),
             Expression::Vector { x, y } => {
                 write!(f, "{{ ")?;
 

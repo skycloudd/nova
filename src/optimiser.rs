@@ -152,7 +152,12 @@ fn get_used_variables_expr(expr: &Expression) -> Vec<VarId> {
         Expression::Boolean(_)
         | Expression::Integer(_)
         | Expression::Float(_)
-        | Expression::Colour { r: _, g: _, b: _ } => vec![],
+        | Expression::Colour {
+            r: _,
+            g: _,
+            b: _,
+            a: _,
+        } => vec![],
         Expression::Vector { x, y } => {
             let mut used = get_used_variables_expr(&x.expr);
 

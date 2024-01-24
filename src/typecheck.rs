@@ -293,8 +293,8 @@ fn typecheck_expression<'src, 'file>(
                 expr: typed::Expr::Float(float),
                 ty: Type::Float,
             },
-            Expr::Colour { r, g, b } => TypedExpr {
-                expr: typed::Expr::Colour { r, g, b },
+            Expr::Colour { r, g, b, a } => TypedExpr {
+                expr: typed::Expr::Colour { r, g, b, a },
                 ty: Type::Colour,
             },
             Expr::Vector { x, y } => {
