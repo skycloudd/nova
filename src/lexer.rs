@@ -78,11 +78,7 @@ impl std::fmt::Display for Token<'_> {
             Token::HexCode(r, g, b, a) => write!(
                 f,
                 "#{r:02x}{g:02x}{b:02x}{}",
-                if let Some(a) = a {
-                    format!("{a:02x}")
-                } else {
-                    String::new()
-                },
+                a.as_ref().map_or_else(String::new, |a| format!("{a:02x}")),
             ),
         }
     }
