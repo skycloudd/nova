@@ -1,4 +1,5 @@
 use ariadne::FileCache;
+use clap::Parser;
 use nova::{report, run, RunError};
 use std::{fs::read_to_string, path::PathBuf};
 
@@ -14,7 +15,7 @@ struct Args {
 }
 
 fn main() {
-    let args = <Args as clap::Parser>::parse();
+    let args = Args::parse();
 
     match run(
         &read_to_string(&args.filename).unwrap(),
