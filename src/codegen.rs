@@ -1,6 +1,9 @@
-use crate::low_ir::{
-    BasicBlock, BasicBlockId, Expression, Instruction, Operation, Terminator, Type,
-    TypedExpression, VarId,
+use crate::{
+    low_ir::{
+        BasicBlock, BasicBlockId, Expression, Instruction, Object, Operation, Terminator, Type,
+        TypedExpression, VarId,
+    },
+    mir_no_span,
 };
 use levelfile::{
     scripts::{
@@ -130,8 +133,9 @@ impl Codegen<'_> {
                             ),
                             duration,
                         }),
-                        Type::Colour => todo!(),
-                        Type::Vector => todo!(),
+                        Type::Colour | Type::Vector | Type::Object | Type::ObjectSet => {
+                            unreachable!()
+                        }
                     };
 
                     script.actions.0.push(action);
@@ -152,6 +156,8 @@ impl Codegen<'_> {
                             Type::Float => StaticType::Float,
                             Type::Colour => StaticType::Color,
                             Type::Vector => StaticType::Vector,
+                            Type::Object => StaticType::Object,
+                            Type::ObjectSet => StaticType::ObjectSet,
                         },
                         initial_value: value.0,
                     };
@@ -167,6 +173,41 @@ impl Codegen<'_> {
                         variable: *variable,
                         value: Some(value.0),
                     }));
+                }
+                Instruction::Action { name, args } => {
+                    let mut args = args.iter().map(|arg| self.codegen_expr(arg));
+
+                    let action = match name {
+                        mir_no_span::Action::Wait => {
+                            let duration = args.next().unwrap().0;
+
+                            new_action(ActionType::Wait { duration })
+                        }
+                        mir_no_span::Action::WaitFrames => {
+                            let frames = args.next().unwrap().0;
+
+                            new_action(ActionType::WaitFrames { frames })
+                        }
+                        mir_no_span::Action::Move => {
+                            let target_objects = args.next().unwrap().0;
+                            let position = args.next().unwrap().0;
+                            let global = args.next().unwrap().0;
+                            let duration = args.next().unwrap().0;
+
+                            new_action(ActionType::Move {
+                                target_objects,
+                                position,
+                                global,
+                                duration,
+                                easing: new_novavalue(
+                                    DynamicType::EasingConstant,
+                                    NewValue::Int(0),
+                                ),
+                            })
+                        }
+                    };
+
+                    script.actions.0.push(action);
                 }
             }
         }
@@ -252,6 +293,12 @@ impl Codegen<'_> {
                         NewValue::SubValues(MyVec(vec![x.0, y.0])),
                     )
                 }
+                Expression::Object(object) => match object {
+                    Object::Player => new_novavalue(
+                        DynamicType::ObjectPlayer,
+                        NewValue::SubValues(MyVec(vec![])),
+                    ),
+                },
                 Expression::Operation(operation) => {
                     #[allow(clippy::match_same_arms)]
                     let dyn_type = match operation.as_ref() {

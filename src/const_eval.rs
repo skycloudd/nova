@@ -1,6 +1,6 @@
 use crate::{
     error::Error,
-    mir::{Expression, Operation, Type, TypedExpression, TypedStatement, VarId},
+    mir::{self, Expression, Operation, Type, TypedExpression, TypedStatement, VarId},
     scopes::Scopes,
     span::Spanned,
     FloatTy, IntTy,
@@ -130,6 +130,17 @@ fn const_eval_statement<'file>(
         }
         TypedStatement::Break => Ok(TypedStatement::Break),
         TypedStatement::Continue => Ok(TypedStatement::Continue),
+        TypedStatement::Action { name, args } => {
+            let args = Spanned(
+                args.0
+                    .into_iter()
+                    .map(|arg| propagate_const(const_vars, arg))
+                    .collect(),
+                args.1,
+            );
+
+            Ok(TypedStatement::Action { name, args })
+        }
     }
     .map(|stmt| Spanned(stmt, statement.1))
 }
@@ -168,6 +179,9 @@ fn const_eval_expr<'file>(
                 _ => Err(()),
             }
         }
+        Expression::Object(object) => Ok(ConstValue::Object(match object {
+            mir::Object::Player => Object::Player,
+        })),
         Expression::Operation(operation) => Ok(match *operation {
             Operation::IntegerEquals(lhs, rhs) => {
                 const_eval_binary_operation!(
@@ -378,6 +392,7 @@ fn propagate_const<'file>(
                 x: propagate_const(const_vars, x.map(|x| *x)).map(Box::new),
                 y: propagate_const(const_vars, y.map(|y| *y)).map(Box::new),
             },
+            Expression::Object(object) => Expression::Object(object),
             Expression::Operation(operation) => match *operation {
                 Operation::IntegerEquals(lhs, rhs) => {
                     const_propagate_binary_operation!(
@@ -625,6 +640,12 @@ enum ConstValue<'file> {
         x: Spanned<'file, Box<ConstValue<'file>>>,
         y: Spanned<'file, Box<ConstValue<'file>>>,
     },
+    Object(Object),
+}
+
+#[derive(Clone, PartialEq)]
+enum Object {
+    Player,
 }
 
 impl<'file> From<ConstValue<'file>> for Expression<'file> {
@@ -646,6 +667,9 @@ impl<'file> From<ConstValue<'file>> for Expression<'file> {
                 })
                 .map(Box::new),
             },
+            ConstValue::Object(object) => Expression::Object(match object {
+                Object::Player => mir::Object::Player,
+            }),
         }
     }
 }
@@ -660,6 +684,7 @@ impl<'file> From<ConstValue<'file>> for TypedExpression<'file> {
             ConstValue::Float(_) => Type::Float,
             ConstValue::Colour { .. } => Type::Colour,
             ConstValue::Vector { .. } => Type::Vector,
+            ConstValue::Object(_) => Type::Object,
         };
 
         TypedExpression { expr, ty }

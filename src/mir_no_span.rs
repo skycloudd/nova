@@ -25,6 +25,17 @@ pub enum TypedStatement {
     },
     Break,
     Continue,
+    Action {
+        name: Action,
+        args: Vec<TypedExpression>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Action {
+    Wait,
+    WaitFrames,
+    Move,
 }
 
 #[derive(Debug)]
@@ -49,7 +60,13 @@ pub enum Expression {
         x: Box<TypedExpression>,
         y: Box<TypedExpression>,
     },
+    Object(Object),
     Operation(Box<Operation>),
+}
+
+#[derive(Debug)]
+pub enum Object {
+    Player,
 }
 
 pub type VarId = usize;
@@ -93,6 +110,8 @@ pub enum Type {
     Float,
     Colour,
     Vector,
+    Object,
+    ObjectSet,
 }
 
 impl From<mir::Type> for Type {
@@ -103,6 +122,18 @@ impl From<mir::Type> for Type {
             mir::Type::Float => Self::Float,
             mir::Type::Colour => Self::Colour,
             mir::Type::Vector => Self::Vector,
+            mir::Type::Object => Self::Object,
+            mir::Type::ObjectSet => Self::ObjectSet,
+        }
+    }
+}
+
+impl std::fmt::Display for Action {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Wait => write!(f, "wait"),
+            Self::WaitFrames => write!(f, "waitframes"),
+            Self::Move => write!(f, "move"),
         }
     }
 }
@@ -241,6 +272,19 @@ fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedSt
         },
         mir::TypedStatement::Break => TypedStatement::Break,
         mir::TypedStatement::Continue => TypedStatement::Continue,
+        mir::TypedStatement::Action { name, args } => TypedStatement::Action {
+            name: match name.0 {
+                "wait" => Action::Wait,
+                "waitframes" => Action::WaitFrames,
+                "move" => Action::Move,
+                _ => unreachable!(),
+            },
+            args: args
+                .0
+                .into_iter()
+                .map(|e| expression_remove_span(e))
+                .collect(),
+        },
     }
 }
 
@@ -256,6 +300,9 @@ fn expression_remove_span(expression: Spanned<mir::TypedExpression<'_>>) -> Type
                 x: Box::new(expression_remove_span(x.map(|x| *x))),
                 y: Box::new(expression_remove_span(y.map(|y| *y))),
             },
+            mir::Expression::Object(object) => Expression::Object(match object {
+                mir::Object::Player => Object::Player,
+            }),
             mir::Expression::Operation(operation) => {
                 Expression::Operation(Box::new(operation_remove_span(*operation)))
             }

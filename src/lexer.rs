@@ -10,9 +10,15 @@ pub enum Token<'src> {
     Integer(IntTy),
     Float(FloatTy),
     HexCode(u8, u8, u8, Option<u8>),
+    Object(Object),
     Kw(Kw),
     Ctrl(Ctrl),
     Op(Op),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Object {
+    Player,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,6 +36,7 @@ pub enum Kw {
     For,
     Do,
     In,
+    Action,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,6 +50,7 @@ pub enum Ctrl {
     Equals,
     Range,
     RangeInclusive,
+    Colon,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,14 +80,23 @@ impl std::fmt::Display for Token<'_> {
             Token::Boolean(b) => write!(f, "{b}"),
             Token::Integer(n) => write!(f, "{n}"),
             Token::Float(n) => write!(f, "{n}"),
-            Token::Kw(k) => write!(f, "{k}"),
-            Token::Ctrl(c) => write!(f, "{c}"),
-            Token::Op(o) => write!(f, "{o}"),
             Token::HexCode(r, g, b, a) => write!(
                 f,
                 "#{r:02x}{g:02x}{b:02x}{}",
                 a.as_ref().map_or_else(String::new, |a| format!("{a:02x}")),
             ),
+            Token::Object(o) => write!(f, "{o}"),
+            Token::Kw(k) => write!(f, "{k}"),
+            Token::Ctrl(c) => write!(f, "{c}"),
+            Token::Op(o) => write!(f, "{o}"),
+        }
+    }
+}
+
+impl std::fmt::Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Player => write!(f, "player"),
         }
     }
 }
@@ -100,6 +117,7 @@ impl std::fmt::Display for Kw {
             Self::For => write!(f, "for"),
             Self::Do => write!(f, "do"),
             Self::In => write!(f, "in"),
+            Self::Action => write!(f, "action"),
         }
     }
 }
@@ -116,6 +134,7 @@ impl std::fmt::Display for Ctrl {
             Self::Equals => write!(f, "="),
             Self::Range => write!(f, ".."),
             Self::RangeInclusive => write!(f, "..="),
+            Self::Colon => write!(f, ":"),
         }
     }
 }
@@ -256,6 +275,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         text::keyword("for").to(Token::Kw(Kw::For)),
         text::keyword("do").to(Token::Kw(Kw::Do)),
         text::keyword("in").to(Token::Kw(Kw::In)),
+        text::keyword("action").to(Token::Kw(Kw::Action)),
+        text::keyword("player").to(Token::Object(Object::Player)),
     ))
     .boxed();
 
@@ -269,6 +290,7 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just(';').to(Token::Ctrl(Ctrl::SemiColon)),
         just(',').to(Token::Ctrl(Ctrl::Comma)),
         just('=').to(Token::Ctrl(Ctrl::Equals)),
+        just(':').to(Token::Ctrl(Ctrl::Colon)),
     ))
     .boxed();
 

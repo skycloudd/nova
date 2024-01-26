@@ -1,5 +1,6 @@
 use crate::{
     ast::{
+        self,
         typed::{self, Expr, TypedExpr, TypedStatement as Statement},
         BinaryOp, UnaryOp,
     },
@@ -39,6 +40,10 @@ pub enum TypedStatement<'file> {
     },
     Break,
     Continue,
+    Action {
+        name: Spanned<'file, &'file str>,
+        args: Spanned<'file, Vec<Spanned<'file, TypedExpression<'file>>>>,
+    },
 }
 
 #[derive(Debug)]
@@ -63,7 +68,13 @@ pub enum Expression<'file> {
         x: Spanned<'file, Box<TypedExpression<'file>>>,
         y: Spanned<'file, Box<TypedExpression<'file>>>,
     },
+    Object(Object),
     Operation(Box<Operation<'file>>),
+}
+
+#[derive(Debug)]
+pub enum Object {
+    Player,
 }
 
 pub type VarId = usize;
@@ -173,6 +184,8 @@ pub enum Type {
     Float,
     Colour,
     Vector,
+    Object,
+    ObjectSet,
 }
 
 impl From<typed::Type> for Type {
@@ -183,6 +196,8 @@ impl From<typed::Type> for Type {
             typed::Type::Float => Self::Float,
             typed::Type::Colour => Self::Colour,
             typed::Type::Vector => Self::Vector,
+            typed::Type::Object => Self::Object,
+            typed::Type::ObjectSet => Self::ObjectSet,
         }
     }
 }
@@ -212,8 +227,8 @@ impl<'src> VarIdMap<'src> {
     }
 }
 
-pub fn build<'file>(
-    ast: Vec<Spanned<'file, Statement<'_, 'file>>>,
+pub fn build<'src: 'file, 'file>(
+    ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
 ) -> Vec<Spanned<'file, TypedStatement<'file>>> {
     let mut var_id_map = VarIdMap::new();
 
@@ -222,7 +237,7 @@ pub fn build<'file>(
         .collect()
 }
 
-fn build_mir_statement<'src, 'file>(
+fn build_mir_statement<'src: 'file, 'file>(
     var_id_map: &mut VarIdMap<'src>,
     statement: Spanned<'file, Statement<'src, 'file>>,
 ) -> Spanned<'file, TypedStatement<'file>> {
@@ -284,6 +299,14 @@ fn build_mir_statement<'src, 'file>(
         },
         Statement::Break => TypedStatement::Break,
         Statement::Continue => TypedStatement::Continue,
+        Statement::Action { name, args } => TypedStatement::Action {
+            name,
+            args: args.map(|args| {
+                args.into_iter()
+                    .map(|arg| build_mir_expr(var_id_map, arg))
+                    .collect()
+            }),
+        },
     })
 }
 
@@ -302,6 +325,9 @@ fn build_mir_expr<'src, 'file>(
                 x: build_mir_expr(var_id_map, x.map(|x| *x)).map(Box::new),
                 y: build_mir_expr(var_id_map, y.map(|y| *y)).map(Box::new),
             },
+            Expr::Object(object) => Expression::Object(match object {
+                ast::Object::Player => Object::Player,
+            }),
             Expr::Binary(lhs, op, rhs) => {
                 let lhs = build_mir_expr(var_id_map, lhs.map(|l| *l));
                 let rhs = build_mir_expr(var_id_map, rhs.map(|r| *r));

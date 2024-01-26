@@ -64,7 +64,7 @@ fn typecheck_statement<'src, 'file>(
 
                 match &expr.0.ty {
                     Type::Boolean | Type::Integer | Type::Float => {}
-                    ty @ (Type::Colour | Type::Vector) => {
+                    ty @ (Type::Colour | Type::Vector | Type::Object | Type::ObjectSet) => {
                         return Err(Box::new(Error::CantDisplayType {
                             ty: ty.to_string(),
                             span: expr.1,
@@ -245,10 +245,96 @@ fn typecheck_statement<'src, 'file>(
             }
             Statement::Break => TypedStatement::Break,
             Statement::Continue => TypedStatement::Continue,
+            Statement::Action { name, args } => {
+                let args = Spanned(
+                    args.0
+                        .into_iter()
+                        .map(|expr| typecheck_expression(engine, variables, const_variables, expr))
+                        .collect::<Result<Vec<_>, _>>()?,
+                    args.1,
+                );
+
+                let expected_types = match name.0 {
+                    "wait" => {
+                        action_args_count!(1, args.len(), name.1);
+
+                        vec![vec![TypeInfo::Float]]
+                    }
+                    "waitframes" => {
+                        action_args_count!(1, args.len(), name.1);
+
+                        vec![vec![TypeInfo::Integer]]
+                    }
+                    "move" => {
+                        action_args_count!(4, args.len(), name.1);
+
+                        vec![
+                            vec![TypeInfo::Object, TypeInfo::ObjectSet],
+                            vec![TypeInfo::Vector],
+                            vec![TypeInfo::Boolean],
+                            vec![TypeInfo::Float],
+                        ]
+                    }
+                    _ => todo!("error"),
+                };
+
+                let expected_types = expected_types
+                    .into_iter()
+                    .zip(args.0.iter().map(|arg| arg.1))
+                    .map(|(tys, span)| {
+                        tys.into_iter()
+                            .map(|ty| Spanned(ty, span))
+                            .collect::<Vec<_>>()
+                    })
+                    .map(|tys| {
+                        tys.into_iter()
+                            .map(|ty| engine.insert(ty))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+
+                for (expected, got) in expected_types
+                    .into_iter()
+                    .zip(args.0.iter().map(|arg| arg.0.ty))
+                {
+                    let got = engine.insert(type_to_typeinfo(Spanned(&got, args.1)));
+
+                    let mut errors = vec![];
+
+                    for expected in expected {
+                        match engine.unify(expected, got) {
+                            Ok(()) => {
+                                errors.clear();
+                                break;
+                            }
+                            Err(err) => errors.push(err),
+                        }
+                    }
+
+                    if let Some(error) = errors.into_iter().next() {
+                        return Err(error);
+                    }
+                }
+
+                TypedStatement::Action { name, args }
+            }
         },
         statement.1,
     ))
 }
+
+macro_rules! action_args_count {
+    ($count:expr, $len:expr, $span:expr) => {
+        if $len != $count {
+            return Err(Box::new(Error::WrongNumberOfActionArguments {
+                expected: $count,
+                got: $len,
+                span: $span,
+            }));
+        }
+    };
+}
+use action_args_count;
 
 fn typecheck_expression<'src, 'file>(
     engine: &mut Engine<'file>,
@@ -319,6 +405,10 @@ fn typecheck_expression<'src, 'file>(
                     ty: Type::Vector,
                 }
             }
+            Expr::Object(object) => TypedExpr {
+                expr: typed::Expr::Object(object),
+                ty: Type::Object,
+            },
             Expr::Binary(lhs, op, rhs) => {
                 let lhs =
                     typecheck_expression(engine, variables, const_variables, lhs.map(|l| *l))?;
@@ -449,7 +539,10 @@ impl<'file> Engine<'file> {
             (TypeInfo::Boolean, TypeInfo::Boolean)
             | (TypeInfo::Integer, TypeInfo::Integer)
             | (TypeInfo::Float, TypeInfo::Float)
-            | (TypeInfo::Colour, TypeInfo::Colour) => Ok(()),
+            | (TypeInfo::Colour, TypeInfo::Colour)
+            | (TypeInfo::Vector, TypeInfo::Vector)
+            | (TypeInfo::Object, TypeInfo::Object)
+            | (TypeInfo::ObjectSet, TypeInfo::ObjectSet) => Ok(()),
 
             (a, b) => Err(Box::new(Error::IncompatibleTypes {
                 a: a.to_string(),
@@ -471,6 +564,8 @@ impl<'file> Engine<'file> {
             TypeInfo::Float => Ok(Type::Float),
             TypeInfo::Colour => Ok(Type::Colour),
             TypeInfo::Vector => Ok(Type::Vector),
+            TypeInfo::Object => Ok(Type::Object),
+            TypeInfo::ObjectSet => Ok(Type::ObjectSet),
         }
         .map(|ty| Spanned(ty, var.1))
     }
@@ -487,6 +582,8 @@ enum TypeInfo {
     Float,
     Colour,
     Vector,
+    Object,
+    ObjectSet,
 }
 
 impl std::fmt::Display for TypeInfo {
@@ -499,6 +596,8 @@ impl std::fmt::Display for TypeInfo {
             Self::Float => write!(f, "float"),
             Self::Colour => write!(f, "colour"),
             Self::Vector => write!(f, "vector"),
+            Self::Object => write!(f, "object"),
+            Self::ObjectSet => write!(f, "objectset"),
         }
     }
 }
@@ -510,6 +609,8 @@ fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo
         Type::Float => TypeInfo::Float,
         Type::Colour => TypeInfo::Colour,
         Type::Vector => TypeInfo::Vector,
+        Type::Object => TypeInfo::Object,
+        Type::ObjectSet => TypeInfo::ObjectSet,
     })
 }
 

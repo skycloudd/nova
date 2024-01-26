@@ -58,6 +58,11 @@ pub enum Error<'file> {
         name: String,
         span: Span<'file>,
     },
+    WrongNumberOfActionArguments {
+        expected: i32,
+        got: usize,
+        span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -127,6 +132,11 @@ impl Error<'_> {
             Error::AssignToConst { name, span: _ } => {
                 format!("Cannot assign to const `{name}`").into()
             }
+            Error::WrongNumberOfActionArguments {
+                expected,
+                got,
+                span: _,
+            } => format!("Expected {expected} arguments, got {got}").into(),
         }
     }
 
@@ -203,6 +213,14 @@ impl Error<'_> {
                     *span,
                 )]
             }
+            Error::WrongNumberOfActionArguments {
+                expected,
+                got,
+                span,
+            } => vec![Spanned(
+                Some(format!("Expected {expected} arguments, got {got}").into()),
+                *span,
+            )],
         }
     }
 
@@ -223,6 +241,7 @@ impl Error<'_> {
                 "The input level file should not have any scripts already present",
             )),
             Error::AssignToConst { .. } => None,
+            Error::WrongNumberOfActionArguments { .. } => None,
         }
     }
 }

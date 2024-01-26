@@ -1,6 +1,6 @@
 use crate::{
-    ast::{BinaryOp, Expr, Statement, UnaryOp},
-    lexer::{Ctrl, Kw, Op, Token},
+    ast::{BinaryOp, Expr, Object, Statement, UnaryOp},
+    lexer::{self, Ctrl, Kw, Op, Token},
     span::{Span, Spanned},
 };
 use chumsky::{input::SpannedInput, prelude::*};
@@ -145,8 +145,22 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(|_| Statement::Continue)
             .boxed();
 
+        let action = just(Token::Kw(Kw::Action))
+            .ignore_then(ident())
+            .then_ignore(just(Token::Ctrl(Ctrl::Colon)))
+            .then(
+                expr_parser()
+                    .separated_by(just(Token::Ctrl(Ctrl::Comma)))
+                    .collect()
+                    .map_with(|args, e| Spanned(args, e.span()))
+                    .boxed(),
+            )
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map(|(name, args)| Statement::Action { name, args })
+            .boxed();
+
         choice((
-            expr, print, loop_, if_, for_, let_, const_, assign, break_, continue_,
+            expr, print, loop_, if_, for_, let_, const_, assign, break_, continue_, action,
         ))
         .map_with(|statement, e| Spanned(statement, e.span()))
         .boxed()
@@ -220,6 +234,19 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             })
             .boxed();
 
+        let object = select! {
+            Token::Object(object) => object
+        }
+        .map_with(|object, e| {
+            Spanned(
+                Expr::Object(match object {
+                    lexer::Object::Player => Object::Player,
+                }),
+                e.span(),
+            )
+        })
+        .boxed();
+
         let parenthesized_expr = expression
             .delimited_by(
                 just(Token::Ctrl(Ctrl::LeftParen)),
@@ -234,6 +261,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             float,
             colour,
             vector,
+            object,
             parenthesized_expr,
         ))
         .boxed();

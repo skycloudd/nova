@@ -1,4 +1,7 @@
-use crate::{mir_no_span as mir, FloatTy, IntTy};
+use crate::{
+    mir_no_span::{self as mir, Action},
+    FloatTy, IntTy,
+};
 
 #[derive(Debug)]
 pub struct UnfinishedBasicBlock {
@@ -65,8 +68,18 @@ pub type BasicBlockId = usize;
 pub enum Instruction {
     Expr(TypedExpression),
     Print(TypedExpression),
-    Let { name: VarId, value: TypedExpression },
-    Assign { name: VarId, value: TypedExpression },
+    Let {
+        name: VarId,
+        value: TypedExpression,
+    },
+    Assign {
+        name: VarId,
+        value: TypedExpression,
+    },
+    Action {
+        name: Action,
+        args: Vec<TypedExpression>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -91,7 +104,13 @@ pub enum Expression {
         x: Box<TypedExpression>,
         y: Box<TypedExpression>,
     },
+    Object(Object),
     Operation(Box<Operation>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Object {
+    Player,
 }
 
 pub type VarId = usize;
@@ -135,6 +154,8 @@ pub enum Type {
     Float,
     Colour,
     Vector,
+    Object,
+    ObjectSet,
 }
 
 impl From<mir::Type> for Type {
@@ -145,6 +166,8 @@ impl From<mir::Type> for Type {
             mir::Type::Float => Self::Float,
             mir::Type::Colour => Self::Colour,
             mir::Type::Vector => Self::Vector,
+            mir::Type::Object => Self::Object,
+            mir::Type::ObjectSet => Self::ObjectSet,
         }
     }
 }
@@ -356,6 +379,16 @@ impl LoweringContext {
 
                 return true;
             }
+            mir::TypedStatement::Action { name, args } => {
+                let args = args
+                    .into_iter()
+                    .map(Self::lower_expression)
+                    .collect::<Vec<_>>();
+
+                self.current_mut()
+                    .instructions
+                    .push(Instruction::Action { name, args });
+            }
         }
 
         false
@@ -373,6 +406,9 @@ impl LoweringContext {
                     x: Box::new(Self::lower_expression(*x)),
                     y: Box::new(Self::lower_expression(*y)),
                 },
+                mir::Expression::Object(object) => Expression::Object(match object {
+                    mir::Object::Player => Object::Player,
+                }),
                 mir::Expression::Operation(operation) => {
                     Expression::Operation(Box::new(match *operation {
                         mir::Operation::IntegerEquals(lhs, rhs) => Operation::IntegerEquals(
@@ -491,11 +527,19 @@ impl LoweringContext {
 }
 
 mod print {
-    use super::{BasicBlock, Expression, Instruction, Operation, Terminator};
+    use super::{BasicBlock, Expression, Instruction, Object, Operation, Terminator};
 
     impl std::fmt::Display for BasicBlock {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             print_basic_block(f, self)
+        }
+    }
+
+    impl std::fmt::Display for Object {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Player => write!(f, "player"),
+            }
         }
     }
 
@@ -547,6 +591,19 @@ mod print {
 
                 write!(f, ";")
             }
+            Instruction::Action { name, args } => {
+                write!(f, "action {name}:")?;
+
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    print_expression(f, &arg.expr)?;
+                }
+
+                write!(f, ");")
+            }
         }
     }
 
@@ -593,6 +650,7 @@ mod print {
 
                 write!(f, " }}")
             }
+            Expression::Object(object) => write!(f, "{object}"),
             Expression::Operation(operation) => {
                 write!(f, "(")?;
 

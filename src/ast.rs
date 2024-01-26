@@ -33,6 +33,10 @@ macro_rules! ast_statement {
             },
             Break,
             Continue,
+            Action {
+                name: Spanned<'file, &'src str>,
+                args: Spanned<'file, Vec<Spanned<'file, $expr<'src, 'file>>>>,
+            },
         }
     };
 }
@@ -57,6 +61,7 @@ macro_rules! ast_expr {
                 x: Spanned<'file, Box<$self_expr<'src, 'file>>>,
                 y: Spanned<'file, Box<$self_expr<'src, 'file>>>,
             },
+            Object(Object),
             Binary(
                 Spanned<'file, Box<$self_expr<'src, 'file>>>,
                 Spanned<'file, BinaryOp>,
@@ -71,6 +76,11 @@ macro_rules! ast_expr {
 }
 
 ast_expr!(Expr, Expr);
+
+#[derive(Clone, Copy, Debug)]
+pub enum Object {
+    Player,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum BinaryOp {
@@ -119,7 +129,7 @@ impl std::fmt::Display for UnaryOp {
 }
 
 pub mod typed {
-    use super::{BinaryOp, UnaryOp};
+    use super::{BinaryOp, Object, UnaryOp};
     use crate::span::Spanned;
 
     ast_statement!(TypedStatement, TypedExpr);
@@ -140,6 +150,8 @@ pub mod typed {
         Float,
         Colour,
         Vector,
+        Object,
+        ObjectSet,
     }
 
     impl std::fmt::Display for Type {
@@ -150,6 +162,8 @@ pub mod typed {
                 Self::Float => write!(f, "float"),
                 Self::Colour => write!(f, "colour"),
                 Self::Vector => write!(f, "vector"),
+                Self::Object => write!(f, "object"),
+                Self::ObjectSet => write!(f, "objectset"),
             }
         }
     }

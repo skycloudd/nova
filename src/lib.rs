@@ -30,8 +30,8 @@ mod typecheck;
 type IntTy = i32;
 type FloatTy = f32;
 
-pub fn run<'file>(
-    input: &str,
+pub fn run<'src: 'file, 'file>(
+    input: &'src str,
     filename: &'file Path,
     with: Option<&Path>,
 ) -> Result<Vec<u8>, RunError<'file>> {
@@ -53,8 +53,8 @@ pub fn run<'file>(
     levelfile::write(&exolvl).map_err(RunError::Io)
 }
 
-fn run_inner<'file>(
-    input: &str,
+fn run_inner<'src: 'file, 'file>(
+    input: &'src str,
     filename: &'file Path,
 ) -> Result<Vec<Option<low_ir::BasicBlock>>, Vec<error::Error<'file>>> {
     let mut errors = vec![];

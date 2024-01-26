@@ -129,7 +129,7 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
             .instructions_mut()
             .retain(|instruction| match instruction {
                 Instruction::Expr(_) => false,
-                Instruction::Print(_) => true,
+                Instruction::Print(_) | Instruction::Action { .. } => true,
                 Instruction::Let { name, value: _ } | Instruction::Assign { name, value: _ } => {
                     used_variables.contains(name)
                 }
@@ -142,6 +142,15 @@ fn get_used_variables(instruction: &Instruction) -> Vec<VarId> {
         Instruction::Expr(expr) | Instruction::Print(expr) => get_used_variables_expr(&expr.expr),
         Instruction::Let { name: _, value } | Instruction::Assign { name: _, value } => {
             get_used_variables_expr(&value.expr)
+        }
+        Instruction::Action { name: _, args } => {
+            let mut used = vec![];
+
+            for arg in args {
+                used.extend(get_used_variables_expr(&arg.expr));
+            }
+
+            used
         }
     }
 }
@@ -157,7 +166,8 @@ fn get_used_variables_expr(expr: &Expression) -> Vec<VarId> {
             g: _,
             b: _,
             a: _,
-        } => vec![],
+        }
+        | Expression::Object(_) => vec![],
         Expression::Vector { x, y } => {
             let mut used = get_used_variables_expr(&x.expr);
 
