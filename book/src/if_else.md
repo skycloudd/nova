@@ -1,6 +1,8 @@
 # If/Else Statements
 
-If/Else statements are used to control the flow of a program. They're used to run different code depending on the value of a expression.
+If/Else statements are used to control the flow of a program. They're used to run different code depending on the value of a boolean expression.
+
+## Syntax
 
 ```ruby
 if <expression> then
