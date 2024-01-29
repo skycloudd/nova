@@ -63,6 +63,10 @@ pub enum Error<'file> {
         got: usize,
         span: Span<'file>,
     },
+    UnknownAction {
+        name: String,
+        span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -137,6 +141,7 @@ impl Error<'_> {
                 got,
                 span: _,
             } => format!("Expected {expected} arguments, got {got}").into(),
+            Error::UnknownAction { name, span: _ } => format!("Unknown action `{name}`").into(),
         }
     }
 
@@ -221,6 +226,12 @@ impl Error<'_> {
                 Some(format!("Expected {expected} arguments, got {got}").into()),
                 *span,
             )],
+            Error::UnknownAction { name, span } => {
+                vec![Spanned(
+                    Some(format!("Unknown action `{name}`").into()),
+                    *span,
+                )]
+            }
         }
     }
 
@@ -242,6 +253,7 @@ impl Error<'_> {
             )),
             Error::AssignToConst { .. } => None,
             Error::WrongNumberOfActionArguments { .. } => None,
+            Error::UnknownAction { .. } => None,
         }
     }
 }

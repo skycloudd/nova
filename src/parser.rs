@@ -39,6 +39,18 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(Statement::Print)
             .boxed();
 
+        let block = just(Token::Kw(Kw::Do))
+            .ignore_then(
+                statement
+                    .clone()
+                    .repeated()
+                    .collect()
+                    .map_with(|body, e| Spanned(body, e.span())),
+            )
+            .then_ignore(just(Token::Kw(Kw::End)))
+            .map(Statement::Block)
+            .boxed();
+
         let loop_ = just(Token::Kw(Kw::Loop))
             .ignore_then(
                 statement
@@ -160,7 +172,7 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         choice((
-            expr, print, loop_, if_, for_, let_, const_, assign, break_, continue_, action,
+            expr, print, block, loop_, if_, for_, let_, const_, assign, break_, continue_, action,
         ))
         .map_with(|statement, e| Spanned(statement, e.span()))
         .boxed()

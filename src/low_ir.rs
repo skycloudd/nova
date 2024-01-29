@@ -275,6 +275,13 @@ impl LoweringContext {
                     .instructions
                     .push(Instruction::Print(expr));
             }
+            mir::TypedStatement::Block(statements) => {
+                for statement in statements {
+                    if self.lower_statement(statement) {
+                        break;
+                    }
+                }
+            }
             mir::TypedStatement::Loop(statements) => {
                 let loop_start = self.new_block();
 
@@ -297,13 +304,6 @@ impl LoweringContext {
                 self.finish_checked(Terminator::Goto(loop_start));
 
                 self.switch_to(merge_block);
-            }
-            mir::TypedStatement::Block(statements) => {
-                for statement in statements {
-                    if self.lower_statement(statement) {
-                        break;
-                    }
-                }
             }
             mir::TypedStatement::If {
                 condition,

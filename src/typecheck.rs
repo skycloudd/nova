@@ -74,6 +74,24 @@ fn typecheck_statement<'src, 'file>(
 
                 TypedStatement::Print(expr)
             }
+            Statement::Block(statements) => {
+                push_scope(variables, const_variables);
+
+                let statements = Spanned(
+                    statements
+                        .0
+                        .into_iter()
+                        .map(|statement| {
+                            typecheck_statement(engine, variables, const_variables, statement)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    statements.1,
+                );
+
+                pop_scope(variables, const_variables);
+
+                TypedStatement::Block(statements)
+            }
             Statement::Loop(statements) => {
                 push_scope(variables, const_variables);
 
@@ -275,7 +293,12 @@ fn typecheck_statement<'src, 'file>(
                             vec![TypeInfo::Float],
                         ]
                     }
-                    _ => todo!("error"),
+                    _ => {
+                        return Err(Box::new(Error::UnknownAction {
+                            name: name.0.to_string(),
+                            span: name.1,
+                        }))
+                    }
                 };
 
                 let expected_types = expected_types

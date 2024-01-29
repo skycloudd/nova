@@ -39,6 +39,17 @@ fn const_eval_statement<'file>(
     match statement.0 {
         TypedStatement::Expr(expr) => Ok(TypedStatement::Expr(propagate_const(const_vars, expr))),
         TypedStatement::Print(expr) => Ok(TypedStatement::Print(propagate_const(const_vars, expr))),
+        TypedStatement::Block(statements) => {
+            let mut stmts = vec![];
+
+            for statement in statements.0 {
+                if let Ok(statement) = const_eval_statement(const_vars, errors, statement) {
+                    stmts.push(statement);
+                }
+            }
+
+            Ok(TypedStatement::Block(Spanned(stmts, statements.1)))
+        }
         TypedStatement::Loop(statements) => {
             let mut stmts = vec![];
 

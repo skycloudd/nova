@@ -8,8 +8,10 @@ for x in one..number do
     print x;
 end
 
-action wait: 1.0;
+do
+    action wait: 1.0;
 
-action waitframes: 30;
+    action waitframes: 30;
 
-action move: player, {0.0, 10.0}, false, 0.1;
+    action move: player, {0.0, 10.0}, false, 0.1;
+end

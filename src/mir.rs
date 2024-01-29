@@ -13,18 +13,19 @@ use crate::{
 pub enum TypedStatement<'file> {
     Expr(Spanned<'file, TypedExpression<'file>>),
     Print(Spanned<'file, TypedExpression<'file>>),
-    Loop(Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>),
+    Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
+    Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
     If {
         condition: Spanned<'file, TypedExpression<'file>>,
-        then_branch: Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>,
-        else_branch: Option<Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>>,
+        then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
+        else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
     },
     For {
         name: Spanned<'file, VarId>,
         start: Spanned<'file, TypedExpression<'file>>,
         end: Spanned<'file, TypedExpression<'file>>,
         inclusive: bool,
-        body: Spanned<'file, Vec<Spanned<'file, TypedStatement<'file>>>>,
+        body: Spanned<'file, Vec<Spanned<'file, Self>>>,
     },
     Let {
         name: Spanned<'file, VarId>,
@@ -244,6 +245,11 @@ fn build_mir_statement<'src: 'file, 'file>(
     statement.map(|statement| match statement {
         Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(var_id_map, expr)),
         Statement::Print(expr) => TypedStatement::Print(build_mir_expr(var_id_map, expr)),
+        Statement::Block(statements) => TypedStatement::Block(statements.map(|s| {
+            s.into_iter()
+                .map(|stmt| build_mir_statement(var_id_map, stmt))
+                .collect()
+        })),
         Statement::Loop(statements) => TypedStatement::Loop(statements.map(|s| {
             s.into_iter()
                 .map(|stmt| build_mir_statement(var_id_map, stmt))

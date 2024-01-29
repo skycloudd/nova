@@ -4,8 +4,8 @@ use crate::{mir, span::Spanned, FloatTy, IntTy};
 pub enum TypedStatement {
     Expr(TypedExpression),
     Print(TypedExpression),
-    Loop(Vec<TypedStatement>),
     Block(Vec<TypedStatement>),
+    Loop(Vec<TypedStatement>),
     If {
         condition: TypedExpression,
         then_branch: Vec<TypedStatement>,
@@ -146,6 +146,13 @@ fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedSt
     match statement.0 {
         mir::TypedStatement::Expr(expr) => TypedStatement::Expr(expression_remove_span(expr)),
         mir::TypedStatement::Print(expr) => TypedStatement::Print(expression_remove_span(expr)),
+        mir::TypedStatement::Block(statements) => TypedStatement::Block(
+            statements
+                .0
+                .into_iter()
+                .map(|s| statement_remove_span(s))
+                .collect(),
+        ),
         mir::TypedStatement::Loop(statements) => TypedStatement::Loop(
             statements
                 .0
