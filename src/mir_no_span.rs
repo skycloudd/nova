@@ -3,7 +3,6 @@ use crate::{mir, span::Spanned, FloatTy, IntTy};
 #[derive(Debug)]
 pub enum TypedStatement {
     Expr(TypedExpression),
-    Print(TypedExpression),
     Block(Vec<TypedStatement>),
     Loop(Vec<TypedStatement>),
     If {
@@ -33,9 +32,14 @@ pub enum TypedStatement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
+    /// `wait <float>`
     Wait,
+    /// `waitframes <integer>`
     WaitFrames,
+    /// `move <object/objectset> <vector> <bool> <float>`
     Move,
+    /// `print <int/float/bool>`
+    Print,
 }
 
 #[derive(Debug)]
@@ -134,6 +138,7 @@ impl std::fmt::Display for Action {
             Self::Wait => write!(f, "wait"),
             Self::WaitFrames => write!(f, "waitframes"),
             Self::Move => write!(f, "move"),
+            Self::Print => write!(f, "print"),
         }
     }
 }
@@ -145,7 +150,6 @@ pub fn mir_remove_span(mir: Vec<Spanned<mir::TypedStatement<'_>>>) -> Vec<TypedS
 fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedStatement {
     match statement.0 {
         mir::TypedStatement::Expr(expr) => TypedStatement::Expr(expression_remove_span(expr)),
-        mir::TypedStatement::Print(expr) => TypedStatement::Print(expression_remove_span(expr)),
         mir::TypedStatement::Block(statements) => TypedStatement::Block(
             statements
                 .0
@@ -284,6 +288,7 @@ fn statement_remove_span(statement: Spanned<mir::TypedStatement<'_>>) -> TypedSt
                 "wait" => Action::Wait,
                 "waitframes" => Action::WaitFrames,
                 "move" => Action::Move,
+                "print" => Action::Print,
                 _ => unreachable!(),
             },
             args: args

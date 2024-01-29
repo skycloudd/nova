@@ -2,10 +2,10 @@ const one = 1;
 const six = 2 * 3;
 const number = one + six;
 
-print number == 7;
+action print: number == 7;
 
 for x in one..number do
-    print x;
+    action print: x;
 end
 
 do
@@ -14,4 +14,10 @@ do
     action waitframes: 30;
 
     action move: player, {0.0, 10.0}, false, 0.1;
+end
+
+if 2 + 2 == 5 then
+    action print: 4;
+else
+    action print: true;
 end

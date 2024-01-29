@@ -13,8 +13,8 @@
 
     -   [Expressions](./expressions.md)
     -   [Variables](./variables.md)
-    -   [Print]()
-    -   [If/Else Statements]()
+    -   [Actions](./actions.md)
+    -   [If/Else Statements](if_else.md)
     -   [Loops]()
         -   [Infinite Loops]()
         -   [For Loops]()

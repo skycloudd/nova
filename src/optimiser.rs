@@ -6,7 +6,9 @@ pub fn optimise(blocks: &[BasicBlock]) -> Vec<Option<BasicBlock>> {
     let mut blocks = simplify_terminators(blocks);
 
     loop {
-        let new_blocks = simplify_terminators(&blocks);
+        let mut new_blocks = simplify_terminators(&blocks);
+
+        dead_variable_elimination(&mut new_blocks);
 
         if blocks == new_blocks {
             break;
@@ -14,8 +16,6 @@ pub fn optimise(blocks: &[BasicBlock]) -> Vec<Option<BasicBlock>> {
 
         blocks = new_blocks;
     }
-
-    dead_variable_elimination(&mut blocks);
 
     dead_code_elimination(blocks)
 }
@@ -111,8 +111,7 @@ fn dead_code_elimination(blocks: Vec<BasicBlock>) -> Vec<Option<BasicBlock>> {
 fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
     let mut used_variables = vec![];
 
-    #[allow(clippy::useless_asref)] // its not useless tho???
-    for block in blocks.as_ref() {
+    for block in blocks.iter() {
         for instruction in block.instructions() {
             let used = get_used_variables(instruction);
 
@@ -128,8 +127,8 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
         block
             .instructions_mut()
             .retain(|instruction| match instruction {
-                Instruction::Expr(_) => false,
-                Instruction::Print(_) | Instruction::Action { .. } => true,
+                Instruction::Expr(_) => false, // no side effects
+                Instruction::Action { .. } => true,
                 Instruction::Let { name, value: _ } | Instruction::Assign { name, value: _ } => {
                     used_variables.contains(name)
                 }
@@ -139,7 +138,7 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
 
 fn get_used_variables(instruction: &Instruction) -> Vec<VarId> {
     match instruction {
-        Instruction::Expr(expr) | Instruction::Print(expr) => get_used_variables_expr(&expr.expr),
+        Instruction::Expr(expr) => get_used_variables_expr(&expr.expr),
         Instruction::Let { name: _, value } | Instruction::Assign { name: _, value } => {
             get_used_variables_expr(&value.expr)
         }

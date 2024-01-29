@@ -64,12 +64,21 @@ impl Codegen<'_> {
             }]),
             parameters: MyVec(vec![]),
             variables: MyVec(vec![]),
-            actions: MyVec(vec![new_action(ActionType::RunFunction {
-                function: FunctionCall {
-                    id: *self.block_ids.get(&start_block.id()).unwrap(),
-                    parameters: MyVec(vec![]),
-                },
-            })]),
+            actions: MyVec(vec![
+                new_action(ActionType::GameTextShow {
+                    text: new_novavalue(
+                        DynamicType::StringConstant,
+                        NewValue::String(MyString(String::from("press the screen to start"))),
+                    ),
+                    duration: new_novavalue(DynamicType::FloatConstant, NewValue::Float(2.0)),
+                }),
+                new_action(ActionType::RunFunction {
+                    function: FunctionCall {
+                        id: *self.block_ids.get(&start_block.id()).unwrap(),
+                        parameters: MyVec(vec![]),
+                    },
+                }),
+            ]),
         };
 
         self.exolvl.level_data.nova_scripts.0.push(main_script);
@@ -93,53 +102,6 @@ impl Codegen<'_> {
         for instruction in bb.instructions() {
             match instruction {
                 Instruction::Expr(_expr) => {} // no side effects
-                Instruction::Print(expr) => {
-                    let duration = new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0));
-
-                    let expr = self.codegen_expr(expr);
-
-                    let action = match expr.1 {
-                        Type::Boolean => new_action(ActionType::ConditionBlock {
-                            if_actions: MyVec(vec![new_action(ActionType::GameTextShow {
-                                text: new_novavalue(
-                                    DynamicType::StringConstant,
-                                    NewValue::String(MyString("true".into())),
-                                ),
-                                duration: new_novavalue(
-                                    DynamicType::FloatConstant,
-                                    NewValue::Float(1.0),
-                                ),
-                            })]),
-                            else_actions: MyVec(vec![new_action(ActionType::GameTextShow {
-                                text: new_novavalue(
-                                    DynamicType::StringConstant,
-                                    NewValue::String(MyString("false".into())),
-                                ),
-                                duration,
-                            })]),
-                            condition: expr.0,
-                        }),
-                        Type::Integer => new_action(ActionType::GameTextShow {
-                            text: new_novavalue(
-                                DynamicType::StringFromInt,
-                                NewValue::SubValues(MyVec(vec![expr.0])),
-                            ),
-                            duration,
-                        }),
-                        Type::Float => new_action(ActionType::GameTextShow {
-                            text: new_novavalue(
-                                DynamicType::StringFromFloat,
-                                NewValue::SubValues(MyVec(vec![expr.0])),
-                            ),
-                            duration,
-                        }),
-                        Type::Colour | Type::Vector | Type::Object | Type::ObjectSet => {
-                            unreachable!()
-                        }
-                    };
-
-                    script.actions.0.push(action);
-                }
                 Instruction::Let { name, value } => {
                     let value = self.codegen_expr(value);
 
@@ -175,24 +137,24 @@ impl Codegen<'_> {
                     }));
                 }
                 Instruction::Action { name, args } => {
-                    let mut args = args.iter().map(|arg| self.codegen_expr(arg));
+                    let mut args = args.iter().map(|arg| (self.codegen_expr(arg), arg.ty));
 
                     let action = match name {
                         mir_no_span::Action::Wait => {
-                            let duration = args.next().unwrap().0;
+                            let duration = args.next().unwrap().0 .0;
 
                             new_action(ActionType::Wait { duration })
                         }
                         mir_no_span::Action::WaitFrames => {
-                            let frames = args.next().unwrap().0;
+                            let frames = args.next().unwrap().0 .0;
 
                             new_action(ActionType::WaitFrames { frames })
                         }
                         mir_no_span::Action::Move => {
-                            let target_objects = args.next().unwrap().0;
-                            let position = args.next().unwrap().0;
-                            let global = args.next().unwrap().0;
-                            let duration = args.next().unwrap().0;
+                            let target_objects = args.next().unwrap().0 .0;
+                            let position = args.next().unwrap().0 .0;
+                            let global = args.next().unwrap().0 .0;
+                            let duration = args.next().unwrap().0 .0;
 
                             new_action(ActionType::Move {
                                 target_objects,
@@ -204,6 +166,54 @@ impl Codegen<'_> {
                                     NewValue::Int(0),
                                 ),
                             })
+                        }
+                        mir_no_span::Action::Print => {
+                            let expr = args.next().unwrap().0;
+
+                            let duration =
+                                new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0));
+
+                            match expr.1 {
+                                Type::Boolean => new_action(ActionType::ConditionBlock {
+                                    if_actions: MyVec(vec![new_action(ActionType::GameTextShow {
+                                        text: new_novavalue(
+                                            DynamicType::StringConstant,
+                                            NewValue::String(MyString("true".into())),
+                                        ),
+                                        duration: new_novavalue(
+                                            DynamicType::FloatConstant,
+                                            NewValue::Float(1.0),
+                                        ),
+                                    })]),
+                                    else_actions: MyVec(vec![new_action(
+                                        ActionType::GameTextShow {
+                                            text: new_novavalue(
+                                                DynamicType::StringConstant,
+                                                NewValue::String(MyString("false".into())),
+                                            ),
+                                            duration,
+                                        },
+                                    )]),
+                                    condition: expr.0,
+                                }),
+                                Type::Integer => new_action(ActionType::GameTextShow {
+                                    text: new_novavalue(
+                                        DynamicType::StringFromInt,
+                                        NewValue::SubValues(MyVec(vec![expr.0])),
+                                    ),
+                                    duration,
+                                }),
+                                Type::Float => new_action(ActionType::GameTextShow {
+                                    text: new_novavalue(
+                                        DynamicType::StringFromFloat,
+                                        NewValue::SubValues(MyVec(vec![expr.0])),
+                                    ),
+                                    duration,
+                                }),
+                                Type::Colour | Type::Vector | Type::Object | Type::ObjectSet => {
+                                    unreachable!()
+                                }
+                            }
                         }
                     };
 

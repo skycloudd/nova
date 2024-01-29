@@ -10,8 +10,13 @@
 use ariadne::{ColorGenerator, Label, Report};
 use chumsky::prelude::*;
 use error::{convert, Error};
+use flate2::{bufread::GzDecoder, write::GzEncoder, Compression};
 use span::{Span, Spanned};
-use std::{fmt::Display, io::Cursor, path::Path};
+use std::{
+    fmt::Display,
+    io::{Cursor, Read, Write as _},
+    path::Path,
+};
 
 mod ast;
 mod codegen;
@@ -37,12 +42,16 @@ pub fn run<'src: 'file, 'file>(
 ) -> Result<Vec<u8>, RunError<'file>> {
     let low_ir = run_inner(input, filename).map_err(RunError::Compile)?;
 
-    let mut reader = Cursor::new(match with {
-        Some(with) => std::fs::read(with).map_err(RunError::Io)?,
-        None => include_bytes!("default.exolvl").to_vec(),
-    });
+    let level_bytes = match with {
+        Some(with) => {
+            let read_bytes = std::fs::read(with).map_err(RunError::Io)?;
 
-    let mut exolvl = levelfile::read(&mut reader).map_err(RunError::LevelFile)?;
+            decode_exolvl(&read_bytes).map_err(RunError::Io)?
+        }
+        None => include_bytes!("default.exolvl").to_vec(),
+    };
+
+    let mut exolvl = levelfile::read(&mut Cursor::new(level_bytes)).map_err(RunError::LevelFile)?;
 
     if !exolvl.level_data.nova_scripts.0.is_empty() {
         return Err(RunError::Compile(vec![Error::LevelFileHasScripts]));
@@ -50,7 +59,9 @@ pub fn run<'src: 'file, 'file>(
 
     codegen::codegen(&low_ir, &mut exolvl);
 
-    levelfile::write(&exolvl).map_err(RunError::Io)
+    let data = levelfile::write(&exolvl).map_err(RunError::Io)?;
+
+    encode_exolvl(&data).map_err(RunError::Io)
 }
 
 fn run_inner<'src: 'file, 'file>(
@@ -153,4 +164,22 @@ pub enum RunError<'file> {
     Io(std::io::Error),
     LevelFile(binread::Error),
     Compile(Vec<Error<'file>>),
+}
+
+fn decode_exolvl(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut decoder = GzDecoder::new(bytes);
+
+    let mut buf = Vec::new();
+
+    decoder.read_to_end(&mut buf)?;
+
+    Ok(buf)
+}
+
+fn encode_exolvl(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+
+    encoder.write_all(bytes)?;
+
+    encoder.finish()
 }

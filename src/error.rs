@@ -248,9 +248,7 @@ impl Error<'_> {
             Error::UnaryOp { .. } => None,
             Error::ConstAlreadyDefined { .. } => None,
             Error::CantDisplayType { .. } => None,
-            Error::LevelFileHasScripts => Some(String::from(
-                "The input level file should not have any scripts already present",
-            )),
+            Error::LevelFileHasScripts => Some("The input level file should not have any scripts already present because there are no guarantees that the compiler will not overwrite them.".to_string()),
             Error::AssignToConst { .. } => None,
             Error::WrongNumberOfActionArguments { .. } => None,
             Error::UnknownAction { .. } => None,

@@ -2,23 +2,23 @@
 
 As with any programming tutorial, lets start with a simple demonstration program.
 
-```swift
+```ruby
 let my_number = 1 + 2 * 3;
 
 if my_number == 7 then
-    print 3;
+    action print: 3;
 end
 ```
 
 Output:
 
-```
+```ruby
 3
 ```
 
 ## Explanation
 
-```swift
+```ruby
 let my_number = 1 + 2 * 3;
 ```
 
@@ -26,14 +26,10 @@ This line assigns the value `7` to a variable called `my_number`. That means we 
 
 Next, we have a so called "if statement".
 
-```swift
+```ruby
 if my_number == 7 then
-    print 3;
+    action print: 3;
 end
 ```
 
 This says that if the variable `my_number` is _equal_ to the number `7`, we print the number `3`. Of course with this program that is always the case.
-
-## Final note
-
-A `print` statement actually translates to a "Game Text Show" script in the game!

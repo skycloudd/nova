@@ -33,12 +33,6 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(Statement::Expr)
             .boxed();
 
-        let print = just(Token::Kw(Kw::Print))
-            .ignore_then(expr_parser())
-            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map(Statement::Print)
-            .boxed();
-
         let block = just(Token::Kw(Kw::Do))
             .ignore_then(
                 statement
@@ -172,7 +166,7 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         choice((
-            expr, print, block, loop_, if_, for_, let_, const_, assign, break_, continue_, action,
+            expr, block, loop_, if_, for_, let_, const_, assign, break_, continue_, action,
         ))
         .map_with(|statement, e| Spanned(statement, e.span()))
         .boxed()

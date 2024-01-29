@@ -5,7 +5,6 @@ macro_rules! ast_statement {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
             Expr(Spanned<'file, $expr<'src, 'file>>),
-            Print(Spanned<'file, $expr<'src, 'file>>),
             Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
             Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
             If {

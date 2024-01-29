@@ -59,21 +59,6 @@ fn typecheck_statement<'src, 'file>(
 
                 TypedStatement::Expr(expr)
             }
-            Statement::Print(expr) => {
-                let expr = typecheck_expression(engine, variables, const_variables, expr)?;
-
-                match &expr.0.ty {
-                    Type::Boolean | Type::Integer | Type::Float => {}
-                    ty @ (Type::Colour | Type::Vector | Type::Object | Type::ObjectSet) => {
-                        return Err(Box::new(Error::CantDisplayType {
-                            ty: ty.to_string(),
-                            span: expr.1,
-                        }))
-                    }
-                }
-
-                TypedStatement::Print(expr)
-            }
             Statement::Block(statements) => {
                 push_scope(variables, const_variables);
 
@@ -292,6 +277,11 @@ fn typecheck_statement<'src, 'file>(
                             vec![TypeInfo::Boolean],
                             vec![TypeInfo::Float],
                         ]
+                    }
+                    "print" => {
+                        action_args_count!(1, args.len(), name.1);
+
+                        vec![vec![TypeInfo::Boolean, TypeInfo::Integer, TypeInfo::Float]]
                     }
                     _ => {
                         return Err(Box::new(Error::UnknownAction {

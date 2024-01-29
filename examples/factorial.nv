@@ -5,5 +5,5 @@ for n in 0..10 do
         x = x * i;
     end
 
-    print x;
+    action print: x;
 end

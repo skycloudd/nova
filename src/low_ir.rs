@@ -67,7 +67,6 @@ pub type BasicBlockId = usize;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Expr(TypedExpression),
-    Print(TypedExpression),
     Let {
         name: VarId,
         value: TypedExpression,
@@ -267,13 +266,6 @@ impl LoweringContext {
                 self.current_mut()
                     .instructions
                     .push(Instruction::Expr(expr));
-            }
-            mir::TypedStatement::Print(expr) => {
-                let expr = Self::lower_expression(expr);
-
-                self.current_mut()
-                    .instructions
-                    .push(Instruction::Print(expr));
             }
             mir::TypedStatement::Block(statements) => {
                 for statement in statements {
@@ -570,13 +562,6 @@ mod print {
 
                 write!(f, ";")
             }
-            Instruction::Print(expr) => {
-                write!(f, "print ")?;
-
-                print_expression(f, &expr.expr)?;
-
-                write!(f, ";")
-            }
             Instruction::Let { name, value } => {
                 write!(f, "let var_{name} = ")?;
 
@@ -592,7 +577,7 @@ mod print {
                 write!(f, ";")
             }
             Instruction::Action { name, args } => {
-                write!(f, "action {name}:")?;
+                write!(f, "action {name}: ")?;
 
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
@@ -602,7 +587,7 @@ mod print {
                     print_expression(f, &arg.expr)?;
                 }
 
-                write!(f, ");")
+                write!(f, ";")
             }
         }
     }
@@ -632,13 +617,15 @@ mod print {
         f: &mut std::fmt::Formatter<'_>,
         expression: &Expression,
     ) -> std::fmt::Result {
-        match expression {
-            Expression::Variable(name) => write!(f, "var_{name}"),
-            Expression::Boolean(value) => write!(f, "{value}"),
-            Expression::Integer(value) => write!(f, "{value}"),
-            Expression::Float(value) => write!(f, "{value}"),
+        write!(f, "(")?;
 
-            Expression::Colour { r, g, b, a } => write!(f, "#{r:02x}{g:02x}{b:02x}{a:02x}"),
+        match expression {
+            Expression::Variable(name) => write!(f, "var_{name}")?,
+            Expression::Boolean(value) => write!(f, "{value}")?,
+            Expression::Integer(value) => write!(f, "{value}")?,
+            Expression::Float(value) => write!(f, "{value}")?,
+
+            Expression::Colour { r, g, b, a } => write!(f, "#{r:02x}{g:02x}{b:02x}{a:02x}")?,
             Expression::Vector { x, y } => {
                 write!(f, "{{ ")?;
 
@@ -648,17 +635,13 @@ mod print {
 
                 print_expression(f, &y.expr)?;
 
-                write!(f, " }}")
+                write!(f, " }}")?;
             }
-            Expression::Object(object) => write!(f, "{object}"),
-            Expression::Operation(operation) => {
-                write!(f, "(")?;
-
-                print_operation(f, operation)?;
-
-                write!(f, ")")
-            }
+            Expression::Object(object) => write!(f, "{object}")?,
+            Expression::Operation(operation) => print_operation(f, operation)?,
         }
+
+        write!(f, ")")
     }
 
     fn print_operation(f: &mut std::fmt::Formatter<'_>, operation: &Operation) -> std::fmt::Result {

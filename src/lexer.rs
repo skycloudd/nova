@@ -23,7 +23,6 @@ pub enum Object {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kw {
-    Print,
     End,
     Loop,
     If,
@@ -104,7 +103,6 @@ impl std::fmt::Display for Object {
 impl std::fmt::Display for Kw {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Print => write!(f, "print"),
             Self::End => write!(f, "end"),
             Self::Loop => write!(f, "loop"),
             Self::If => write!(f, "if"),
@@ -235,7 +233,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     .boxed();
 
     let colour = just('#')
-        // .ignore_then(hex_byte.repeated().exactly(3).collect::<Vec<String>>())
         .ignore_then(hex_byte.clone())
         .then(hex_byte.clone())
         .then(hex_byte.clone())
@@ -262,7 +259,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .boxed();
 
     let keyword = choice((
-        text::keyword("print").to(Token::Kw(Kw::Print)),
         text::keyword("end").to(Token::Kw(Kw::End)),
         text::keyword("loop").to(Token::Kw(Kw::Loop)),
         text::keyword("if").to(Token::Kw(Kw::If)),

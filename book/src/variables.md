@@ -6,7 +6,7 @@ Variables are used to store values. They are used to assign a name to a value. T
 
 Variables are declared using the `let` keyword. The syntax is as follows:
 
-```swift
+```ruby
 let variable_name = value;
 ```
 
@@ -14,7 +14,7 @@ Variable names can contain letters, numbers, and underscores, can't start with a
 
 Some examples of valid variable names are:
 
-```swift
+```ruby
 my_variable
 _variable
 aa1234
@@ -23,7 +23,7 @@ a_b_c
 
 An invalid variable name is:
 
-```swift
+```ruby
 12variable_name
 ```
 
@@ -46,20 +46,34 @@ my_variable = 456; // Cannot assign to const `my_variable`
 
 Non-constant variables can be set to a new value using the `=` operator.
 
-```swift
+```ruby
 let my_variable = 123;
 
-print my_variable; // 123
+action print: my_variable; // 123
 
 my_variable = 456;
 
-print my_variable; // 456
+action print: my_variable; // 456
 ```
 
 ## Scopes
 
-...
+Scopes limit where in the code a variable can be accessed. A variable declared inside a scope can only be accessed inside that scope.
 
-## Type Inference
+A scope is defined by the `do` and `end` keywords.
 
-...
+```ruby
+let my_variable = 123;
+
+do
+    action print: my_variable; // 123
+
+    let another_variable = 456;
+
+    action print: another_variable; // 456
+end
+
+action print: my_variable; // 123
+
+action print: another_variable; // Error: Undefined variable `another_variable`
+```

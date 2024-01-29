@@ -12,7 +12,6 @@ use crate::{
 #[derive(Debug)]
 pub enum TypedStatement<'file> {
     Expr(Spanned<'file, TypedExpression<'file>>),
-    Print(Spanned<'file, TypedExpression<'file>>),
     Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
     Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
     If {
@@ -244,7 +243,6 @@ fn build_mir_statement<'src: 'file, 'file>(
 ) -> Spanned<'file, TypedStatement<'file>> {
     statement.map(|statement| match statement {
         Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(var_id_map, expr)),
-        Statement::Print(expr) => TypedStatement::Print(build_mir_expr(var_id_map, expr)),
         Statement::Block(statements) => TypedStatement::Block(statements.map(|s| {
             s.into_iter()
                 .map(|stmt| build_mir_statement(var_id_map, stmt))
