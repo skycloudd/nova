@@ -30,12 +30,12 @@ impl BasicBlock {
         &self.terminator
     }
 
-    pub fn set_terminator(&mut self, terminator: Terminator) {
-        self.terminator = terminator;
-    }
-
     pub fn instructions_mut(&mut self) -> &mut Vec<Instruction> {
         &mut self.instructions
+    }
+
+    pub fn terminator_mut(&mut self) -> &mut Terminator {
+        &mut self.terminator
     }
 }
 
@@ -53,12 +53,17 @@ impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Terminator {
-    Goto(BasicBlockId),
+    Goto(Goto),
     If {
         condition: TypedExpression,
-        then_block: BasicBlockId,
-        else_block: BasicBlockId,
+        then_block: Goto,
+        else_block: Goto,
     },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Goto {
+    Block(BasicBlockId),
     Finish,
 }
 
@@ -253,7 +258,7 @@ impl LoweringContext {
             self.lower_statement(statement);
         }
 
-        self.finish(Terminator::Finish);
+        self.finish(Terminator::Goto(Goto::Finish));
 
         self.blocks
     }
@@ -279,7 +284,7 @@ impl LoweringContext {
 
                 let merge_block = self.new_block();
 
-                self.finish(Terminator::Goto(loop_start));
+                self.finish(Terminator::Goto(Goto::Block(loop_start)));
 
                 self.switch_to(loop_start);
 
@@ -293,7 +298,7 @@ impl LoweringContext {
 
                 self.loop_stack_pop();
 
-                self.finish_checked(Terminator::Goto(loop_start));
+                self.finish_checked(Terminator::Goto(Goto::Block(loop_start)));
 
                 self.switch_to(merge_block);
             }
@@ -312,8 +317,8 @@ impl LoweringContext {
 
                 self.finish(Terminator::If {
                     condition,
-                    then_block,
-                    else_block: else_block.unwrap_or(merge_block),
+                    then_block: Goto::Block(then_block),
+                    else_block: Goto::Block(else_block.unwrap_or(merge_block)),
                 });
 
                 self.switch_to(then_block);
@@ -324,7 +329,7 @@ impl LoweringContext {
                     }
                 }
 
-                self.finish_checked(Terminator::Goto(merge_block));
+                self.finish_checked(Terminator::Goto(Goto::Block(merge_block)));
 
                 if let Some(else_block) = else_block {
                     self.switch_to(else_block);
@@ -337,7 +342,7 @@ impl LoweringContext {
                         }
                     }
 
-                    self.finish_checked(Terminator::Goto(merge_block));
+                    self.finish_checked(Terminator::Goto(Goto::Block(merge_block)));
                 }
 
                 self.switch_to(merge_block);
@@ -360,14 +365,14 @@ impl LoweringContext {
             mir::TypedStatement::Break => {
                 let merge_block = self.loop_stack_top().1;
 
-                self.finish(Terminator::Goto(merge_block));
+                self.finish(Terminator::Goto(Goto::Block(merge_block)));
 
                 return true;
             }
             mir::TypedStatement::Continue => {
                 let loop_block = self.loop_stack_top().0;
 
-                self.finish(Terminator::Goto(loop_block));
+                self.finish(Terminator::Goto(Goto::Block(loop_block)));
 
                 return true;
             }
@@ -519,7 +524,7 @@ impl LoweringContext {
 }
 
 mod print {
-    use super::{BasicBlock, Expression, Instruction, Object, Operation, Terminator};
+    use super::{BasicBlock, Expression, Goto, Instruction, Object, Operation, Terminator};
 
     impl std::fmt::Display for BasicBlock {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -531,6 +536,15 @@ mod print {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Self::Player => write!(f, "player"),
+            }
+        }
+    }
+
+    impl std::fmt::Display for Goto {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Block(block) => write!(f, "bb{}", block),
+                Self::Finish => write!(f, "finish"),
             }
         }
     }
@@ -597,7 +611,7 @@ mod print {
         terminator: &Terminator,
     ) -> std::fmt::Result {
         match terminator {
-            Terminator::Goto(block) => write!(f, "goto bb{block};"),
+            Terminator::Goto(goto) => write!(f, "goto {goto};"),
             Terminator::If {
                 condition,
                 then_block,
@@ -607,9 +621,8 @@ mod print {
 
                 print_expression(f, &condition.expr)?;
 
-                write!(f, " then bb{then_block} else bb{else_block};")
+                write!(f, " then {then_block} else {else_block};")
             }
-            Terminator::Finish => write!(f, "finish;"),
         }
     }
 

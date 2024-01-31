@@ -1,7 +1,7 @@
 use crate::{
     low_ir::{
-        BasicBlock, BasicBlockId, Expression, Instruction, Object, Operation, Terminator, Type,
-        TypedExpression, VarId,
+        BasicBlock, BasicBlockId, Expression, Goto, Instruction, Object, Operation, Terminator,
+        Type, TypedExpression, VarId,
     },
     mir_no_span,
 };
@@ -14,7 +14,7 @@ use levelfile::{
 };
 use rustc_hash::FxHashMap;
 
-pub fn codegen(low_ir: &[Option<BasicBlock>], exolvl: &mut Exolvl) {
+pub fn codegen(low_ir: &[BasicBlock], exolvl: &mut Exolvl) {
     let mut codegen = Codegen::new(exolvl);
 
     codegen.codegen(low_ir);
@@ -37,12 +37,12 @@ impl Codegen<'_> {
         }
     }
 
-    fn codegen(&mut self, low_ir: &[Option<BasicBlock>]) {
-        for bb in low_ir.iter().flatten() {
+    fn codegen(&mut self, low_ir: &[BasicBlock]) {
+        for bb in low_ir {
             self.block_ids.insert(bb.id(), self.id_gen.next());
         }
 
-        let mut low_ir = low_ir.iter().flatten();
+        let mut low_ir = low_ir.iter();
 
         let start_block = low_ir.next().unwrap();
 
@@ -64,21 +64,12 @@ impl Codegen<'_> {
             }]),
             parameters: MyVec(vec![]),
             variables: MyVec(vec![]),
-            actions: MyVec(vec![
-                new_action(ActionType::GameTextShow {
-                    text: new_novavalue(
-                        DynamicType::StringConstant,
-                        NewValue::String(MyString(String::from("press the screen to start"))),
-                    ),
-                    duration: new_novavalue(DynamicType::FloatConstant, NewValue::Float(2.0)),
-                }),
-                new_action(ActionType::RunFunction {
-                    function: FunctionCall {
-                        id: *self.block_ids.get(&start_block.id()).unwrap(),
-                        parameters: MyVec(vec![]),
-                    },
-                }),
-            ]),
+            actions: MyVec(vec![new_action(ActionType::RunFunction {
+                function: FunctionCall {
+                    id: *self.block_ids.get(&start_block.id()).unwrap(),
+                    parameters: MyVec(vec![]),
+                },
+            })]),
         };
 
         self.exolvl.level_data.nova_scripts.0.push(main_script);
@@ -121,10 +112,15 @@ impl Codegen<'_> {
                             Type::Object => StaticType::Object,
                             Type::ObjectSet => StaticType::ObjectSet,
                         },
-                        initial_value: value.0,
+                        initial_value: new_novavalue(DynamicType::IntConstant, NewValue::Int(0)),
                     };
 
                     self.exolvl.level_data.global_variables.0.push(variable);
+
+                    script.actions.0.push(new_action(ActionType::SetVariable {
+                        variable: variable_id,
+                        value: Some(value.0),
+                    }));
                 }
                 Instruction::Assign { name, value } => {
                     let value = self.codegen_expr(value);
@@ -223,16 +219,19 @@ impl Codegen<'_> {
         }
 
         match bb.terminator() {
-            Terminator::Goto(id) => {
-                let block_id = self.block_ids.get(id).unwrap();
+            Terminator::Goto(goto) => match goto {
+                Goto::Block(id) => {
+                    let block_id = self.block_ids.get(id).unwrap();
 
-                script.actions.0.push(new_action(ActionType::RunFunction {
-                    function: FunctionCall {
-                        id: *block_id,
-                        parameters: MyVec(vec![]),
-                    },
-                }));
-            }
+                    script.actions.0.push(new_action(ActionType::RunFunction {
+                        function: FunctionCall {
+                            id: *block_id,
+                            parameters: MyVec(vec![]),
+                        },
+                    }))
+                }
+                Goto::Finish => {}
+            },
             Terminator::If {
                 condition,
                 then_block,
@@ -240,29 +239,43 @@ impl Codegen<'_> {
             } => {
                 let condition = self.codegen_expr(condition);
 
-                let then_block_id = self.block_ids.get(then_block).unwrap();
-                let else_block_id = self.block_ids.get(else_block).unwrap();
+                let then_block = match then_block {
+                    Goto::Block(then_block) => {
+                        let then_block_id = self.block_ids.get(then_block).unwrap();
+
+                        vec![new_action(ActionType::RunFunction {
+                            function: FunctionCall {
+                                id: *then_block_id,
+                                parameters: MyVec(vec![]),
+                            },
+                        })]
+                    }
+                    Goto::Finish => vec![],
+                };
+
+                let else_block = match else_block {
+                    Goto::Block(else_block) => {
+                        let else_block_id = self.block_ids.get(else_block).unwrap();
+
+                        vec![new_action(ActionType::RunFunction {
+                            function: FunctionCall {
+                                id: *else_block_id,
+                                parameters: MyVec(vec![]),
+                            },
+                        })]
+                    }
+                    Goto::Finish => vec![],
+                };
 
                 script
                     .actions
                     .0
                     .push(new_action(ActionType::ConditionBlock {
-                        if_actions: MyVec(vec![new_action(ActionType::RunFunction {
-                            function: FunctionCall {
-                                id: *then_block_id,
-                                parameters: MyVec(vec![]),
-                            },
-                        })]),
-                        else_actions: MyVec(vec![new_action(ActionType::RunFunction {
-                            function: FunctionCall {
-                                id: *else_block_id,
-                                parameters: MyVec(vec![]),
-                            },
-                        })]),
+                        if_actions: MyVec(then_block),
+                        else_actions: MyVec(else_block),
                         condition: condition.0,
                     }));
             }
-            Terminator::Finish => {}
         }
 
         self.exolvl.level_data.nova_scripts.0.push(script);
@@ -510,38 +523,6 @@ fn new_novavalue(dynamic_type: DynamicType, value: NewValue) -> NovaValue {
             int_list_value: None,
             sub_values: None,
         },
-        NewValue::_Vector(value) => NovaValue {
-            dynamic_type,
-            bool_value: false,
-            int_value: 0,
-            float_value: 0.0,
-            string_value: None,
-            color_value: Colour {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.0,
-            },
-            vector_value: value,
-            int_list_value: None,
-            sub_values: None,
-        },
-        NewValue::_IntList(value) => NovaValue {
-            dynamic_type,
-            bool_value: false,
-            int_value: 0,
-            float_value: 0.0,
-            string_value: None,
-            color_value: Colour {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.0,
-            },
-            vector_value: Vec2 { x: 0.0, y: 0.0 },
-            int_list_value: Some(value),
-            sub_values: None,
-        },
         NewValue::SubValues(value) => NovaValue {
             dynamic_type,
             bool_value: false,
@@ -567,7 +548,5 @@ enum NewValue {
     Float(f32),
     String(MyString),
     Color(Colour),
-    _Vector(Vec2),
-    _IntList(MyVec<i32>),
     SubValues(MyVec<NovaValue>),
 }

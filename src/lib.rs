@@ -14,7 +14,7 @@ use flate2::{bufread::GzDecoder, write::GzEncoder, Compression};
 use span::{Span, Spanned};
 use std::{
     fmt::Display,
-    io::{Cursor, Read, Write as _},
+    io::{Cursor, Read as _, Write as _},
     path::Path,
 };
 
@@ -42,16 +42,7 @@ pub fn run<'src: 'file, 'file>(
 ) -> Result<Vec<u8>, RunError<'file>> {
     let low_ir = run_inner(input, filename).map_err(RunError::Compile)?;
 
-    let level_bytes = match with {
-        Some(with) => {
-            let read_bytes = std::fs::read(with).map_err(RunError::Io)?;
-
-            decode_exolvl(&read_bytes).map_err(RunError::Io)?
-        }
-        None => include_bytes!("default.exolvl").to_vec(),
-    };
-
-    let mut exolvl = levelfile::read(&mut Cursor::new(level_bytes)).map_err(RunError::LevelFile)?;
+    let mut exolvl = read_exolvl(with)?;
 
     if !exolvl.level_data.nova_scripts.0.is_empty() {
         return Err(RunError::Compile(vec![Error::LevelFileHasScripts]));
@@ -59,15 +50,13 @@ pub fn run<'src: 'file, 'file>(
 
     codegen::codegen(&low_ir, &mut exolvl);
 
-    let data = levelfile::write(&exolvl).map_err(RunError::Io)?;
-
-    encode_exolvl(&data).map_err(RunError::Io)
+    write_exolvl(&exolvl).map_err(RunError::Io)
 }
 
 fn run_inner<'src: 'file, 'file>(
     input: &'src str,
     filename: &'file Path,
-) -> Result<Vec<Option<low_ir::BasicBlock>>, Vec<error::Error<'file>>> {
+) -> Result<Vec<low_ir::BasicBlock>, Vec<error::Error<'file>>> {
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer()
@@ -100,9 +89,13 @@ fn run_inner<'src: 'file, 'file>(
     if errors.is_empty() {
         let mir = mir_no_span::mir_remove_span(mir.unwrap());
 
-        let low_ir = low_ir::lower(mir);
+        let mut low_ir = low_ir::lower(mir);
 
-        let low_ir = optimiser::optimise(&low_ir);
+        optimiser::optimise(&mut low_ir);
+
+        for block in &low_ir {
+            eprintln!("{block}\n");
+        }
 
         Ok(low_ir)
     } else {
@@ -164,6 +157,27 @@ pub enum RunError<'file> {
     Io(std::io::Error),
     LevelFile(binread::Error),
     Compile(Vec<Error<'file>>),
+}
+
+fn read_exolvl<'file, P: AsRef<Path>>(
+    with: Option<P>,
+) -> Result<levelfile::Exolvl, RunError<'file>> {
+    let level_bytes = match with {
+        Some(with) => {
+            let read_bytes = std::fs::read(with).map_err(RunError::Io)?;
+
+            decode_exolvl(&read_bytes).map_err(RunError::Io)?
+        }
+        None => include_bytes!("default.exolvl").to_vec(),
+    };
+
+    levelfile::read(&mut Cursor::new(level_bytes)).map_err(RunError::LevelFile)
+}
+
+fn write_exolvl(exolvl: &levelfile::Exolvl) -> std::io::Result<Vec<u8>> {
+    let data = levelfile::write(&exolvl)?;
+
+    encode_exolvl(&data)
 }
 
 fn decode_exolvl(bytes: &[u8]) -> std::io::Result<Vec<u8>> {

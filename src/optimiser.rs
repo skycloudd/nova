@@ -1,111 +1,97 @@
 use rustc_hash::FxHashSet;
 
-use crate::low_ir::{BasicBlock, Expression, Instruction, Operation, Terminator, VarId};
+use crate::low_ir::{BasicBlock, Expression, Goto, Instruction, Operation, Terminator, VarId};
 
-pub fn optimise(blocks: &[BasicBlock]) -> Vec<Option<BasicBlock>> {
-    let mut blocks = simplify_terminators(blocks);
-
+pub fn optimise(blocks: &mut Vec<BasicBlock>) {
     loop {
-        let mut new_blocks = simplify_terminators(&blocks);
+        let before = blocks.clone();
 
-        dead_variable_elimination(&mut new_blocks);
+        simplify_terminators(blocks);
 
-        if blocks == new_blocks {
+        if &before == blocks {
             break;
         }
-
-        blocks = new_blocks;
     }
+
+    dead_variable_elimination(blocks);
 
     dead_code_elimination(blocks)
 }
 
-fn simplify_terminators(blocks: &[BasicBlock]) -> Vec<BasicBlock> {
-    blocks
-        .iter()
-        .map(|block| {
-            let mut new_block = block.clone();
+fn simplify_terminators(blocks: &mut [BasicBlock]) {
+    let blocks_cloned = blocks.to_vec();
 
-            match block.terminator() {
-                Terminator::Goto(refers) => {
-                    let refers_block = &blocks[*refers];
+    for block in blocks.iter_mut() {
+        let terminator = block.terminator_mut();
+
+        match terminator {
+            Terminator::Goto(goto) => match goto {
+                Goto::Block(refers) => {
+                    let refers_block = &blocks_cloned[*refers];
 
                     if refers_block.instructions().is_empty() {
-                        new_block.set_terminator(refers_block.terminator().clone());
+                        *terminator = refers_block.terminator().clone();
                     }
                 }
-                Terminator::If {
-                    condition,
-                    then_block,
-                    else_block,
-                } => {
-                    let then_block_ = &blocks[*then_block];
-                    let else_block_ = &blocks[*else_block];
+                Goto::Finish => {}
+            },
+            Terminator::If {
+                condition,
+                then_block: then_goto,
+                else_block: else_goto,
+            } => {
+                if let Expression::Boolean(true) = condition.expr {
+                    *terminator = Terminator::Goto(then_goto.clone());
+                } else if let Expression::Boolean(false) = condition.expr {
+                    *terminator = Terminator::Goto(else_goto.clone());
+                } else {
+                    if let Goto::Block(then) = then_goto {
+                        let then_block = &blocks_cloned[*then];
 
-                    let mut new_then_block_id = *then_block;
-
-                    if then_block_.instructions().is_empty() {
-                        if let Terminator::Goto(refers) = then_block_.terminator() {
-                            new_then_block_id = *refers;
+                        if then_block.instructions().is_empty() {
+                            if let Terminator::Goto(goto) = then_block.terminator() {
+                                *then_goto = goto.clone();
+                            }
                         }
                     }
 
-                    let mut new_else_block_id = *else_block;
+                    if let Goto::Block(else_) = else_goto {
+                        let else_block = &blocks_cloned[*else_];
 
-                    if else_block_.instructions().is_empty() {
-                        if let Terminator::Goto(refers) = else_block_.terminator() {
-                            new_else_block_id = *refers;
+                        if else_block.instructions().is_empty() {
+                            if let Terminator::Goto(goto) = else_block.terminator() {
+                                *else_goto = goto.clone();
+                            }
                         }
                     }
-
-                    if let Expression::Boolean(value) = condition.expr {
-                        if value {
-                            new_block.set_terminator(Terminator::Goto(new_then_block_id));
-                        } else {
-                            new_block.set_terminator(Terminator::Goto(new_else_block_id));
-                        }
-
-                        return new_block;
-                    }
-
-                    new_block.set_terminator(Terminator::If {
-                        condition: condition.clone(),
-                        then_block: new_then_block_id,
-                        else_block: new_else_block_id,
-                    });
                 }
-                Terminator::Finish => {}
             }
-
-            new_block
-        })
-        .collect()
+        }
+    }
 }
 
-fn dead_code_elimination(blocks: Vec<BasicBlock>) -> Vec<Option<BasicBlock>> {
+fn dead_code_elimination(blocks: &mut Vec<BasicBlock>) {
     let references = blocks
         .iter()
         .flat_map(|block| match block.terminator() {
-            Terminator::Goto(block) => vec![*block],
+            Terminator::Goto(goto) => match goto {
+                Goto::Block(id) => vec![*id],
+                Goto::Finish => vec![],
+            },
             Terminator::If {
                 condition: _,
                 then_block,
                 else_block,
-            } => vec![*then_block, *else_block],
-            Terminator::Finish => vec![],
+            } => match (then_block, else_block) {
+                (Goto::Block(then), Goto::Block(else_)) => vec![*then, *else_],
+                (Goto::Block(then), Goto::Finish) => vec![*then],
+                (Goto::Finish, Goto::Block(else_)) => vec![*else_],
+                (Goto::Finish, Goto::Finish) => vec![],
+            },
         })
         .collect::<Vec<_>>();
 
-    blocks
-        .into_iter()
-        .map(|block| {
-            if references.contains(&block.id()) || block.id() == 0 {
-                Some(block)
-            } else {
-                None
-            }
-        })
-        .collect()
+    blocks.retain(|block| references.contains(&block.id()) || block.id() == 0)
 }
 
 fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
@@ -113,9 +99,7 @@ fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
 
     for block in blocks.iter() {
         for instruction in block.instructions() {
-            let used = get_used_variables(instruction);
-
-            used_variables.extend(used);
+            used_variables.extend(get_used_variables(instruction));
         }
 
         used_variables.extend(get_used_variables_terminator(block.terminator()));
@@ -218,6 +202,6 @@ fn get_used_variables_terminator(terminator: &Terminator) -> Vec<VarId> {
             then_block: _,
             else_block: _,
         } => get_used_variables_expr(&condition.expr),
-        Terminator::Goto(_) | Terminator::Finish => vec![],
+        Terminator::Goto(_) => vec![],
     }
 }
