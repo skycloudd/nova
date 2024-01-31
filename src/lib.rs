@@ -175,7 +175,7 @@ fn read_exolvl<'file, P: AsRef<Path>>(
 }
 
 fn write_exolvl(exolvl: &levelfile::Exolvl) -> std::io::Result<Vec<u8>> {
-    let data = levelfile::write(&exolvl)?;
+    let data = levelfile::write(exolvl)?;
 
     encode_exolvl(&data)
 }

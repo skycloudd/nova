@@ -39,16 +39,12 @@ impl BasicBlock {
     }
 }
 
-impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
-    type Error = ();
-
-    fn try_from(block: UnfinishedBasicBlock) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: block.id,
-            instructions: block.instructions,
-            terminator: block.terminator.ok_or(())?,
-        })
-    }
+fn finish_block(block: UnfinishedBasicBlock) -> Option<BasicBlock> {
+    Some(BasicBlock {
+        id: block.id,
+        instructions: block.instructions,
+        terminator: block.terminator.or(None)?,
+    })
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -61,7 +57,7 @@ pub enum Terminator {
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Goto {
     Block(BasicBlockId),
     Finish,
@@ -184,8 +180,8 @@ pub fn lower(ast: Vec<mir::TypedStatement>) -> Vec<BasicBlock> {
     }
     .lower(ast)
     .into_iter()
-    .map(TryInto::try_into)
-    .collect::<Result<Vec<_>, _>>()
+    .map(finish_block)
+    .collect::<Option<Vec<_>>>()
     .unwrap()
 }
 
@@ -543,7 +539,7 @@ mod print {
     impl std::fmt::Display for Goto {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Self::Block(block) => write!(f, "bb{}", block),
+                Self::Block(block) => write!(f, "bb{block}"),
                 Self::Finish => write!(f, "finish"),
             }
         }

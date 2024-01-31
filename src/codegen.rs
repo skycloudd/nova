@@ -66,7 +66,7 @@ impl Codegen<'_> {
             variables: MyVec(vec![]),
             actions: MyVec(vec![new_action(ActionType::RunFunction {
                 function: FunctionCall {
-                    id: *self.block_ids.get(&start_block.id()).unwrap(),
+                    id: self.block_ids[&start_block.id()],
                     parameters: MyVec(vec![]),
                 },
             })]),
@@ -76,10 +76,8 @@ impl Codegen<'_> {
     }
 
     fn codegen_bb(&mut self, bb: &BasicBlock) {
-        let script_id = self.block_ids.get(&bb.id()).unwrap();
-
         let mut script = NovaScript {
-            script_id: *script_id,
+            script_id: self.block_ids[&bb.id()],
             script_name: MyString(format!("bb{}", bb.id())),
             is_function: true,
             activation_count: 0,
@@ -125,10 +123,10 @@ impl Codegen<'_> {
                 Instruction::Assign { name, value } => {
                     let value = self.codegen_expr(value);
 
-                    let variable = self.var_ids.get(name).unwrap();
+                    let variable = self.var_ids[name];
 
                     script.actions.0.push(new_action(ActionType::SetVariable {
-                        variable: *variable,
+                        variable,
                         value: Some(value.0),
                     }));
                 }
@@ -221,14 +219,14 @@ impl Codegen<'_> {
         match bb.terminator() {
             Terminator::Goto(goto) => match goto {
                 Goto::Block(id) => {
-                    let block_id = self.block_ids.get(id).unwrap();
+                    let id = self.block_ids[id];
 
                     script.actions.0.push(new_action(ActionType::RunFunction {
                         function: FunctionCall {
-                            id: *block_id,
+                            id,
                             parameters: MyVec(vec![]),
                         },
-                    }))
+                    }));
                 }
                 Goto::Finish => {}
             },
@@ -241,11 +239,11 @@ impl Codegen<'_> {
 
                 let then_block = match then_block {
                     Goto::Block(then_block) => {
-                        let then_block_id = self.block_ids.get(then_block).unwrap();
+                        let id = self.block_ids[then_block];
 
                         vec![new_action(ActionType::RunFunction {
                             function: FunctionCall {
-                                id: *then_block_id,
+                                id,
                                 parameters: MyVec(vec![]),
                             },
                         })]
@@ -255,11 +253,11 @@ impl Codegen<'_> {
 
                 let else_block = match else_block {
                     Goto::Block(else_block) => {
-                        let else_block_id = self.block_ids.get(else_block).unwrap();
+                        let id = self.block_ids[else_block];
 
                         vec![new_action(ActionType::RunFunction {
                             function: FunctionCall {
-                                id: *else_block_id,
+                                id,
                                 parameters: MyVec(vec![]),
                             },
                         })]
@@ -285,9 +283,7 @@ impl Codegen<'_> {
         (
             match &expr.expr {
                 Expression::Variable(name) => {
-                    let var_id = self.var_ids.get(name).unwrap();
-
-                    new_novavalue(DynamicType::IntVariable, NewValue::Int(*var_id))
+                    new_novavalue(DynamicType::IntVariable, NewValue::Int(self.var_ids[name]))
                 }
                 Expression::Boolean(value) => {
                     new_novavalue(DynamicType::BoolConstant, NewValue::Bool(*value))

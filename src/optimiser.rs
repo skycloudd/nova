@@ -15,7 +15,7 @@ pub fn optimise(blocks: &mut Vec<BasicBlock>) {
 
     dead_variable_elimination(blocks);
 
-    dead_code_elimination(blocks)
+    dead_code_elimination(blocks);
 }
 
 fn simplify_terminators(blocks: &mut [BasicBlock]) {
@@ -40,9 +40,9 @@ fn simplify_terminators(blocks: &mut [BasicBlock]) {
                 then_block: then_goto,
                 else_block: else_goto,
             } => {
-                if let Expression::Boolean(true) = condition.expr {
+                if condition.expr == Expression::Boolean(true) {
                     *terminator = Terminator::Goto(then_goto.clone());
-                } else if let Expression::Boolean(false) = condition.expr {
+                } else if condition.expr == Expression::Boolean(false) {
                     *terminator = Terminator::Goto(else_goto.clone());
                 } else {
                     if let Goto::Block(then) = then_goto {
@@ -91,7 +91,7 @@ fn dead_code_elimination(blocks: &mut Vec<BasicBlock>) {
         })
         .collect::<Vec<_>>();
 
-    blocks.retain(|block| references.contains(&block.id()) || block.id() == 0)
+    blocks.retain(|block| references.contains(&block.id()) || block.id() == 0);
 }
 
 fn dead_variable_elimination(blocks: &mut [BasicBlock]) {
