@@ -4,7 +4,7 @@ Expressions are the base of the language. Every expression evaluates to a value.
 
 The following are all valid expressions, with comments saying what value they evaluate to.
 
-```ruby
+```swift
 6 + 24
 // -> 30
 
@@ -28,8 +28,8 @@ It's important to mention data types. Nova has these types.
 -   bool
 -   colour
 -   vector
--   object
--   objectset
+
+These are all the same types Exoracer has.
 
 The type of an expression tells you what kind of value it will evaulate to. For example, the expression `1 + 2` has the type of `int` because it evaulates to a whole number (an integer). And the expression `(2 + 2) == 5` is of type `bool`, because it is a boolean (either `true` or `false`)
 
@@ -43,7 +43,7 @@ Literals are the most basic expressions. They are the simple values like numbers
 
 Integers are whole numbers. They can be positive or negative. They can be written in decimal, binary, or hexadecimal.
 
-```ruby
+```swift
 3
 10
 ```
@@ -52,7 +52,7 @@ Integers are whole numbers. They can be positive or negative. They can be writte
 
 Floats are decimal numbers. They can be positive or negative. They can be written in decimal, binary, or hexadecimal.
 
-```ruby
+```swift
 3.14
 10.0
 ```
@@ -61,7 +61,7 @@ Floats are decimal numbers. They can be positive or negative. They can be writte
 
 Booleans are either `true` or `false`.
 
-```ruby
+```swift
 true
 false
 ```
@@ -70,10 +70,10 @@ false
 
 Colours are represented as hex codes. They are written as `#rrggbbaa` where `rr` is the red value, `gg` is the green value, and `bb` is the blue value. `aa` is an **optional** value for the alpha channel (opacity). Each value is a hexadecimal number between `00` and `ff` (0 and 255 in decimal).
 
-```ruby
+```swift
 #ff0000 // red
-#00ff007f // green, with 50% opacity (7f is 127 in decimal)
-#0000ff00 // blue, but with 0% opacity
+#00ff007f // green, with half opacity
+#0000ff00 // blue, but completely transparent
 #ff77a8 // pink
 ```
 
@@ -83,28 +83,18 @@ Alpha defaults to `ff` if it is not specified.
 
 A vector is a pair of numbers. Vectors are written as `{ x, y }`. The values can only be of type `float`.
 
-```ruby
+```swift
 { 1.0, 5.2 }
 { 0.123, 0.75 }
 ```
 
-### Objects
-
-Objects are a reference to an object in the level. There is currently only one way to create an object, which is the player object.
-
-```ruby
-player // a reference to the player object
-
-// there are no other ways to create objects yet
-```
-
 ## Operators
 
-Operators combine or modify values to create a new value. There are two kinds of operators: unary, and binary operators.
+Operators combine or modify values to create a new value. There are two kinds of operators: unary, and binary operators. Unary operators work on one value, while binary operators work on two values.
 
 ### Unary operators
 
-```ruby
+```swift
 <op><expr>
 // -5
 // -(22 + 3)
@@ -118,7 +108,7 @@ Operators combine or modify values to create a new value. There are two kinds of
 
 ### Binary operators
 
-```ruby
+```swift
 <expr> <op> <expr>
 // 5 + 6
 // 11 - 3
@@ -127,13 +117,17 @@ Operators combine or modify values to create a new value. There are two kinds of
 
 | Operator | Types            | Description                                            |
 | -------- | ---------------- | ------------------------------------------------------ |
-| `+`      | int, float       | adds two numbers                                       |
-| `-`      | int, float       | subtracts two numbers                                  |
 | `*`      | int, float       | multiplies two numbers                                 |
 | `/`      | int, float       | divides two numbers                                    |
-| `==`     | int, float, bool | checks if two values are equal                         |
-| `!-`     | int, float, bool | checks if two values are not equal                     |
+| `+`      | int, float       | adds two numbers                                       |
+| `-`      | int, float       | subtracts two numbers                                  |
 | `>=`     | int, float       | checks if a number is greater than or equal to another |
 | `<=`     | int, float       | checks if a number is less than or equal to another    |
 | `>`      | int, float       | checks if a number is greater than another             |
 | `<`      | int, float       | checks if a number is less than another                |
+| `==`     | int, float, bool | checks if two values are equal                         |
+| `!-`     | int, float, bool | checks if two values are not equal                     |
+
+## Operator precedence
+
+The operators above are listed in order of precedence. This means that operators higher in the list bind stronger than operators lower in the list. For example, `*` binds stronger than `+`, so `1 + 2 * 3` is the same as `1 + (2 * 3)`, instead of `(1 + 2) * 3`. Similarly, `+` binds stronger than `==`, so `1 + 2 == 3` is the same as `(1 + 2) == 3`.

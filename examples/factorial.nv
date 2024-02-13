@@ -1,4 +1,4 @@
-for n in 0..10 do
+proc factorial(n: int) do
     let x = 1;
 
     for i in 2..=n do
@@ -6,4 +6,12 @@ for n in 0..10 do
     end
 
     action print: x;
+end
+
+proc main() do
+    for nth in 0..10 do
+        action print: nth;
+
+        factorial(nth);
+    end
 end

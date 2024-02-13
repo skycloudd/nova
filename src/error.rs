@@ -14,10 +14,6 @@ pub enum Error<'file> {
         message: String,
         span: Span<'file>,
     },
-    UnknownConstVariable {
-        name: String,
-        span: Span<'file>,
-    },
     UndefinedVariable {
         name: String,
         span: Span<'file>,
@@ -45,19 +41,6 @@ pub enum Error<'file> {
         op: String,
         op_span: Span<'file>,
     },
-    ConstAlreadyDefined {
-        name: String,
-        span: Span<'file>,
-    },
-    CantDisplayType {
-        ty: String,
-        span: Span<'file>,
-    },
-    LevelFileHasScripts,
-    AssignToConst {
-        name: String,
-        span: Span<'file>,
-    },
     WrongNumberOfActionArguments {
         expected: i32,
         got: usize,
@@ -65,6 +48,20 @@ pub enum Error<'file> {
     },
     UnknownAction {
         name: String,
+        span: Span<'file>,
+    },
+    ProcedureRedefinition {
+        name: String,
+        old_span: Span<'file>,
+        new_span: Span<'file>,
+    },
+    UndefinedProcedure {
+        name: String,
+        span: Span<'file>,
+    },
+    WrongNumberOfProcedureArguments {
+        expected: usize,
+        got: usize,
         span: Span<'file>,
     },
 }
@@ -101,11 +98,8 @@ impl Error<'_> {
                 }
             }
             Error::Custom { message, span: _ } => message.into(),
-            Error::UnknownConstVariable { name, span: _ } => {
-                format!("Unknown const variable `{name}`").into()
-            }
             Error::UndefinedVariable { name, span: _ } => {
-                format!("Undefined variable `{name}`").into()
+                format!("Undefined variable `{}`", name.fg(Color::Yellow)).into()
             }
             Error::UnknownType { span: _ } => "Unknown type".into(),
             Error::IncompatibleTypes {
@@ -113,7 +107,12 @@ impl Error<'_> {
                 a_span: _,
                 b,
                 b_span: _,
-            } => format!("Incompatible types `{a}` and `{b}`").into(),
+            } => format!(
+                "Incompatible types `{}` and `{}`",
+                a.fg(Color::Yellow),
+                b.fg(Color::Yellow)
+            )
+            .into(),
             Error::BinaryOp {
                 lhs,
                 lhs_span: _,
@@ -121,27 +120,48 @@ impl Error<'_> {
                 rhs_span: _,
                 op,
                 op_span: _,
-            } => format!("Cannot apply `{op}` to `{lhs}` and `{rhs}`").into(),
+            } => format!(
+                "Cannot apply `{}` to `{}` and `{}`",
+                op.fg(Color::Yellow),
+                lhs.fg(Color::Yellow),
+                rhs.fg(Color::Yellow)
+            )
+            .into(),
             Error::UnaryOp {
                 ty,
                 ty_span: _,
                 op,
                 op_span: _,
-            } => format!("Cannot apply `{op}` to `{ty}`").into(),
-            Error::ConstAlreadyDefined { name, span: _ } => {
-                format!("Const `{name}` already defined").into()
-            }
-            Error::CantDisplayType { ty, span: _ } => format!("Cannot display type `{ty}`").into(),
-            Error::LevelFileHasScripts => "Level file has scripts".into(),
-            Error::AssignToConst { name, span: _ } => {
-                format!("Cannot assign to const `{name}`").into()
-            }
+            } => format!(
+                "Cannot apply `{}` to `{}`",
+                op.fg(Color::Yellow),
+                ty.fg(Color::Yellow)
+            )
+            .into(),
             Error::WrongNumberOfActionArguments {
                 expected,
                 got,
                 span: _,
-            } => format!("Expected {expected} arguments, got {got}").into(),
+            } => format!(
+                "Expected {} arguments, got {}",
+                expected.fg(Color::Yellow),
+                got.fg(Color::Yellow)
+            )
+            .into(),
             Error::UnknownAction { name, span: _ } => format!("Unknown action `{name}`").into(),
+            Error::ProcedureRedefinition {
+                name,
+                old_span: _,
+                new_span: _,
+            } => format!("Procedure `{}` redefined", name.fg(Color::Yellow)).into(),
+            Error::UndefinedProcedure { name, span: _ } => {
+                format!("Undefined procedure `{name}`").into()
+            }
+            Error::WrongNumberOfProcedureArguments {
+                expected,
+                got,
+                span: _,
+            } => format!("Expected {expected} arguments, got {got}").into(),
         }
     }
 
@@ -156,12 +176,6 @@ impl Error<'_> {
                 *span,
             )],
             Error::Custom { message: _, span } => vec![Spanned(None, *span)],
-            Error::UnknownConstVariable { name, span } => {
-                vec![Spanned(
-                    Some(format!("Unknown const variable `{name}`").into()),
-                    *span,
-                )]
-            }
             Error::UndefinedVariable { name, span } => {
                 vec![Spanned(
                     Some(format!("Undefined variable `{name}`").into()),
@@ -199,25 +213,6 @@ impl Error<'_> {
                 Spanned(Some(format!("`{ty}`").into()), *ty_span),
                 Spanned(Some(format!("`{op}`").into()), *op_span),
             ],
-            Error::ConstAlreadyDefined { name, span } => {
-                vec![Spanned(
-                    Some(format!("Const `{name}` already defined").into()),
-                    *span,
-                )]
-            }
-            Error::CantDisplayType { ty, span } => {
-                vec![Spanned(
-                    Some(format!("Cannot display type `{ty}`").into()),
-                    *span,
-                )]
-            }
-            Error::LevelFileHasScripts => vec![],
-            Error::AssignToConst { name, span } => {
-                vec![Spanned(
-                    Some(format!("Cannot assign to const `{name}`").into()),
-                    *span,
-                )]
-            }
             Error::WrongNumberOfActionArguments {
                 expected,
                 got,
@@ -232,6 +227,33 @@ impl Error<'_> {
                     *span,
                 )]
             }
+            Error::ProcedureRedefinition {
+                name,
+                old_span,
+                new_span,
+            } => {
+                vec![
+                    Spanned(
+                        Some(format!("Procedure `{name}` redefined here").into()),
+                        *new_span,
+                    ),
+                    Spanned(Some("Previous definition here".into()), *old_span),
+                ]
+            }
+            Error::UndefinedProcedure { name, span } => {
+                vec![Spanned(
+                    Some(format!("Undefined procedure `{name}`").into()),
+                    *span,
+                )]
+            }
+            Error::WrongNumberOfProcedureArguments {
+                expected,
+                got,
+                span,
+            } => vec![Spanned(
+                Some(format!("Expected {expected} arguments, got {got}").into()),
+                *span,
+            )],
         }
     }
 
@@ -240,18 +262,18 @@ impl Error<'_> {
         match self {
             Error::ExpectedFound { .. } => None,
             Error::Custom { .. } => None,
-            Error::UnknownConstVariable { .. } => None,
             Error::UndefinedVariable { .. } => None,
             Error::UnknownType { .. } => None,
             Error::IncompatibleTypes { .. } => None,
             Error::BinaryOp { .. } => None,
             Error::UnaryOp { .. } => None,
-            Error::ConstAlreadyDefined { .. } => None,
-            Error::CantDisplayType { .. } => None,
-            Error::LevelFileHasScripts => Some("The input level file should not have any scripts already present because there are no guarantees that the compiler will not overwrite them.".to_string()),
-            Error::AssignToConst { .. } => None,
             Error::WrongNumberOfActionArguments { .. } => None,
             Error::UnknownAction { .. } => None,
+            Error::ProcedureRedefinition { .. } => {
+                Some("Two procedures cannot share the same name".into())
+            }
+            Error::UndefinedProcedure { .. } => None,
+            Error::WrongNumberOfProcedureArguments { .. } => None,
         }
     }
 }

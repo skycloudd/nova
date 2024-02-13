@@ -37,8 +37,4 @@ impl<K: Eq + Hash, V> Scopes<K, V> {
             .find_map(|scope| scope.get(k))
             .or_else(|| self.base.get(k))
     }
-
-    pub fn contains_key(&self, k: &K) -> bool {
-        self.scopes.iter().any(|scope| scope.contains_key(k)) || self.base.contains_key(k)
-    }
 }

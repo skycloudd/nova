@@ -1,5 +1,25 @@
 use crate::span::Spanned;
 
+macro_rules! top_level {
+    ($name:ident, $proc:ident) => {
+        #[derive(Debug)]
+        pub enum $name<'src, 'file> {
+            Procedure($proc<'src, 'file>),
+        }
+    };
+}
+
+macro_rules! ast_procedure {
+    ($name:ident, $stmt:ident) => {
+        #[derive(Debug)]
+        pub struct $name<'src, 'file> {
+            pub name: Spanned<'file, &'src str>,
+            pub args: Spanned<'file, Vec<(Spanned<'file, &'src str>, Spanned<'file, Type>)>>,
+            pub body: Spanned<'file, Vec<Spanned<'file, $stmt<'src, 'file>>>>,
+        }
+    };
+}
+
 macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
         #[derive(Debug)]
@@ -23,25 +43,24 @@ macro_rules! ast_statement {
                 name: Spanned<'file, &'src str>,
                 value: Spanned<'file, $expr<'src, 'file>>,
             },
-            Const {
-                name: Spanned<'file, &'src str>,
-                value: Spanned<'file, $expr<'src, 'file>>,
-            },
             Assign {
                 name: Spanned<'file, &'src str>,
                 value: Spanned<'file, $expr<'src, 'file>>,
             },
             Break,
             Continue,
+            Return,
             Action {
                 name: Spanned<'file, &'src str>,
+                args: Spanned<'file, Vec<Spanned<'file, $expr<'src, 'file>>>>,
+            },
+            Call {
+                proc: Spanned<'file, &'src str>,
                 args: Spanned<'file, Vec<Spanned<'file, $expr<'src, 'file>>>>,
             },
         }
     };
 }
-
-ast_statement!(Statement, Expr);
 
 macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
@@ -61,28 +80,28 @@ macro_rules! ast_expr {
                 x: Spanned<'file, Box<$self_expr<'src, 'file>>>,
                 y: Spanned<'file, Box<$self_expr<'src, 'file>>>,
             },
-            Object(Object),
+            Unary(
+                Spanned<'file, UnaryOp>,
+                Spanned<'file, Box<$self_expr<'src, 'file>>>,
+            ),
             Binary(
                 Spanned<'file, Box<$self_expr<'src, 'file>>>,
                 Spanned<'file, BinaryOp>,
-                Spanned<'file, Box<$self_expr<'src, 'file>>>,
-            ),
-            Unary(
-                Spanned<'file, UnaryOp>,
                 Spanned<'file, Box<$self_expr<'src, 'file>>>,
             ),
         }
     };
 }
 
+top_level!(TopLevel, Procedure);
+
+ast_procedure!(Procedure, Statement);
+
+ast_statement!(Statement, Expr);
+
 ast_expr!(Expr, Expr);
 
-#[derive(Clone, Copy, Debug)]
-pub enum Object {
-    Player,
-}
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BinaryOp {
     Equals,
     NotEquals,
@@ -113,7 +132,7 @@ impl std::fmt::Display for BinaryOp {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOp {
     Negate,
     Not,
@@ -128,11 +147,26 @@ impl std::fmt::Display for UnaryOp {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Type {
+    Boolean,
+    Integer,
+    Float,
+    Colour,
+    Vector,
+}
+
 pub mod typed {
-    use super::{BinaryOp, Object, UnaryOp};
+    use super::{BinaryOp, Type, UnaryOp};
     use crate::span::Spanned;
 
+    top_level!(TypedTopLevel, TypedProcedure);
+
+    ast_procedure!(TypedProcedure, TypedStatement);
+
     ast_statement!(TypedStatement, TypedExpr);
+
+    ast_expr!(Expr, TypedExpr);
 
     #[allow(clippy::module_name_repetitions)]
     #[derive(Debug)]
@@ -141,29 +175,14 @@ pub mod typed {
         pub ty: Type,
     }
 
-    ast_expr!(Expr, TypedExpr);
-
-    #[derive(Clone, Copy, Debug)]
-    pub enum Type {
-        Boolean,
-        Integer,
-        Float,
-        Colour,
-        Vector,
-        Object,
-        ObjectSet,
-    }
-
     impl std::fmt::Display for Type {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Self::Boolean => write!(f, "boolean"),
-                Self::Integer => write!(f, "integer"),
+                Self::Boolean => write!(f, "bool"),
+                Self::Integer => write!(f, "int"),
                 Self::Float => write!(f, "float"),
                 Self::Colour => write!(f, "colour"),
                 Self::Vector => write!(f, "vector"),
-                Self::Object => write!(f, "object"),
-                Self::ObjectSet => write!(f, "objectset"),
             }
         }
     }

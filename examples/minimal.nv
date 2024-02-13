@@ -1,6 +1,7 @@
-let a = 3;
-action print: a + 2;
+proc main() do
+    aa(5);
+end
 
-for i in 0..10 do
-    action print: i;
+proc aa(var: int) do
+    action print: var;
 end

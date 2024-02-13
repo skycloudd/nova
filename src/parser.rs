@@ -1,6 +1,6 @@
 use crate::{
-    ast::{BinaryOp, Expr, Object, Statement, UnaryOp},
-    lexer::{self, Ctrl, Kw, Op, Token},
+    ast::{BinaryOp, Expr, Procedure, Statement, TopLevel, Type, UnaryOp},
+    lexer::{Ctrl, Kw, Op, Token},
     span::{Span, Spanned},
 };
 use chumsky::{input::SpannedInput, prelude::*};
@@ -8,7 +8,7 @@ use chumsky::{input::SpannedInput, prelude::*};
 type ParserInput<'tokens, 'src, 'file> =
     SpannedInput<Token<'src>, Span<'file>, &'tokens [(Token<'src>, Span<'file>)]>;
 
-type ParserOutput<'tokens, 'src, 'file> = Vec<Spanned<'file, Statement<'src, 'file>>>;
+type ParserOutput<'tokens, 'src, 'file> = Vec<Spanned<'file, TopLevel<'src, 'file>>>;
 
 type ParserError<'tokens, 'src, 'file> = extra::Err<Rich<'tokens, Token<'src>, Span<'file>>>;
 
@@ -18,7 +18,59 @@ pub fn parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
     ParserOutput<'tokens, 'src, 'file>,
     ParserError<'tokens, 'src, 'file>,
 > {
-    statement_parser().repeated().collect().then_ignore(end())
+    toplevel_parser().repeated().collect().then_ignore(end())
+}
+
+fn toplevel_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, TopLevel<'src, 'file>>,
+    ParserError<'tokens, 'src, 'file>,
+> {
+    procedure_parser()
+}
+
+fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, TopLevel<'src, 'file>>,
+    ParserError<'tokens, 'src, 'file>,
+> {
+    let ty_parser = select! {
+        Token::Variable("bool") => Type::Boolean,
+        Token::Variable("int") => Type::Integer,
+        Token::Variable("float") => Type::Float,
+        Token::Variable("colour" | "color") => Type::Colour,
+        Token::Variable("vector") => Type::Vector,
+    }
+    .map_with(|ty, e| Spanned(ty, e.span()));
+
+    just(Token::Kw(Kw::Proc))
+        .ignore_then(ident())
+        .then_ignore(just(Token::Ctrl(Ctrl::LeftParen)))
+        .then(
+            ident()
+                .then_ignore(just(Token::Ctrl(Ctrl::Colon)))
+                .then(ty_parser)
+                .separated_by(just(Token::Ctrl(Ctrl::Comma)))
+                .allow_trailing()
+                .collect()
+                .map_with(|args, e| Spanned(args, e.span()))
+                .boxed(),
+        )
+        .then_ignore(just(Token::Ctrl(Ctrl::RightParen)))
+        .then_ignore(just(Token::Kw(Kw::Do)))
+        .then(
+            statement_parser()
+                .repeated()
+                .collect()
+                .map_with(|body, e| Spanned(body, e.span()))
+                .boxed(),
+        )
+        .then_ignore(just(Token::Kw(Kw::End)))
+        .map(|((name, args), body)| Procedure { name, args, body })
+        .map_with(|procedure, e| Spanned(TopLevel::Procedure(procedure), e.span()))
+        .boxed()
 }
 
 fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
@@ -46,6 +98,7 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         let loop_ = just(Token::Kw(Kw::Loop))
+            .ignore_then(just(Token::Kw(Kw::Do)))
             .ignore_then(
                 statement
                     .clone()
@@ -104,7 +157,7 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .then(
                 statement
                     .repeated()
-                    .collect::<Vec<_>>()
+                    .collect()
                     .map_with(|body, e| Spanned(body, e.span()))
                     .boxed(),
             )
@@ -126,14 +179,6 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(|(name, value)| Statement::Let { name, value })
             .boxed();
 
-        let const_ = just(Token::Kw(Kw::Const))
-            .ignore_then(ident())
-            .then_ignore(just(Token::Ctrl(Ctrl::Equals)))
-            .then(expr_parser())
-            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map(|(name, value)| Statement::Const { name, value })
-            .boxed();
-
         let assign = ident()
             .then_ignore(just(Token::Ctrl(Ctrl::Equals)))
             .then(expr_parser())
@@ -142,13 +187,21 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         let break_ = just(Token::Kw(Kw::Break))
+            .ignored()
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map(|_| Statement::Break)
+            .map(|()| Statement::Break)
             .boxed();
 
         let continue_ = just(Token::Kw(Kw::Continue))
+            .ignored()
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
-            .map(|_| Statement::Continue)
+            .map(|()| Statement::Continue)
+            .boxed();
+
+        let return_ = just(Token::Kw(Kw::Return))
+            .ignored()
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map(|()| Statement::Return)
             .boxed();
 
         let action = just(Token::Kw(Kw::Action))
@@ -165,8 +218,22 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(|(name, args)| Statement::Action { name, args })
             .boxed();
 
+        let call = ident()
+            .then_ignore(just(Token::Ctrl(Ctrl::LeftParen)))
+            .then(
+                expr_parser()
+                    .separated_by(just(Token::Ctrl(Ctrl::Comma)))
+                    .collect()
+                    .map_with(|args, e| Spanned(args, e.span()))
+                    .boxed(),
+            )
+            .then_ignore(just(Token::Ctrl(Ctrl::RightParen)))
+            .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+            .map(|(proc, args)| Statement::Call { proc, args })
+            .boxed();
+
         choice((
-            expr, block, loop_, if_, for_, let_, const_, assign, break_, continue_, action,
+            expr, block, loop_, if_, for_, let_, assign, break_, continue_, return_, action, call,
         ))
         .map_with(|statement, e| Spanned(statement, e.span()))
         .boxed()
@@ -180,11 +247,9 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
     ParserError<'tokens, 'src, 'file>,
 > {
     recursive(|expression| {
-        let variable = select! {
-            Token::Variable(name) => name
-        }
-        .map_with(|variable, e| Spanned(Expr::Variable(variable), e.span()))
-        .boxed();
+        let variable = ident()
+            .map_with(|variable, e| Spanned(Expr::Variable(variable.0), e.span()))
+            .boxed();
 
         let boolean = select! {
             Token::Boolean(b) => b
@@ -240,20 +305,8 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             })
             .boxed();
 
-        let object = select! {
-            Token::Object(object) => object
-        }
-        .map_with(|object, e| {
-            Spanned(
-                Expr::Object(match object {
-                    lexer::Object::Player => Object::Player,
-                }),
-                e.span(),
-            )
-        })
-        .boxed();
-
         let parenthesized_expr = expression
+            .clone()
             .delimited_by(
                 just(Token::Ctrl(Ctrl::LeftParen)),
                 just(Token::Ctrl(Ctrl::RightParen)),
@@ -267,7 +320,6 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             float,
             colour,
             vector,
-            object,
             parenthesized_expr,
         ))
         .boxed();

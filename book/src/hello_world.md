@@ -2,34 +2,56 @@
 
 As with any programming tutorial, lets start with a simple demonstration program.
 
-```ruby
-let my_number = 1 + 2 * 3;
+```swift
+proc main() do
+    let my_number = 1 + 2 * 3;
 
-if my_number == 7 then
-    action print: 3;
+    if my_number == 7 then
+        action print: 3;
+    end
 end
+
+# todo: add `run main;` here when it gets implemented
 ```
 
 Output:
 
-```ruby
+```swift
 3
 ```
 
 ## Explanation
 
-```ruby
+### The `main` procedure
+
+```swift
+proc main() do
+    // ...
+end
+
+// todo: add `run main;` here when it gets implemented
+```
+
+Every program starts with a `main` procedure. This is the entry point of the program. Inside the `main` procedure we write the code that we want to run when the program starts.
+
+<!-- todo: add an explanation for `run main;` here when it gets implemented -->
+
+Throughout this book, the `main` procedure will usually not be shown for demonstration purposes, but when writing real programs it is always required.
+
+### `let` statement
+
+```swift
 let my_number = 1 + 2 * 3;
 ```
 
 This line assigns the value `7` to a variable called `my_number`. That means we can simply use its name in other places in the code and get the number `7` back.
 
-Next, we have a so called "if statement".
+### `if` statement
 
-```ruby
+```swift
 if my_number == 7 then
     action print: 3;
 end
 ```
 
-This says that if the variable `my_number` is _equal_ to the number `7`, we print the number `3`. Of course with this program that is always the case.
+This says that if the variable `my_number` is _equal_ to the number `7`, we print the number `3`.

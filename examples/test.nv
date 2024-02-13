@@ -1,23 +1,23 @@
-const one = 1;
-const six = 2 * 3;
-const number = one + six;
+proc main() do
+    let one = 1;
+    let six = 2 * 3;
+    let number = one + six;
 
-action print: number == 7;
+    action print: number == 7;
 
-for x in one..number do
-    action print: x;
-end
+    for x in one..number do
+        action print: x;
+    end
 
-do
-    action wait: 1.0;
+    do
+        action wait: 1.0;
 
-    action waitframes: 30;
+        action waitframes: 30;
+    end
 
-    action move: player, {0.0, 10.0}, false, 0.1;
-end
-
-if 2 + 2 == 5 then
-    action print: 4;
-else
-    action print: true;
+    if 2 + 2 == 5 then
+        action print: 4;
+    else
+        action print: true;
+    end
 end

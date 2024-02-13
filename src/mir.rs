@@ -1,59 +1,77 @@
 use crate::{
     ast::{
-        self,
-        typed::{self, Expr, TypedExpr, TypedStatement as Statement},
-        BinaryOp, UnaryOp,
+        typed::{Expr, TypedExpr, TypedProcedure, TypedStatement, TypedTopLevel},
+        BinaryOp, Type, UnaryOp,
     },
     scopes::Scopes,
     span::Spanned,
-    FloatTy, IntTy,
+    FloatTy, IdGen, IntTy,
 };
 
 #[derive(Debug)]
-pub enum TypedStatement<'file> {
-    Expr(Spanned<'file, TypedExpression<'file>>),
-    Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
-    Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
-    If {
-        condition: Spanned<'file, TypedExpression<'file>>,
-        then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
-        else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
-    },
-    For {
-        name: Spanned<'file, VarId>,
-        start: Spanned<'file, TypedExpression<'file>>,
-        end: Spanned<'file, TypedExpression<'file>>,
-        inclusive: bool,
-        body: Spanned<'file, Vec<Spanned<'file, Self>>>,
-    },
-    Let {
-        name: Spanned<'file, VarId>,
-        value: Spanned<'file, TypedExpression<'file>>,
-    },
-    Const {
-        name: Spanned<'file, VarId>,
-        value: Spanned<'file, TypedExpression<'file>>,
-    },
-    Assign {
-        name: Spanned<'file, VarId>,
-        value: Spanned<'file, TypedExpression<'file>>,
-    },
-    Break,
-    Continue,
-    Action {
-        name: Spanned<'file, &'file str>,
-        args: Spanned<'file, Vec<Spanned<'file, TypedExpression<'file>>>>,
-    },
+pub enum TopLevel {
+    Procedure(Procedure),
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<'file> {
-    pub expr: Expression<'file>,
+pub struct Procedure {
+    pub name: ProcId,
+    pub args: Vec<(VarId, Type)>,
+    pub body: Vec<Statement>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct ProcId(pub usize);
+
+#[derive(Debug)]
+pub enum Statement {
+    Expr(TypedExpression),
+    Block(Vec<Self>),
+    Loop(Vec<Self>),
+    If {
+        condition: TypedExpression,
+        then_branch: Vec<Self>,
+        else_branch: Option<Vec<Self>>,
+    },
+    Let {
+        name: VarId,
+        value: TypedExpression,
+    },
+    Assign {
+        name: VarId,
+        value: TypedExpression,
+    },
+    Break,
+    Continue,
+    Return,
+    Action {
+        action: Action,
+        args: Vec<TypedExpression>,
+    },
+    Call {
+        proc: ProcId,
+        args: Vec<TypedExpression>,
+    },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Action {
+    /// `wait <float>`
+    Wait,
+    /// `waitframes <integer>`
+    WaitFrames,
+    /// `print <int/float/bool>`
+    Print,
+}
+
+#[derive(Debug)]
+pub struct TypedExpression {
+    pub expr: Expression,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression<'file> {
+pub enum Expression {
     Variable(VarId),
     Boolean(bool),
     Integer(IntTy),
@@ -65,340 +83,297 @@ pub enum Expression<'file> {
         a: u8,
     },
     Vector {
-        x: Spanned<'file, Box<TypedExpression<'file>>>,
-        y: Spanned<'file, Box<TypedExpression<'file>>>,
+        x: Box<TypedExpression>,
+        y: Box<TypedExpression>,
     },
-    Object(Object),
-    Operation(Box<Operation<'file>>),
+    Unary {
+        op: UnaryOp,
+        rhs: Box<TypedExpression>,
+    },
+    Binary {
+        lhs: Box<TypedExpression>,
+        op: BinaryOp,
+        rhs: Box<TypedExpression>,
+    },
 }
 
-#[derive(Debug)]
-pub enum Object {
-    Player,
-}
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct VarId(pub usize);
 
-pub type VarId = usize;
+trait IdMap<'src> {
+    type Id;
 
-#[derive(Debug)]
-pub enum Operation<'file> {
-    IntegerEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerNotEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerPlus(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerMinus(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerMultiply(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerDivide(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerGreaterThanEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerLessThanEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerGreaterThan(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    IntegerLessThan(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
+    fn get<'a>(&'a self, name: &'a str) -> Option<&Self::Id>;
 
-    FloatEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatNotEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatPlus(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatMinus(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatMultiply(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatDivide(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatGreaterThanEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatLessThanEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatGreaterThan(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    FloatLessThan(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-
-    BooleanEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-    BooleanNotEquals(
-        Spanned<'file, TypedExpression<'file>>,
-        Spanned<'file, TypedExpression<'file>>,
-    ),
-
-    IntegerNegate(Spanned<'file, TypedExpression<'file>>),
-    FloatNegate(Spanned<'file, TypedExpression<'file>>),
-    BooleanNot(Spanned<'file, TypedExpression<'file>>),
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum Type {
-    Boolean,
-    Integer,
-    Float,
-    Colour,
-    Vector,
-    Object,
-    ObjectSet,
-}
-
-impl From<typed::Type> for Type {
-    fn from(ty: typed::Type) -> Self {
-        match ty {
-            typed::Type::Boolean => Self::Boolean,
-            typed::Type::Integer => Self::Integer,
-            typed::Type::Float => Self::Float,
-            typed::Type::Colour => Self::Colour,
-            typed::Type::Vector => Self::Vector,
-            typed::Type::Object => Self::Object,
-            typed::Type::ObjectSet => Self::ObjectSet,
-        }
-    }
+    fn insert(&mut self, name: &'src str) -> Self::Id;
 }
 
 struct VarIdMap<'src> {
     map: Scopes<&'src str, VarId>,
-    next_id: VarId,
+    id_gen: IdGen,
 }
 
 impl<'src> VarIdMap<'src> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
-            next_id: 0,
-        }
-    }
-
-    fn get_or_insert(&mut self, name: &'src str) -> VarId {
-        if let Some(id) = self.map.get(&name) {
-            *id
-        } else {
-            let id = self.next_id;
-            self.next_id += 1;
-            self.map.insert(name, id);
-            id
+            id_gen: IdGen::default(),
         }
     }
 }
 
-pub fn build<'src: 'file, 'file>(
-    ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
-) -> Vec<Spanned<'file, TypedStatement<'file>>> {
-    let mut var_id_map = VarIdMap::new();
+impl<'src> IdMap<'src> for VarIdMap<'src> {
+    type Id = VarId;
 
-    ast.into_iter()
-        .map(|stmt| build_mir_statement(&mut var_id_map, stmt))
+    fn get<'a>(&'a self, name: &'a str) -> Option<&VarId> {
+        self.map.get(&name)
+    }
+
+    fn insert(&mut self, name: &'src str) -> VarId {
+        let id = VarId(self.id_gen.next());
+        self.map.insert(name, id);
+        id
+    }
+}
+
+struct ProcIdMap<'src> {
+    map: Scopes<&'src str, ProcId>,
+    id_gen: IdGen,
+}
+
+impl ProcIdMap<'_> {
+    fn new() -> Self {
+        Self {
+            map: Scopes::new(),
+            id_gen: IdGen::default(),
+        }
+    }
+}
+
+impl<'src> IdMap<'src> for ProcIdMap<'src> {
+    type Id = ProcId;
+
+    fn get<'a>(&'a self, name: &'a str) -> Option<&ProcId> {
+        self.map.get(&name)
+    }
+
+    fn insert(&mut self, name: &'src str) -> ProcId {
+        let id = ProcId(self.id_gen.next());
+        self.map.insert(name, id);
+        id
+    }
+}
+
+pub fn build<'file>(ast: &[Spanned<'file, TypedTopLevel<'_, 'file>>]) -> Vec<TopLevel> {
+    let mut var_id_map = VarIdMap::new();
+    let mut proc_id_map = ProcIdMap::new();
+
+    ast.iter()
+        .map(|top_level| build_mir_top_level(&mut var_id_map, &mut proc_id_map, &top_level.0))
         .collect()
 }
 
-fn build_mir_statement<'src: 'file, 'file>(
+fn build_mir_top_level<'src>(
     var_id_map: &mut VarIdMap<'src>,
-    statement: Spanned<'file, Statement<'src, 'file>>,
-) -> Spanned<'file, TypedStatement<'file>> {
-    statement.map(|statement| match statement {
-        Statement::Expr(expr) => TypedStatement::Expr(build_mir_expr(var_id_map, expr)),
-        Statement::Block(statements) => TypedStatement::Block(statements.map(|s| {
-            s.into_iter()
-                .map(|stmt| build_mir_statement(var_id_map, stmt))
-                .collect()
-        })),
-        Statement::Loop(statements) => TypedStatement::Loop(statements.map(|s| {
-            s.into_iter()
-                .map(|stmt| build_mir_statement(var_id_map, stmt))
-                .collect()
-        })),
-        Statement::If {
+    proc_id_map: &mut ProcIdMap<'src>,
+    top_level: &TypedTopLevel<'src, '_>,
+) -> TopLevel {
+    match top_level {
+        TypedTopLevel::Procedure(procedure) => {
+            TopLevel::Procedure(build_mir_procedure(var_id_map, proc_id_map, procedure))
+        }
+    }
+}
+
+fn build_mir_procedure<'src>(
+    var_id_map: &mut VarIdMap<'src>,
+    proc_id_map: &mut ProcIdMap<'src>,
+    procedure: &TypedProcedure<'src, '_>,
+) -> Procedure {
+    Procedure {
+        name: proc_id_map.insert(procedure.name.0),
+        args: procedure
+            .args
+            .iter()
+            .map(|arg| (var_id_map.insert(&arg.0), arg.1 .0))
+            .collect(),
+        body: procedure
+            .body
+            .iter()
+            .map(|stmt| build_mir_statement(var_id_map, proc_id_map, &stmt.0))
+            .collect(),
+    }
+}
+
+fn build_mir_statement<'src>(
+    var_id_map: &mut VarIdMap<'src>,
+    proc_id_map: &mut ProcIdMap<'src>,
+    statement: &TypedStatement<'src, '_>,
+) -> Statement {
+    match statement {
+        TypedStatement::Expr(expr) => Statement::Expr(build_mir_expr(var_id_map, &expr.0)),
+        TypedStatement::Block(statements) => Statement::Block(
+            statements
+                .iter()
+                .map(|stmt| build_mir_statement(var_id_map, proc_id_map, &stmt.0))
+                .collect(),
+        ),
+        TypedStatement::Loop(statements) => Statement::Loop(
+            statements
+                .iter()
+                .map(|stmt| build_mir_statement(var_id_map, proc_id_map, &stmt.0))
+                .collect(),
+        ),
+        TypedStatement::If {
             condition,
             then_branch,
             else_branch,
-        } => TypedStatement::If {
-            condition: build_mir_expr(var_id_map, condition),
-            then_branch: then_branch.map(|s| {
-                s.into_iter()
-                    .map(|stmt| build_mir_statement(var_id_map, stmt))
+        } => Statement::If {
+            condition: build_mir_expr(var_id_map, &condition.0),
+            then_branch: then_branch
+                .iter()
+                .map(|stmt| build_mir_statement(var_id_map, proc_id_map, &stmt.0))
+                .collect(),
+            else_branch: else_branch.as_ref().map(|s| {
+                s.iter()
+                    .map(|stmt| build_mir_statement(var_id_map, proc_id_map, &stmt.0))
                     .collect()
             }),
-            else_branch: else_branch.map(|s| {
-                s.map(|s| {
-                    s.into_iter()
-                        .map(|stmt| build_mir_statement(var_id_map, stmt))
-                        .collect()
-                })
-            }),
         },
-        Statement::For {
+        TypedStatement::For {
             name,
             start,
             end,
             inclusive,
             body,
-        } => TypedStatement::For {
-            name: name.map(|name| var_id_map.get_or_insert(name)),
-            start: build_mir_expr(var_id_map, start),
-            end: build_mir_expr(var_id_map, end),
-            inclusive,
-            body: body.map(|s| {
-                s.into_iter()
-                    .map(|stmt| build_mir_statement(var_id_map, stmt))
-                    .collect()
-            }),
+        } => {
+            let start = build_mir_expr(var_id_map, &start.0);
+            let end = build_mir_expr(var_id_map, &end.0);
+            let name = var_id_map.insert(name);
+            let body = body
+                .iter()
+                .map(|stmt| build_mir_statement(var_id_map, proc_id_map, &stmt.0))
+                .collect::<Vec<_>>();
+
+            Statement::Block(vec![
+                Statement::Let { name, value: start },
+                Statement::Loop(vec![Statement::If {
+                    condition: TypedExpression {
+                        expr: Expression::Binary {
+                            lhs: Box::new(TypedExpression {
+                                expr: Expression::Variable(name),
+                                ty: Type::Integer,
+                            }),
+                            op: if *inclusive {
+                                BinaryOp::LessThanEquals
+                            } else {
+                                BinaryOp::LessThan
+                            },
+                            rhs: Box::new(end),
+                        },
+                        ty: Type::Boolean,
+                    },
+                    then_branch: {
+                        let mut stmts = body;
+
+                        stmts.push(Statement::Assign {
+                            name,
+                            value: TypedExpression {
+                                expr: Expression::Binary {
+                                    lhs: Box::new(TypedExpression {
+                                        expr: Expression::Variable(name),
+                                        ty: Type::Integer,
+                                    }),
+                                    op: BinaryOp::Plus,
+                                    rhs: Box::new(TypedExpression {
+                                        expr: Expression::Integer(1),
+                                        ty: Type::Integer,
+                                    }),
+                                },
+                                ty: Type::Integer,
+                            },
+                        });
+
+                        stmts
+                    },
+                    else_branch: Some(vec![Statement::Break]),
+                }]),
+            ])
+        }
+        TypedStatement::Let { name, value } => {
+            let value = build_mir_expr(var_id_map, &value.0);
+            let name = var_id_map.insert(name);
+
+            Statement::Let { name, value }
+        }
+        TypedStatement::Assign { name, value } => Statement::Assign {
+            name: *var_id_map.get(name).unwrap(),
+            value: build_mir_expr(var_id_map, &value.0),
         },
-        Statement::Let { name, value } => TypedStatement::Let {
-            name: name.map(|name| var_id_map.get_or_insert(name)),
-            value: build_mir_expr(var_id_map, value),
+        TypedStatement::Break => Statement::Break,
+        TypedStatement::Continue => Statement::Continue,
+        TypedStatement::Return => Statement::Return,
+        TypedStatement::Action { name, args } => Statement::Action {
+            action: match name.0 {
+                "wait" => Action::Wait,
+                "waitframes" => Action::WaitFrames,
+                "print" => Action::Print,
+                _ => unreachable!(),
+            },
+            args: args
+                .iter()
+                .map(|arg| build_mir_expr(var_id_map, &arg.0))
+                .collect(),
         },
-        Statement::Const { name, value } => TypedStatement::Const {
-            name: name.map(|name| var_id_map.get_or_insert(name)),
-            value: build_mir_expr(var_id_map, value),
+        TypedStatement::Call { proc, args } => Statement::Call {
+            proc: *proc_id_map.get(proc.0).unwrap(),
+            args: args
+                .iter()
+                .map(|arg| build_mir_expr(var_id_map, &arg.0))
+                .collect(),
         },
-        Statement::Assign { name, value } => TypedStatement::Assign {
-            name: name.map(|name| var_id_map.get_or_insert(name)),
-            value: build_mir_expr(var_id_map, value),
-        },
-        Statement::Break => TypedStatement::Break,
-        Statement::Continue => TypedStatement::Continue,
-        Statement::Action { name, args } => TypedStatement::Action {
-            name,
-            args: args.map(|args| {
-                args.into_iter()
-                    .map(|arg| build_mir_expr(var_id_map, arg))
-                    .collect()
-            }),
-        },
-    })
+    }
 }
 
-fn build_mir_expr<'src, 'file>(
+fn build_mir_expr<'src>(
     var_id_map: &mut VarIdMap<'src>,
-    expr: Spanned<'file, TypedExpr<'src, 'file>>,
-) -> Spanned<'file, TypedExpression<'file>> {
-    expr.map(|expr| TypedExpression {
-        expr: match expr.expr {
-            Expr::Variable(name) => Expression::Variable(var_id_map.get_or_insert(name)),
-            Expr::Boolean(value) => Expression::Boolean(value),
-            Expr::Integer(value) => Expression::Integer(value),
-            Expr::Float(value) => Expression::Float(value),
-            Expr::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
-            Expr::Vector { x, y } => Expression::Vector {
-                x: build_mir_expr(var_id_map, x.map(|x| *x)).map(Box::new),
-                y: build_mir_expr(var_id_map, y.map(|y| *y)).map(Box::new),
+    expr: &TypedExpr<'src, '_>,
+) -> TypedExpression {
+    TypedExpression {
+        expr: match &expr.expr {
+            Expr::Variable(name) => Expression::Variable(*var_id_map.get(name).unwrap()),
+            Expr::Boolean(value) => Expression::Boolean(*value),
+            Expr::Integer(value) => Expression::Integer(*value),
+            Expr::Float(value) => Expression::Float(*value),
+            Expr::Colour { r, g, b, a } => Expression::Colour {
+                r: *r,
+                g: *g,
+                b: *b,
+                a: *a,
             },
-            Expr::Object(object) => Expression::Object(match object {
-                ast::Object::Player => Object::Player,
-            }),
-            Expr::Binary(lhs, op, rhs) => {
-                let lhs = build_mir_expr(var_id_map, lhs.map(|l| *l));
-                let rhs = build_mir_expr(var_id_map, rhs.map(|r| *r));
-
-                Expression::Operation(Box::new(match (&lhs.0.ty, &rhs.0.ty) {
-                    (Type::Integer, Type::Integer) => match op.0 {
-                        BinaryOp::Equals => Operation::IntegerEquals(lhs, rhs),
-                        BinaryOp::NotEquals => Operation::IntegerNotEquals(lhs, rhs),
-                        BinaryOp::Plus => Operation::IntegerPlus(lhs, rhs),
-                        BinaryOp::Minus => Operation::IntegerMinus(lhs, rhs),
-                        BinaryOp::Multiply => Operation::IntegerMultiply(lhs, rhs),
-                        BinaryOp::Divide => Operation::IntegerDivide(lhs, rhs),
-                        BinaryOp::GreaterThanEquals => {
-                            Operation::IntegerGreaterThanEquals(lhs, rhs)
-                        }
-                        BinaryOp::LessThanEquals => Operation::IntegerLessThanEquals(lhs, rhs),
-                        BinaryOp::GreaterThan => Operation::IntegerGreaterThan(lhs, rhs),
-                        BinaryOp::LessThan => Operation::IntegerLessThan(lhs, rhs),
-                    },
-
-                    (Type::Float, Type::Float) => match op.0 {
-                        BinaryOp::Equals => Operation::FloatEquals(lhs, rhs),
-                        BinaryOp::NotEquals => Operation::FloatNotEquals(lhs, rhs),
-                        BinaryOp::Plus => Operation::FloatPlus(lhs, rhs),
-                        BinaryOp::Minus => Operation::FloatMinus(lhs, rhs),
-                        BinaryOp::Multiply => Operation::FloatMultiply(lhs, rhs),
-                        BinaryOp::Divide => Operation::FloatDivide(lhs, rhs),
-                        BinaryOp::GreaterThanEquals => Operation::FloatGreaterThanEquals(lhs, rhs),
-                        BinaryOp::LessThanEquals => Operation::FloatLessThanEquals(lhs, rhs),
-                        BinaryOp::GreaterThan => Operation::FloatGreaterThan(lhs, rhs),
-                        BinaryOp::LessThan => Operation::FloatLessThan(lhs, rhs),
-                    },
-
-                    (Type::Boolean, Type::Boolean) => match op.0 {
-                        BinaryOp::Equals => Operation::BooleanEquals(lhs, rhs),
-                        BinaryOp::NotEquals => Operation::BooleanNotEquals(lhs, rhs),
-
-                        _ => unreachable!(),
-                    },
-
-                    _ => unreachable!(),
-                }))
-            }
+            Expr::Vector { x, y } => Expression::Vector {
+                x: Box::new(build_mir_expr(var_id_map, &x.0)),
+                y: Box::new(build_mir_expr(var_id_map, &y.0)),
+            },
             Expr::Unary(op, rhs) => {
-                let rhs = build_mir_expr(var_id_map, rhs.map(|r| *r));
+                let rhs = build_mir_expr(var_id_map, &rhs.0);
 
-                #[allow(clippy::match_wildcard_for_single_variants)]
-                Expression::Operation(Box::new(match &rhs.0.ty {
-                    Type::Integer => match op.0 {
-                        UnaryOp::Negate => Operation::IntegerNegate(rhs),
+                Expression::Unary {
+                    op: op.0,
+                    rhs: Box::new(rhs),
+                }
+            }
+            Expr::Binary(lhs, op, rhs) => {
+                let lhs = build_mir_expr(var_id_map, &lhs.0);
+                let rhs = build_mir_expr(var_id_map, &rhs.0);
 
-                        _ => unreachable!(),
-                    },
-                    Type::Float => match op.0 {
-                        UnaryOp::Negate => Operation::FloatNegate(rhs),
-
-                        _ => unreachable!(),
-                    },
-                    Type::Boolean => match op.0 {
-                        UnaryOp::Not => Operation::BooleanNot(rhs),
-
-                        _ => unreachable!(),
-                    },
-                    _ => unreachable!(),
-                }))
+                Expression::Binary {
+                    lhs: Box::new(lhs),
+                    op: op.0,
+                    rhs: Box::new(rhs),
+                }
             }
         },
-        ty: expr.ty.into(),
-    })
+        ty: expr.ty,
+    }
 }

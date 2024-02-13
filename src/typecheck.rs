@@ -1,97 +1,156 @@
 use crate::{
     ast::{
-        typed::{self, Type, TypedExpr, TypedStatement},
-        BinaryOp, Expr, Statement, UnaryOp,
+        typed::{self, TypedExpr, TypedProcedure, TypedStatement, TypedTopLevel},
+        BinaryOp, Expr, Procedure, Statement, TopLevel, Type, UnaryOp,
     },
     error::Error,
     scopes::Scopes,
-    span::Spanned,
+    span::{Span, Spanned},
 };
 use rustc_hash::FxHashMap;
 
 pub fn typecheck<'src, 'file>(
-    ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
-) -> (
-    Result<Vec<Spanned<'file, TypedStatement<'src, 'file>>>, ()>,
-    Vec<Box<Error<'file>>>,
-) {
-    typecheck_ast(ast)
-}
-
-fn typecheck_ast<'src, 'file>(
-    ast: Vec<Spanned<'file, Statement<'src, 'file>>>,
-) -> (
-    Result<Vec<Spanned<'file, TypedStatement<'src, 'file>>>, ()>,
-    Vec<Box<Error<'file>>>,
-) {
+    ast: Vec<Spanned<'file, TopLevel<'src, 'file>>>,
+) -> Result<Vec<Spanned<'file, TypedTopLevel<'src, 'file>>>, Vec<Box<Error<'file>>>> {
     let mut engine = Engine::new();
+    let mut procedures = FxHashMap::default();
     let mut variables = Scopes::new();
-    let mut const_variables = Scopes::new();
 
     let mut errors = Vec::new();
 
-    let mut typed_ast = Vec::new();
+    for top_level in &ast {
+        let TopLevel::Procedure(Procedure {
+            name,
+            args,
+            body: _,
+        }) = &top_level.0;
 
-    for statement in ast {
-        match typecheck_statement(&mut engine, &mut variables, &mut const_variables, statement) {
-            Ok(statement) => typed_ast.push(statement),
-            Err(error) => errors.push(error),
+        match procedures.get(&name.0) {
+            None => {
+                let args = args
+                    .0
+                    .iter()
+                    .map(|(_, ty)| engine.insert(type_to_typeinfo(Spanned(ty, ty.1))))
+                    .collect();
+
+                procedures.insert(name.0, (name.1, args));
+            }
+            Some((span, _)) => {
+                errors.push(Box::new(Error::ProcedureRedefinition {
+                    name: name.0.to_string(),
+                    old_span: *span,
+                    new_span: name.1,
+                }));
+            }
         }
     }
 
+    let typed_ast = ast
+        .into_iter()
+        .filter_map(|top_level| match top_level.0 {
+            TopLevel::Procedure(procedure) => {
+                match typecheck_procedure(&mut engine, &mut procedures, &mut variables, procedure) {
+                    Ok(procedure) => {
+                        Some(Spanned(TypedTopLevel::Procedure(procedure), top_level.1))
+                    }
+                    Err(err) => {
+                        errors.push(err);
+
+                        None
+                    }
+                }
+            }
+        })
+        .collect();
+
     if errors.is_empty() {
-        (Ok(typed_ast), errors)
+        Ok(typed_ast)
     } else {
-        (Err(()), errors)
+        Err(errors)
     }
+}
+
+fn typecheck_procedure<'src, 'file>(
+    engine: &mut Engine<'file>,
+    procedures: &mut FxHashMap<&'src str, (Span, Vec<TypeId>)>,
+    variables: &mut Scopes<&'src str, TypeId>,
+    procedure: Procedure<'src, 'file>,
+) -> Result<TypedProcedure<'src, 'file>, Box<Error<'file>>> {
+    push_scope(variables);
+
+    procedure
+        .args
+        .0
+        .iter()
+        .map(|(name, _)| name.0)
+        .zip(&procedures.get(&procedure.name.0).unwrap().1)
+        .for_each(|(name, ty)| variables.insert(name, *ty));
+
+    let body = Spanned(
+        procedure
+            .body
+            .0
+            .into_iter()
+            .map(|statement| typecheck_statement(engine, procedures, variables, statement))
+            .collect::<Result<_, _>>()?,
+        procedure.body.1,
+    );
+
+    pop_scope(variables);
+
+    Ok(TypedProcedure {
+        name: procedure.name,
+        args: procedure.args,
+        body,
+    })
 }
 
 fn typecheck_statement<'src, 'file>(
     engine: &mut Engine<'file>,
+    procedures: &mut FxHashMap<&'src str, (Span, Vec<TypeId>)>,
     variables: &mut Scopes<&'src str, TypeId>,
-    const_variables: &mut Scopes<&'src str, TypeId>,
     statement: Spanned<'file, Statement<'src, 'file>>,
 ) -> Result<Spanned<'file, TypedStatement<'src, 'file>>, Box<Error<'file>>> {
     Ok(Spanned(
         match statement.0 {
             Statement::Expr(expr) => {
-                let expr = typecheck_expression(engine, variables, const_variables, expr)?;
+                let expr = typecheck_expression(engine, variables, expr)?;
 
                 TypedStatement::Expr(expr)
             }
             Statement::Block(statements) => {
-                push_scope(variables, const_variables);
+                push_scope(variables);
 
                 let statements = Spanned(
                     statements
                         .0
                         .into_iter()
                         .map(|statement| {
-                            typecheck_statement(engine, variables, const_variables, statement)
+                            typecheck_statement(engine, procedures, variables, statement)
                         })
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<_, _>>()?,
                     statements.1,
                 );
 
-                pop_scope(variables, const_variables);
+                pop_scope(variables);
 
                 TypedStatement::Block(statements)
             }
             Statement::Loop(statements) => {
-                push_scope(variables, const_variables);
+                push_scope(variables);
 
                 let statements = Spanned(
                     statements
                         .0
                         .into_iter()
                         .map(|statement| {
-                            typecheck_statement(engine, variables, const_variables, statement)
+                            typecheck_statement(engine, procedures, variables, statement)
                         })
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<_, _>>()?,
                     statements.1,
                 );
 
-                pop_scope(variables, const_variables);
+                pop_scope(variables);
 
                 TypedStatement::Loop(statements)
             }
@@ -100,8 +159,7 @@ fn typecheck_statement<'src, 'file>(
                 then_branch,
                 else_branch,
             } => {
-                let condition =
-                    typecheck_expression(engine, variables, const_variables, condition)?;
+                let condition = typecheck_expression(engine, variables, condition)?;
                 let condition_ty =
                     engine.insert(type_to_typeinfo(Spanned(&condition.0.ty, condition.1)));
 
@@ -109,42 +167,37 @@ fn typecheck_statement<'src, 'file>(
 
                 engine.unify(condition_ty, bool)?;
 
-                push_scope(variables, const_variables);
+                push_scope(variables);
 
                 let then_branch = Spanned(
                     then_branch
                         .0
                         .into_iter()
                         .map(|statement| {
-                            typecheck_statement(engine, variables, const_variables, statement)
+                            typecheck_statement(engine, procedures, variables, statement)
                         })
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<_, _>>()?,
                     then_branch.1,
                 );
 
-                pop_scope(variables, const_variables);
+                pop_scope(variables);
 
                 let else_branch = match else_branch {
                     Some(else_branch) => {
-                        push_scope(variables, const_variables);
+                        push_scope(variables);
 
                         let else_branch = Spanned(
                             else_branch
                                 .0
                                 .into_iter()
                                 .map(|statement| {
-                                    typecheck_statement(
-                                        engine,
-                                        variables,
-                                        const_variables,
-                                        statement,
-                                    )
+                                    typecheck_statement(engine, procedures, variables, statement)
                                 })
-                                .collect::<Result<Vec<_>, _>>()?,
+                                .collect::<Result<_, _>>()?,
                             else_branch.1,
                         );
 
-                        pop_scope(variables, const_variables);
+                        pop_scope(variables);
 
                         Some(else_branch)
                     }
@@ -164,8 +217,8 @@ fn typecheck_statement<'src, 'file>(
                 inclusive,
                 body,
             } => {
-                let start = typecheck_expression(engine, variables, const_variables, start)?;
-                let end = typecheck_expression(engine, variables, const_variables, end)?;
+                let start = typecheck_expression(engine, variables, start)?;
+                let end = typecheck_expression(engine, variables, end)?;
 
                 let start_ty = engine.insert(type_to_typeinfo(Spanned(&start.0.ty, start.1)));
                 let end_ty = engine.insert(type_to_typeinfo(Spanned(&end.0.ty, end.1)));
@@ -177,7 +230,7 @@ fn typecheck_statement<'src, 'file>(
                 engine.unify(start_ty, integer)?;
                 engine.unify(end_ty, integer)?;
 
-                push_scope(variables, const_variables);
+                push_scope(variables);
 
                 variables.insert(name.0, integer);
 
@@ -185,13 +238,13 @@ fn typecheck_statement<'src, 'file>(
                     body.0
                         .into_iter()
                         .map(|statement| {
-                            typecheck_statement(engine, variables, const_variables, statement)
+                            typecheck_statement(engine, procedures, variables, statement)
                         })
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<_, _>>()?,
                     body.1,
                 );
 
-                pop_scope(variables, const_variables);
+                pop_scope(variables);
 
                 TypedStatement::For {
                     name,
@@ -202,40 +255,18 @@ fn typecheck_statement<'src, 'file>(
                 }
             }
             Statement::Let { name, value } => {
-                let value = typecheck_expression(engine, variables, const_variables, value)?;
+                let value = typecheck_expression(engine, variables, value)?;
                 let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
 
                 variables.insert(name.0, value_ty);
 
                 TypedStatement::Let { name, value }
             }
-            Statement::Const { name, value } => {
-                let value = typecheck_expression(engine, variables, const_variables, value)?;
-                let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
-
-                if variables.contains_key(&name.0) || const_variables.contains_key(&name.0) {
-                    return Err(Box::new(Error::ConstAlreadyDefined {
-                        name: name.0.to_string(),
-                        span: name.1,
-                    }));
-                }
-
-                const_variables.insert(name.0, value_ty);
-
-                TypedStatement::Const { name, value }
-            }
             Statement::Assign { name, value } => {
-                let value = typecheck_expression(engine, variables, const_variables, value)?;
+                let value = typecheck_expression(engine, variables, value)?;
                 let value_ty = engine.insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
 
                 let Some(name_ty) = variables.get(&name.0) else {
-                    if const_variables.contains_key(&name.0) {
-                        return Err(Box::new(Error::AssignToConst {
-                            name: name.0.to_string(),
-                            span: name.1,
-                        }));
-                    }
-
                     return Err(Box::new(Error::UndefinedVariable {
                         name: name.0.to_string(),
                         span: name.1,
@@ -248,11 +279,12 @@ fn typecheck_statement<'src, 'file>(
             }
             Statement::Break => TypedStatement::Break,
             Statement::Continue => TypedStatement::Continue,
+            Statement::Return => TypedStatement::Return,
             Statement::Action { name, args } => {
                 let args = Spanned(
                     args.0
                         .into_iter()
-                        .map(|expr| typecheck_expression(engine, variables, const_variables, expr))
+                        .map(|expr| typecheck_expression(engine, variables, expr))
                         .collect::<Result<Vec<_>, _>>()?,
                     args.1,
                 );
@@ -267,16 +299,6 @@ fn typecheck_statement<'src, 'file>(
                         action_args_count!(1, args.len(), name.1);
 
                         vec![vec![TypeInfo::Integer]]
-                    }
-                    "move" => {
-                        action_args_count!(4, args.len(), name.1);
-
-                        vec![
-                            vec![TypeInfo::Object, TypeInfo::ObjectSet],
-                            vec![TypeInfo::Vector],
-                            vec![TypeInfo::Boolean],
-                            vec![TypeInfo::Float],
-                        ]
                     }
                     "print" => {
                         action_args_count!(1, args.len(), name.1);
@@ -331,6 +353,38 @@ fn typecheck_statement<'src, 'file>(
 
                 TypedStatement::Action { name, args }
             }
+            Statement::Call { proc, args } => {
+                let args = Spanned(
+                    args.0
+                        .into_iter()
+                        .map(|expr| typecheck_expression(engine, variables, expr))
+                        .collect::<Result<Vec<_>, _>>()?,
+                    args.1,
+                );
+
+                let Some((_, arg_types)) = procedures.get(&proc.0) else {
+                    return Err(Box::new(Error::UndefinedProcedure {
+                        name: proc.to_string(),
+                        span: proc.1,
+                    }));
+                };
+
+                if arg_types.len() != args.0.len() {
+                    return Err(Box::new(Error::WrongNumberOfProcedureArguments {
+                        expected: arg_types.len(),
+                        got: args.0.len(),
+                        span: proc.1,
+                    }));
+                }
+
+                for (ty, arg) in arg_types.iter().zip(args.0.iter().map(|arg| arg.0.ty)) {
+                    let arg_ty = engine.insert(type_to_typeinfo(Spanned(&arg, args.1)));
+
+                    engine.unify(*ty, arg_ty)?;
+                }
+
+                TypedStatement::Call { proc, args }
+            }
         },
         statement.1,
     ))
@@ -352,27 +406,19 @@ use action_args_count;
 fn typecheck_expression<'src, 'file>(
     engine: &mut Engine<'file>,
     variables: &mut Scopes<&str, TypeId>,
-    const_variables: &Scopes<&str, TypeId>,
     expr: Spanned<'file, Expr<'src, 'file>>,
 ) -> Result<Spanned<'file, TypedExpr<'src, 'file>>, Box<Error<'file>>> {
     Ok(Spanned(
         match expr.0 {
             Expr::Variable(var) => {
                 let var_result = variables.get(&var);
-                let const_var_result = const_variables.get(&var);
 
-                match (var_result, const_var_result) {
-                    (Some(ty), _) => TypedExpr {
+                match var_result {
+                    Some(ty) => TypedExpr {
                         expr: typed::Expr::Variable(var),
                         ty: engine.reconstruct(*ty)?.0,
                     },
-
-                    (None, Some(ty)) => TypedExpr {
-                        expr: typed::Expr::Variable(var),
-                        ty: engine.reconstruct(*ty)?.0,
-                    },
-
-                    (None, None) => {
+                    None => {
                         return Err(Box::new(Error::UndefinedVariable {
                             name: var.to_string(),
                             span: expr.1,
@@ -397,8 +443,8 @@ fn typecheck_expression<'src, 'file>(
                 ty: Type::Colour,
             },
             Expr::Vector { x, y } => {
-                let x = typecheck_expression(engine, variables, const_variables, x.map(|x| *x))?;
-                let y = typecheck_expression(engine, variables, const_variables, y.map(|y| *y))?;
+                let x = typecheck_expression(engine, variables, x.map(|x| *x))?;
+                let y = typecheck_expression(engine, variables, y.map(|y| *y))?;
 
                 let x_ty = engine.insert(type_to_typeinfo(Spanned(&x.0.ty, x.1)));
                 let y_ty = engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
@@ -418,15 +464,9 @@ fn typecheck_expression<'src, 'file>(
                     ty: Type::Vector,
                 }
             }
-            Expr::Object(object) => TypedExpr {
-                expr: typed::Expr::Object(object),
-                ty: Type::Object,
-            },
             Expr::Binary(lhs, op, rhs) => {
-                let lhs =
-                    typecheck_expression(engine, variables, const_variables, lhs.map(|l| *l))?;
-                let rhs =
-                    typecheck_expression(engine, variables, const_variables, rhs.map(|r| *r))?;
+                let lhs = typecheck_expression(engine, variables, lhs.map(|l| *l))?;
+                let rhs = typecheck_expression(engine, variables, rhs.map(|r| *r))?;
 
                 let lhs_ty = engine.insert(type_to_typeinfo(Spanned(&lhs.0.ty, lhs.1)));
                 let rhs_ty = engine.insert(type_to_typeinfo(Spanned(&rhs.0.ty, rhs.1)));
@@ -475,8 +515,7 @@ fn typecheck_expression<'src, 'file>(
                 }
             }
             Expr::Unary(op, expr) => {
-                let expr =
-                    typecheck_expression(engine, variables, const_variables, expr.map(|e| *e))?;
+                let expr = typecheck_expression(engine, variables, expr.map(|e| *e))?;
 
                 let ty = unary_op!(
                     expr.0.ty,
@@ -502,14 +541,12 @@ fn typecheck_expression<'src, 'file>(
     ))
 }
 
-fn push_scope(variables: &mut Scopes<&str, TypeId>, const_variables: &mut Scopes<&str, TypeId>) {
+fn push_scope(variables: &mut Scopes<&str, TypeId>) {
     variables.push_scope();
-    const_variables.push_scope();
 }
 
-fn pop_scope(variables: &mut Scopes<&str, TypeId>, const_variables: &mut Scopes<&str, TypeId>) {
+fn pop_scope(variables: &mut Scopes<&str, TypeId>) {
     variables.pop_scope();
-    const_variables.pop_scope();
 }
 
 struct Engine<'file> {
@@ -553,9 +590,7 @@ impl<'file> Engine<'file> {
             | (TypeInfo::Integer, TypeInfo::Integer)
             | (TypeInfo::Float, TypeInfo::Float)
             | (TypeInfo::Colour, TypeInfo::Colour)
-            | (TypeInfo::Vector, TypeInfo::Vector)
-            | (TypeInfo::Object, TypeInfo::Object)
-            | (TypeInfo::ObjectSet, TypeInfo::ObjectSet) => Ok(()),
+            | (TypeInfo::Vector, TypeInfo::Vector) => Ok(()),
 
             (a, b) => Err(Box::new(Error::IncompatibleTypes {
                 a: a.to_string(),
@@ -577,8 +612,6 @@ impl<'file> Engine<'file> {
             TypeInfo::Float => Ok(Type::Float),
             TypeInfo::Colour => Ok(Type::Colour),
             TypeInfo::Vector => Ok(Type::Vector),
-            TypeInfo::Object => Ok(Type::Object),
-            TypeInfo::ObjectSet => Ok(Type::ObjectSet),
         }
         .map(|ty| Spanned(ty, var.1))
     }
@@ -595,8 +628,6 @@ enum TypeInfo {
     Float,
     Colour,
     Vector,
-    Object,
-    ObjectSet,
 }
 
 impl std::fmt::Display for TypeInfo {
@@ -609,8 +640,6 @@ impl std::fmt::Display for TypeInfo {
             Self::Float => write!(f, "float"),
             Self::Colour => write!(f, "colour"),
             Self::Vector => write!(f, "vector"),
-            Self::Object => write!(f, "object"),
-            Self::ObjectSet => write!(f, "objectset"),
         }
     }
 }
@@ -622,8 +651,6 @@ fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo
         Type::Float => TypeInfo::Float,
         Type::Colour => TypeInfo::Colour,
         Type::Vector => TypeInfo::Vector,
-        Type::Object => TypeInfo::Object,
-        Type::ObjectSet => TypeInfo::ObjectSet,
     })
 }
 

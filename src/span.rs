@@ -62,7 +62,7 @@ impl<'file> std::ops::Deref for Span<'file> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Spanned<'file, T>(pub T, pub Span<'file>);
 
 impl<'file, T> Spanned<'file, T> {

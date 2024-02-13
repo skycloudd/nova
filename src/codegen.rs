@@ -1,444 +1,481 @@
 use crate::{
+    ast::{BinaryOp, Type, UnaryOp},
     low_ir::{
-        BasicBlock, BasicBlockId, Expression, Goto, Instruction, Object, Operation, Terminator,
-        Type, TypedExpression, VarId,
+        BasicBlock, Expression, Goto, Instruction, Procedure, Terminator, TopLevel, TypedExpression,
     },
-    mir_no_span,
+    mir::{self, ProcId, VarId},
+    IdGen,
 };
 use levelfile::{
-    scripts::{
-        Action, ActionType, Activator, DynamicType, FunctionCall, NovaScript, NovaValue,
-        StaticType, Variable,
-    },
-    Colour, Exolvl, MyString, MyVec, Vec2,
+    Action, ActionType, CallParameter, Colour, DynamicType, Exolvl, FunctionCall, NovaScript,
+    NovaValue, Parameter, StaticType, Variable, Vec2,
 };
 use rustc_hash::FxHashMap;
 
-pub fn codegen(low_ir: &[BasicBlock], exolvl: &mut Exolvl) {
-    let mut codegen = Codegen::new(exolvl);
+pub fn codegen(low_ir: &[TopLevel], exolvl: &mut Exolvl) {
+    Codegen::new(exolvl).codegen(low_ir);
+}
 
-    codegen.codegen(low_ir);
+#[derive(Clone, Debug)]
+struct ProcSignature {
+    call_block_id: i32,
+    param_ids: Vec<i32>,
+    blocks: Vec<i32>,
 }
 
 struct Codegen<'a> {
     exolvl: &'a mut Exolvl,
     id_gen: IdGen,
-    block_ids: FxHashMap<BasicBlockId, i32>,
-    var_ids: FxHashMap<VarId, i32>,
+    proc_map: FxHashMap<ProcId, ProcSignature>,
+    var_map: FxHashMap<VarId, i32>,
 }
 
 impl Codegen<'_> {
     fn new(exolvl: &mut Exolvl) -> Codegen {
         Codegen {
             exolvl,
-            id_gen: IdGen::new(),
-            block_ids: FxHashMap::default(),
-            var_ids: FxHashMap::default(),
+            id_gen: IdGen::default(),
+            proc_map: FxHashMap::default(),
+            var_map: FxHashMap::default(),
         }
     }
 
-    fn codegen(&mut self, low_ir: &[BasicBlock]) {
-        for bb in low_ir {
-            self.block_ids.insert(bb.id(), self.id_gen.next());
-        }
+    fn codegen(&mut self, low_ir: &[TopLevel]) {
+        low_ir
+            .iter()
+            .map(|tl| match tl {
+                TopLevel::Procedure(proc) => proc,
+            })
+            .for_each(|proc| {
+                let call_block_id = self.id_gen.next_i32();
 
-        let mut low_ir = low_ir.iter();
+                let param_ids = (0..proc.args.len())
+                    .map(|_| self.id_gen.next_i32())
+                    .collect();
 
-        let start_block = low_ir.next().unwrap();
-
-        self.codegen_bb(start_block);
-
-        for bb in low_ir {
-            self.codegen_bb(bb);
-        }
-
-        let main_script = NovaScript {
-            script_id: self.id_gen.next(),
-            script_name: MyString("main".into()),
-            is_function: false,
-            activation_count: 1,
-            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
-            activation_list: MyVec(vec![Activator {
-                activator_type: 28,
-                parameters: MyVec(vec![]),
-            }]),
-            parameters: MyVec(vec![]),
-            variables: MyVec(vec![]),
-            actions: MyVec(vec![new_action(ActionType::RunFunction {
-                function: FunctionCall {
-                    id: self.block_ids[&start_block.id()],
-                    parameters: MyVec(vec![]),
-                },
-            })]),
-        };
-
-        self.exolvl.level_data.nova_scripts.0.push(main_script);
-    }
-
-    fn codegen_bb(&mut self, bb: &BasicBlock) {
-        let mut script = NovaScript {
-            script_id: self.block_ids[&bb.id()],
-            script_name: MyString(format!("bb{}", bb.id())),
-            is_function: true,
-            activation_count: 0,
-            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
-            activation_list: MyVec(vec![]),
-            parameters: MyVec(vec![]),
-            variables: MyVec(vec![]),
-            actions: MyVec(vec![]),
-        };
-
-        for instruction in bb.instructions() {
-            match instruction {
-                Instruction::Expr(_expr) => {} // no side effects
-                Instruction::Let { name, value } => {
-                    let value = self.codegen_expr(value);
-
-                    let variable_id = self.id_gen.next();
-
-                    self.var_ids.insert(*name, variable_id);
-
-                    let variable = Variable {
-                        variable_id,
-                        name: MyString(format!("var_{name}")),
-                        static_type: match value.1 {
-                            Type::Boolean => StaticType::Bool,
-                            Type::Integer => StaticType::Int,
-                            Type::Float => StaticType::Float,
-                            Type::Colour => StaticType::Color,
-                            Type::Vector => StaticType::Vector,
-                            Type::Object => StaticType::Object,
-                            Type::ObjectSet => StaticType::ObjectSet,
-                        },
-                        initial_value: new_novavalue(DynamicType::IntConstant, NewValue::Int(0)),
-                    };
-
-                    self.exolvl.level_data.global_variables.0.push(variable);
-
-                    script.actions.0.push(new_action(ActionType::SetVariable {
-                        variable: variable_id,
-                        value: Some(value.0),
-                    }));
+                for arg in &proc.args {
+                    self.var_map.insert(arg.0, self.id_gen.next_i32());
                 }
-                Instruction::Assign { name, value } => {
-                    let value = self.codegen_expr(value);
 
-                    let variable = self.var_ids[name];
+                let blocks = proc.body.iter().map(|_| self.id_gen.next_i32()).collect();
 
-                    script.actions.0.push(new_action(ActionType::SetVariable {
-                        variable,
-                        value: Some(value.0),
-                    }));
-                }
-                Instruction::Action { name, args } => {
-                    let mut args = args.iter().map(|arg| (self.codegen_expr(arg), arg.ty));
+                self.proc_map.insert(
+                    proc.name,
+                    ProcSignature {
+                        call_block_id,
+                        param_ids,
+                        blocks,
+                    },
+                );
+            });
 
-                    let action = match name {
-                        mir_no_span::Action::Wait => {
-                            let duration = args.next().unwrap().0 .0;
-
-                            new_action(ActionType::Wait { duration })
-                        }
-                        mir_no_span::Action::WaitFrames => {
-                            let frames = args.next().unwrap().0 .0;
-
-                            new_action(ActionType::WaitFrames { frames })
-                        }
-                        mir_no_span::Action::Move => {
-                            let target_objects = args.next().unwrap().0 .0;
-                            let position = args.next().unwrap().0 .0;
-                            let global = args.next().unwrap().0 .0;
-                            let duration = args.next().unwrap().0 .0;
-
-                            new_action(ActionType::Move {
-                                target_objects,
-                                position,
-                                global,
-                                duration,
-                                easing: new_novavalue(
-                                    DynamicType::EasingConstant,
-                                    NewValue::Int(0),
-                                ),
-                            })
-                        }
-                        mir_no_span::Action::Print => {
-                            let expr = args.next().unwrap().0;
-
-                            let duration =
-                                new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0));
-
-                            match expr.1 {
-                                Type::Boolean => new_action(ActionType::ConditionBlock {
-                                    if_actions: MyVec(vec![new_action(ActionType::GameTextShow {
-                                        text: new_novavalue(
-                                            DynamicType::StringConstant,
-                                            NewValue::String(MyString("true".into())),
-                                        ),
-                                        duration: new_novavalue(
-                                            DynamicType::FloatConstant,
-                                            NewValue::Float(1.0),
-                                        ),
-                                    })]),
-                                    else_actions: MyVec(vec![new_action(
-                                        ActionType::GameTextShow {
-                                            text: new_novavalue(
-                                                DynamicType::StringConstant,
-                                                NewValue::String(MyString("false".into())),
-                                            ),
-                                            duration,
-                                        },
-                                    )]),
-                                    condition: expr.0,
-                                }),
-                                Type::Integer => new_action(ActionType::GameTextShow {
-                                    text: new_novavalue(
-                                        DynamicType::StringFromInt,
-                                        NewValue::SubValues(MyVec(vec![expr.0])),
-                                    ),
-                                    duration,
-                                }),
-                                Type::Float => new_action(ActionType::GameTextShow {
-                                    text: new_novavalue(
-                                        DynamicType::StringFromFloat,
-                                        NewValue::SubValues(MyVec(vec![expr.0])),
-                                    ),
-                                    duration,
-                                }),
-                                Type::Colour | Type::Vector | Type::Object | Type::ObjectSet => {
-                                    unreachable!()
-                                }
-                            }
-                        }
-                    };
-
-                    script.actions.0.push(action);
+        for toplevel in low_ir {
+            match toplevel {
+                TopLevel::Procedure(proc) => {
+                    self.codegen_proc(proc);
                 }
             }
         }
+    }
 
-        match bb.terminator() {
-            Terminator::Goto(goto) => match goto {
-                Goto::Block(id) => {
-                    let id = self.block_ids[id];
+    fn codegen_proc(&mut self, proc: &Procedure) {
+        let signature = self.proc_map[&proc.name].clone();
 
-                    script.actions.0.push(new_action(ActionType::RunFunction {
-                        function: FunctionCall {
-                            id,
-                            parameters: MyVec(vec![]),
+        self.codegen_body(&proc.body, &signature.blocks);
+
+        let actions = proc
+            .args
+            .iter()
+            .zip(&signature.param_ids)
+            .map(|((arg, ty), param_id)| {
+                new_action(ActionType::SetVariable {
+                    variable: self.var_map[arg],
+                    value: Some(new_novavalue(
+                        match ty {
+                            Type::Boolean => DynamicType::BoolParameter,
+                            Type::Integer => DynamicType::IntParameter,
+                            Type::Float => DynamicType::FloatParameter,
+                            Type::Colour => DynamicType::ColorParameter,
+                            Type::Vector => DynamicType::VectorParameter,
                         },
-                    }));
+                        NewValue::Int(*param_id),
+                    )),
+                })
+            })
+            .chain(std::iter::once(new_action(ActionType::RunFunction {
+                function: FunctionCall {
+                    id: signature.blocks[0],
+                    parameters: vec![],
+                },
+            })))
+            .collect();
+
+        let call_block = NovaScript {
+            script_id: signature.call_block_id,
+            script_name: format!("proc_{}", proc.name.0),
+            is_function: true,
+            activation_count: 0,
+            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
+            activation_list: vec![],
+            parameters: Self::proc_args(&proc.args, &signature.param_ids.clone()),
+            variables: vec![],
+            actions,
+        };
+
+        self.exolvl.level_data.nova_scripts.push(call_block);
+    }
+
+    fn proc_args(args: &[(VarId, Type)], param_ids: &[i32]) -> Vec<Parameter> {
+        args.iter()
+            .zip(param_ids)
+            .map(|((arg, ty), id)| {
+                let (static_type, default_value) = match ty {
+                    Type::Boolean => (
+                        StaticType::Bool,
+                        default_novavalue(DynamicType::BoolConstant),
+                    ),
+                    Type::Integer => (StaticType::Int, default_novavalue(DynamicType::IntConstant)),
+                    Type::Float => (
+                        StaticType::Float,
+                        default_novavalue(DynamicType::FloatConstant),
+                    ),
+                    Type::Colour => (
+                        StaticType::Color,
+                        default_novavalue(DynamicType::ColorConstant),
+                    ),
+                    Type::Vector => (
+                        StaticType::Vector,
+                        default_novavalue(DynamicType::VectorConstant),
+                    ),
+                };
+
+                Parameter {
+                    parameter_id: *id,
+                    name: format!("var_{}", arg.0),
+                    static_type,
+                    default_value,
                 }
-                Goto::Finish => {}
+            })
+            .collect()
+    }
+
+    fn codegen_body(&mut self, body: &[BasicBlock], block_ids: &[i32]) {
+        for (block, script_id) in body.iter().zip(block_ids) {
+            self.codegen_block(block, *script_id);
+        }
+    }
+
+    fn codegen_block(&mut self, block: &BasicBlock, script_id: i32) {
+        let mut actions = vec![];
+
+        for instr in block.instructions() {
+            actions.extend(self.codegen_instruction(instr));
+        }
+
+        actions.extend(self.codegen_terminator(block.terminator(), script_id));
+
+        let script = NovaScript {
+            script_id,
+            script_name: format!("bb_{}", block.id()),
+            is_function: true,
+            activation_count: 0,
+            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
+            activation_list: vec![],
+            parameters: vec![],
+            variables: vec![],
+            actions,
+        };
+
+        self.exolvl.level_data.nova_scripts.push(script);
+    }
+
+    fn codegen_instruction(&mut self, instruction: &Instruction) -> Vec<Action> {
+        match instruction {
+            Instruction::Expr(_expr) => vec![],
+            Instruction::Let { name, value } => {
+                let static_type = match value.ty {
+                    Type::Boolean => StaticType::Bool,
+                    Type::Integer => StaticType::Int,
+                    Type::Float => StaticType::Float,
+                    Type::Colour => StaticType::Color,
+                    Type::Vector => StaticType::Vector,
+                };
+
+                let initial_value = default_novavalue(match value.ty {
+                    Type::Boolean => DynamicType::BoolConstant,
+                    Type::Integer => DynamicType::IntConstant,
+                    Type::Float => DynamicType::FloatConstant,
+                    Type::Colour => DynamicType::ColorConstant,
+                    Type::Vector => DynamicType::VectorConstant,
+                });
+
+                let variable_id = self.id_gen.next_i32();
+
+                self.exolvl.level_data.global_variables.push(Variable {
+                    variable_id,
+                    name: format!("var_{}", name.0),
+                    static_type,
+                    initial_value,
+                });
+
+                self.var_map.insert(*name, variable_id);
+
+                vec![self.codegen_assign(*name, value)]
+            }
+            Instruction::Assign { name, value } => vec![self.codegen_assign(*name, value)],
+            Instruction::Action { name, args } => {
+                let mut args = args
+                    .iter()
+                    .map(|arg| (self.codegen_expression(arg), arg.ty));
+
+                vec![new_action(match name {
+                    mir::Action::Wait => {
+                        let duration = args.next().unwrap().0;
+
+                        ActionType::Wait { duration }
+                    }
+                    mir::Action::WaitFrames => {
+                        let frames = args.next().unwrap().0;
+
+                        ActionType::WaitFrames { frames }
+                    }
+                    mir::Action::Print => {
+                        let (value, ty) = args.next().unwrap();
+
+                        self.print_action(value, ty)
+                    }
+                })]
+            }
+        }
+    }
+
+    fn print_action(&self, value: NovaValue, ty: Type) -> ActionType {
+        let duration = new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0));
+
+        match ty {
+            Type::Boolean => ActionType::ConditionBlock {
+                if_actions: vec![new_action(ActionType::GameTextShow {
+                    text: new_novavalue(
+                        DynamicType::StringConstant,
+                        NewValue::String("true".to_string()),
+                    ),
+                    duration: new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0)),
+                })],
+                else_actions: vec![new_action(ActionType::GameTextShow {
+                    text: new_novavalue(
+                        DynamicType::StringConstant,
+                        NewValue::String("false".to_string()),
+                    ),
+                    duration,
+                })],
+                condition: value,
             },
+            Type::Integer => ActionType::GameTextShow {
+                text: new_novavalue(DynamicType::StringFromInt, NewValue::SubValues(vec![value])),
+                duration,
+            },
+            Type::Float => ActionType::GameTextShow {
+                text: new_novavalue(
+                    DynamicType::StringFromFloat,
+                    NewValue::SubValues(vec![value]),
+                ),
+                duration,
+            },
+            Type::Colour | Type::Vector => unreachable!(),
+        }
+    }
+
+    fn codegen_assign(&self, name: VarId, value: &TypedExpression) -> Action {
+        new_action(ActionType::SetVariable {
+            variable: self.var_map[&name],
+            value: Some(self.codegen_expression(value)),
+        })
+    }
+
+    fn codegen_terminator(&self, terminator: &Terminator, script_id: i32) -> Vec<Action> {
+        match terminator {
+            Terminator::Goto(goto) => Self::codegen_goto(goto, script_id),
             Terminator::If {
                 condition,
                 then_block,
                 else_block,
+            } => vec![new_action(ActionType::ConditionBlock {
+                if_actions: Self::codegen_goto(then_block, script_id),
+                else_actions: Self::codegen_goto(else_block, script_id),
+                condition: self.codegen_expression(condition),
+            })],
+            Terminator::Call {
+                proc,
+                args,
+                continuation,
             } => {
-                let condition = self.codegen_expr(condition);
+                let proc_signature = self.proc_map[proc].clone();
 
-                let then_block = match then_block {
-                    Goto::Block(then_block) => {
-                        let id = self.block_ids[then_block];
+                let parameters = args
+                    .iter()
+                    .zip(&proc_signature.param_ids)
+                    .map(|(arg, param_id)| CallParameter {
+                        parameter_id: *param_id,
+                        value: self.codegen_expression(arg),
+                    })
+                    .collect();
 
-                        vec![new_action(ActionType::RunFunction {
-                            function: FunctionCall {
-                                id,
-                                parameters: MyVec(vec![]),
-                            },
-                        })]
-                    }
-                    Goto::Finish => vec![],
-                };
-
-                let else_block = match else_block {
-                    Goto::Block(else_block) => {
-                        let id = self.block_ids[else_block];
-
-                        vec![new_action(ActionType::RunFunction {
-                            function: FunctionCall {
-                                id,
-                                parameters: MyVec(vec![]),
-                            },
-                        })]
-                    }
-                    Goto::Finish => vec![],
-                };
-
-                script
-                    .actions
-                    .0
-                    .push(new_action(ActionType::ConditionBlock {
-                        if_actions: MyVec(then_block),
-                        else_actions: MyVec(else_block),
-                        condition: condition.0,
-                    }));
+                std::iter::once(new_action(ActionType::RunFunction {
+                    function: FunctionCall {
+                        id: proc_signature.call_block_id,
+                        parameters,
+                    },
+                }))
+                .chain(Self::codegen_goto(continuation, script_id))
+                .collect()
             }
         }
-
-        self.exolvl.level_data.nova_scripts.0.push(script);
     }
 
-    fn codegen_expr(&mut self, expr: &TypedExpression) -> (NovaValue, Type) {
-        (
-            match &expr.expr {
-                Expression::Variable(name) => {
-                    new_novavalue(DynamicType::IntVariable, NewValue::Int(self.var_ids[name]))
-                }
-                Expression::Boolean(value) => {
-                    new_novavalue(DynamicType::BoolConstant, NewValue::Bool(*value))
-                }
-                Expression::Integer(value) => {
-                    new_novavalue(DynamicType::IntConstant, NewValue::Int(*value))
-                }
-                Expression::Float(value) => {
-                    new_novavalue(DynamicType::FloatConstant, NewValue::Float(*value))
-                }
-                Expression::Colour { r, g, b, a } => new_novavalue(
-                    DynamicType::ColorConstant,
-                    NewValue::Color(Colour {
-                        r: f32::from(*r) / 255.0,
-                        g: f32::from(*g) / 255.0,
-                        b: f32::from(*b) / 255.0,
-                        a: f32::from(*a) / 255.0,
-                    }),
-                ),
-                Expression::Vector { x, y } => {
-                    let x = self.codegen_expr(x);
-                    let y = self.codegen_expr(y);
-
-                    new_novavalue(
-                        DynamicType::VectorValues,
-                        NewValue::SubValues(MyVec(vec![x.0, y.0])),
-                    )
-                }
-                Expression::Object(object) => match object {
-                    Object::Player => new_novavalue(
-                        DynamicType::ObjectPlayer,
-                        NewValue::SubValues(MyVec(vec![])),
-                    ),
+    fn codegen_goto(goto: &Goto, script_id: i32) -> Vec<Action> {
+        match goto {
+            Goto::Block(block_id) => vec![new_action(ActionType::RunFunction {
+                function: FunctionCall {
+                    id: i32::try_from(*block_id).unwrap(),
+                    parameters: vec![],
                 },
-                Expression::Operation(operation) => {
-                    #[allow(clippy::match_same_arms)]
-                    let dyn_type = match operation.as_ref() {
-                        Operation::IntegerEquals(_, _) => DynamicType::BoolEqualNumber,
-                        Operation::IntegerNotEquals(_, _) => DynamicType::BoolNotEqualNumber,
-                        Operation::IntegerPlus(_, _) => DynamicType::IntAdd,
-                        Operation::IntegerMinus(_, _) => DynamicType::IntSubtract,
-                        Operation::IntegerMultiply(_, _) => DynamicType::IntMultiply,
-                        Operation::IntegerDivide(_, _) => DynamicType::IntDivide,
-                        Operation::IntegerGreaterThanEquals(_, _) => {
-                            DynamicType::BoolGreaterOrEqual
-                        }
-                        Operation::IntegerLessThanEquals(_, _) => DynamicType::BoolLessOrEqual,
-                        Operation::IntegerGreaterThan(_, _) => DynamicType::BoolGreater,
-                        Operation::IntegerLessThan(_, _) => DynamicType::BoolLess,
-                        Operation::FloatEquals(_, _) => DynamicType::BoolEqualNumber,
-                        Operation::FloatNotEquals(_, _) => DynamicType::BoolNotEqualNumber,
-                        Operation::FloatPlus(_, _) => DynamicType::FloatAdd,
-                        Operation::FloatMinus(_, _) => DynamicType::FloatSubtract,
-                        Operation::FloatMultiply(_, _) => DynamicType::FloatMultiply,
-                        Operation::FloatDivide(_, _) => DynamicType::FloatDivide,
-                        Operation::FloatGreaterThanEquals(_, _) => DynamicType::BoolGreaterOrEqual,
-                        Operation::FloatLessThanEquals(_, _) => DynamicType::BoolLessOrEqual,
-                        Operation::FloatGreaterThan(_, _) => DynamicType::BoolGreater,
-                        Operation::FloatLessThan(_, _) => DynamicType::BoolLess,
-                        Operation::BooleanEquals(_, _) => DynamicType::BoolEqualNumber,
-                        Operation::BooleanNotEquals(_, _) => DynamicType::BoolNotEqualNumber,
-                        Operation::IntegerNegate(_) => DynamicType::IntMultiply,
-                        Operation::FloatNegate(_) => DynamicType::FloatMultiply,
-                        Operation::BooleanNot(_) => DynamicType::BoolNot,
-                    };
+            })],
+            Goto::Return => vec![
+                new_action(ActionType::StopScript {
+                    script: new_novavalue(DynamicType::ScriptConstant, NewValue::Int(script_id)),
+                }),
+                new_action(ActionType::WaitFrames {
+                    frames: new_novavalue(DynamicType::IntConstant, NewValue::Int(1)),
+                }),
+            ],
+        }
+    }
 
-                    match operation.as_ref() {
-                        Operation::IntegerEquals(lhs, rhs)
-                        | Operation::IntegerNotEquals(lhs, rhs)
-                        | Operation::IntegerPlus(lhs, rhs)
-                        | Operation::IntegerMinus(lhs, rhs)
-                        | Operation::IntegerMultiply(lhs, rhs)
-                        | Operation::IntegerDivide(lhs, rhs)
-                        | Operation::IntegerGreaterThanEquals(lhs, rhs)
-                        | Operation::IntegerLessThanEquals(lhs, rhs)
-                        | Operation::IntegerGreaterThan(lhs, rhs)
-                        | Operation::IntegerLessThan(lhs, rhs)
-                        | Operation::FloatEquals(lhs, rhs)
-                        | Operation::FloatNotEquals(lhs, rhs)
-                        | Operation::FloatPlus(lhs, rhs)
-                        | Operation::FloatMinus(lhs, rhs)
-                        | Operation::FloatMultiply(lhs, rhs)
-                        | Operation::FloatDivide(lhs, rhs)
-                        | Operation::FloatGreaterThanEquals(lhs, rhs)
-                        | Operation::FloatLessThanEquals(lhs, rhs)
-                        | Operation::FloatGreaterThan(lhs, rhs)
-                        | Operation::FloatLessThan(lhs, rhs)
-                        | Operation::BooleanEquals(lhs, rhs)
-                        | Operation::BooleanNotEquals(lhs, rhs) => {
-                            let lhs = self.codegen_expr(lhs);
-                            let rhs = self.codegen_expr(rhs);
+    fn codegen_expression(&self, expr: &TypedExpression) -> NovaValue {
+        match &expr.expr {
+            Expression::Variable(var) => {
+                let dynamic_type = match expr.ty {
+                    Type::Boolean => DynamicType::BoolVariable,
+                    Type::Integer => DynamicType::IntVariable,
+                    Type::Float => DynamicType::FloatVariable,
+                    Type::Colour => DynamicType::ColorVariable,
+                    Type::Vector => DynamicType::VectorVariable,
+                };
 
-                            new_novavalue(dyn_type, NewValue::SubValues(MyVec(vec![lhs.0, rhs.0])))
-                        }
-                        Operation::IntegerNegate(rhs) => {
-                            let rhs = self.codegen_expr(rhs);
+                new_novavalue(dynamic_type, NewValue::Int(self.var_map[var]))
+            }
+            Expression::Boolean(value) => {
+                new_novavalue(DynamicType::BoolConstant, NewValue::Bool(*value))
+            }
+            Expression::Integer(value) => {
+                new_novavalue(DynamicType::IntConstant, NewValue::Int(*value))
+            }
+            Expression::Float(value) => {
+                new_novavalue(DynamicType::FloatConstant, NewValue::Float(*value))
+            }
+            Expression::Colour { r, g, b, a } => new_novavalue(
+                DynamicType::ColorConstant,
+                NewValue::Color(Colour {
+                    r: f32::from(*r) / 255.0,
+                    g: f32::from(*g) / 255.0,
+                    b: f32::from(*b) / 255.0,
+                    a: f32::from(*a) / 255.0,
+                }),
+            ),
+            Expression::Vector { x, y } => new_novavalue(
+                DynamicType::VectorValues,
+                NewValue::SubValues(vec![self.codegen_expression(x), self.codegen_expression(y)]),
+            ),
+            Expression::Unary { op, value } => {
+                let ty = value.ty;
+                let value = self.codegen_expression(value);
 
-                            new_novavalue(
-                                dyn_type,
-                                NewValue::SubValues(MyVec(vec![
-                                    rhs.0,
-                                    new_novavalue(DynamicType::IntConstant, NewValue::Int(-1)),
-                                ])),
-                            )
+                match op {
+                    UnaryOp::Negate => match ty {
+                        Type::Integer => new_novavalue(
+                            DynamicType::IntMultiply,
+                            NewValue::SubValues(vec![
+                                value,
+                                new_novavalue(DynamicType::IntConstant, NewValue::Int(-1)),
+                            ]),
+                        ),
+                        Type::Float => new_novavalue(
+                            DynamicType::FloatMultiply,
+                            NewValue::SubValues(vec![
+                                value,
+                                new_novavalue(DynamicType::FloatConstant, NewValue::Float(-1.0)),
+                            ]),
+                        ),
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    UnaryOp::Not => match ty {
+                        Type::Boolean => {
+                            new_novavalue(DynamicType::BoolNot, NewValue::SubValues(vec![value]))
                         }
-                        Operation::FloatNegate(rhs) => {
-                            let rhs = self.codegen_expr(rhs);
-
-                            new_novavalue(
-                                dyn_type,
-                                NewValue::SubValues(MyVec(vec![
-                                    rhs.0,
-                                    new_novavalue(
-                                        DynamicType::FloatConstant,
-                                        NewValue::Float(-1.0),
-                                    ),
-                                ])),
-                            )
-                        }
-                        Operation::BooleanNot(rhs) => {
-                            let rhs = self.codegen_expr(rhs);
-
-                            new_novavalue(dyn_type, NewValue::SubValues(MyVec(vec![rhs.0])))
-                        }
-                    }
+                        Type::Integer | Type::Float | Type::Colour | Type::Vector => unreachable!(),
+                    },
                 }
-            },
-            expr.ty,
-        )
-    }
-}
+            }
+            Expression::Binary { lhs, op, rhs } => {
+                assert_eq!(lhs.ty, rhs.ty);
 
-struct IdGen {
-    next_id: i32,
-}
+                let ty = lhs.ty;
 
-impl IdGen {
-    const fn new() -> Self {
-        Self { next_id: 0 }
-    }
+                let lhs = self.codegen_expression(lhs);
+                let rhs = self.codegen_expression(rhs);
 
-    fn next(&mut self) -> i32 {
-        let id = self.next_id;
+                let dyn_ty = match op {
+                    BinaryOp::Equals => match ty {
+                        Type::Boolean => DynamicType::BoolEqualBool,
+                        Type::Integer | Type::Float => DynamicType::BoolEqualNumber,
+                        Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::NotEquals => match ty {
+                        Type::Boolean => DynamicType::BoolNotEqualBool,
+                        Type::Integer | Type::Float => DynamicType::BoolNotEqualNumber,
+                        Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::Plus => match ty {
+                        Type::Integer => DynamicType::IntAdd,
+                        Type::Float => DynamicType::FloatAdd,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::Minus => match ty {
+                        Type::Integer => DynamicType::IntSubtract,
+                        Type::Float => DynamicType::FloatSubtract,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::Multiply => match ty {
+                        Type::Integer => DynamicType::IntMultiply,
+                        Type::Float => DynamicType::FloatMultiply,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::Divide => match ty {
+                        Type::Integer => DynamicType::IntDivide,
+                        Type::Float => DynamicType::FloatDivide,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::GreaterThanEquals => match ty {
+                        Type::Integer | Type::Float => DynamicType::BoolGreaterOrEqual,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::LessThanEquals => match ty {
+                        Type::Integer | Type::Float => DynamicType::BoolLessOrEqual,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::GreaterThan => match ty {
+                        Type::Integer | Type::Float => DynamicType::BoolGreater,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                    BinaryOp::LessThan => match ty {
+                        Type::Integer | Type::Float => DynamicType::BoolLess,
+                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                    },
+                };
 
-        self.next_id += 1;
-
-        id
-    }
-}
-
-const fn new_action(action_type: ActionType) -> Action {
-    Action {
-        closed: true,
-        wait: true,
-        action_type,
+                new_novavalue(dyn_ty, NewValue::SubValues(vec![lhs, rhs]))
+            }
+        }
     }
 }
 
@@ -542,7 +579,34 @@ enum NewValue {
     Bool(bool),
     Int(i32),
     Float(f32),
-    String(MyString),
+    String(String),
     Color(Colour),
-    SubValues(MyVec<NovaValue>),
+    SubValues(Vec<NovaValue>),
+}
+
+const fn default_novavalue(dynamic_type: DynamicType) -> NovaValue {
+    NovaValue {
+        dynamic_type,
+        bool_value: false,
+        int_value: 0,
+        float_value: 0.0,
+        string_value: None,
+        color_value: Colour {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        },
+        vector_value: Vec2 { x: 0.0, y: 0.0 },
+        int_list_value: None,
+        sub_values: None,
+    }
+}
+
+const fn new_action(action_type: ActionType) -> Action {
+    Action {
+        closed: true,
+        wait: true,
+        action_type,
+    }
 }

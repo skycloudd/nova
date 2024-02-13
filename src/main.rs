@@ -1,14 +1,18 @@
 use ariadne::FileCache;
 use clap::Parser;
-use nova::{report, run, RunError};
-use std::{fs::read_to_string, path::PathBuf};
+use nova::{report, run};
+use std::{
+    fs::read_to_string,
+    io::{Cursor, Read, Write},
+    path::PathBuf,
+};
 
 #[derive(clap::Parser)]
 struct Args {
     filename: PathBuf,
 
     #[clap(short, long)]
-    with: Option<PathBuf>,
+    level: Option<PathBuf>,
 
     #[clap(short, long)]
     out: Option<PathBuf>,
@@ -17,22 +21,24 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
+    let level = match args.level {
+        Some(path) => Box::new(std::fs::File::open(path).unwrap()) as Box<dyn Read>,
+        None => Box::new(Cursor::new(include_bytes!("default.exolvl"))) as Box<dyn Read>,
+    };
+
+    let out = match args.out {
+        Some(path) => Box::new(std::fs::File::create(path).unwrap()) as Box<dyn Write>,
+        None => Box::new(std::io::stdout()) as Box<dyn Write>,
+    };
+
     match run(
         &read_to_string(&args.filename).unwrap(),
         &args.filename,
-        args.with.as_deref(),
+        level,
+        out,
     ) {
-        Ok(out_bytes) => match args.out {
-            Some(out) => std::fs::write(out, out_bytes).unwrap(),
-            None => std::io::Write::write_all(&mut std::io::stdout(), &out_bytes).unwrap(),
-        },
-        Err(RunError::Io(error)) => {
-            eprintln!("Io error: {}", error);
-        }
-        Err(RunError::LevelFile(error)) => {
-            eprintln!("Error reading level file: {}", error);
-        }
-        Err(RunError::Compile(errors)) => {
+        Ok(()) => {}
+        Err(errors) => {
             for error in &errors {
                 report(&args.filename, error)
                     .eprint(FileCache::default())

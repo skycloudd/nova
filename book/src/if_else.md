@@ -4,7 +4,7 @@ If/Else statements are used to control the flow of a program. They're used to ru
 
 ## Syntax
 
-```ruby
+```swift
 if <expression> then
     <code>
 else
@@ -16,13 +16,13 @@ The `else` block is optional.
 
 ## Example
 
-```ruby
+```swift
 if true then
     // ...
 end
 ```
 
-```ruby
+```swift
 if 2 + 2 == 5 then
     action print: 4;
 else

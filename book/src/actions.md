@@ -6,7 +6,7 @@ Actions are the primary way to interact with the level and the objects in it.
 
 Actions are written in the following format:
 
-```ruby
+```swift
 action <name>: <arg1>, <arg2>, ...;
 ```
 
@@ -29,17 +29,6 @@ Wait for a number of frames and then continue running the script.
 Arguments:
 
 -   `int` - The number of frames to wait.
-
-### `move`
-
-Move an object by a vector.
-
-Arguments:
-
--   `object/objectset` - The object to move.
--   `vector` - The vector to move the object by.
--   `bool` - Move the object globally or not. `true` = global, `false` = relative.
--   `float` - The time to take to move the object.
 
 #### `print`
 
