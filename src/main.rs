@@ -1,4 +1,4 @@
-use ariadne::FileCache;
+use ariadne::{Color, FileCache, Fmt};
 use clap::Parser;
 use nova::{report, run};
 use std::{
@@ -16,6 +16,9 @@ struct Args {
 
     #[clap(short, long)]
     out: Option<PathBuf>,
+
+    #[clap(long)]
+    overwrite: bool,
 }
 
 fn main() {
@@ -27,7 +30,17 @@ fn main() {
     };
 
     let out = match args.out {
-        Some(path) => Box::new(std::fs::File::create(path).unwrap()) as Box<dyn Write>,
+        Some(path) => match path.try_exists() {
+            Ok(true) | Err(_)
+                if (path.extension() != Some("exolvl".as_ref()) || args.overwrite) =>
+            {
+                panic!(
+                    "output file `{}` already exists",
+                    path.display().fg(Color::Yellow)
+                )
+            }
+            _ => Box::new(std::fs::File::create(path).unwrap()) as Box<dyn Write>,
+        },
         None => Box::new(std::io::stdout()) as Box<dyn Write>,
     };
 
