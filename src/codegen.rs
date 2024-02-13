@@ -7,8 +7,8 @@ use crate::{
     IdGen,
 };
 use levelfile::{
-    Action, ActionType, CallParameter, Colour, DynamicType, Exolvl, FunctionCall, NovaScript,
-    NovaValue, Parameter, StaticType, Variable, Vec2,
+    Action, ActionType, Activator, CallParameter, Colour, DynamicType, Exolvl, FunctionCall,
+    NovaScript, NovaValue, Parameter, StaticType, Variable, Vec2,
 };
 use rustc_hash::FxHashMap;
 
@@ -28,6 +28,7 @@ struct Codegen<'a> {
     id_gen: IdGen,
     proc_map: FxHashMap<ProcId, ProcSignature>,
     var_map: FxHashMap<VarId, i32>,
+    current_proc: Option<ProcId>,
 }
 
 impl Codegen<'_> {
@@ -37,6 +38,7 @@ impl Codegen<'_> {
             id_gen: IdGen::default(),
             proc_map: FxHashMap::default(),
             var_map: FxHashMap::default(),
+            current_proc: None,
         }
     }
 
@@ -54,7 +56,28 @@ impl Codegen<'_> {
                     .collect();
 
                 for arg in &proc.args {
-                    self.var_map.insert(arg.0, self.id_gen.next_i32());
+                    let variable_id = self.id_gen.next_i32();
+
+                    self.var_map.insert(arg.0, variable_id);
+
+                    self.exolvl.level_data.global_variables.push(Variable {
+                        variable_id,
+                        name: format!("var_{}", arg.0 .0),
+                        static_type: match arg.1 {
+                            Type::Boolean => StaticType::Bool,
+                            Type::Integer => StaticType::Int,
+                            Type::Float => StaticType::Float,
+                            Type::Colour => StaticType::Color,
+                            Type::Vector => StaticType::Vector,
+                        },
+                        initial_value: default_novavalue(match arg.1 {
+                            Type::Boolean => DynamicType::BoolConstant,
+                            Type::Integer => DynamicType::IntConstant,
+                            Type::Float => DynamicType::FloatConstant,
+                            Type::Colour => DynamicType::ColorConstant,
+                            Type::Vector => DynamicType::VectorConstant,
+                        }),
+                    });
                 }
 
                 let blocks = proc.body.iter().map(|_| self.id_gen.next_i32()).collect();
@@ -76,10 +99,34 @@ impl Codegen<'_> {
                 }
             }
         }
+
+        let main_proc_id = ProcId(1);
+
+        self.exolvl.level_data.nova_scripts.push(NovaScript {
+            script_id: self.id_gen.next_i32(),
+            script_name: "run main".to_string(),
+            is_function: false,
+            activation_count: 0,
+            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
+            activation_list: vec![Activator {
+                activator_type: 0,
+                parameters: vec![],
+            }],
+            parameters: vec![],
+            variables: vec![],
+            actions: vec![new_action(ActionType::RunFunction {
+                function: FunctionCall {
+                    id: self.proc_map[&main_proc_id].call_block_id,
+                    parameters: vec![],
+                },
+            })],
+        });
     }
 
     fn codegen_proc(&mut self, proc: &Procedure) {
         let signature = self.proc_map[&proc.name].clone();
+
+        self.current_proc = Some(proc.name);
 
         self.codegen_body(&proc.body, &signature.blocks);
 
@@ -294,14 +341,14 @@ impl Codegen<'_> {
 
     fn codegen_terminator(&self, terminator: &Terminator, script_id: i32) -> Vec<Action> {
         match terminator {
-            Terminator::Goto(goto) => Self::codegen_goto(goto, script_id),
+            Terminator::Goto(goto) => self.codegen_goto(goto, script_id),
             Terminator::If {
                 condition,
                 then_block,
                 else_block,
             } => vec![new_action(ActionType::ConditionBlock {
-                if_actions: Self::codegen_goto(then_block, script_id),
-                else_actions: Self::codegen_goto(else_block, script_id),
+                if_actions: self.codegen_goto(then_block, script_id),
+                else_actions: self.codegen_goto(else_block, script_id),
                 condition: self.codegen_expression(condition),
             })],
             Terminator::Call {
@@ -326,17 +373,17 @@ impl Codegen<'_> {
                         parameters,
                     },
                 }))
-                .chain(Self::codegen_goto(continuation, script_id))
+                .chain(self.codegen_goto(continuation, script_id))
                 .collect()
             }
         }
     }
 
-    fn codegen_goto(goto: &Goto, script_id: i32) -> Vec<Action> {
+    fn codegen_goto(&self, goto: &Goto, script_id: i32) -> Vec<Action> {
         match goto {
             Goto::Block(block_id) => vec![new_action(ActionType::RunFunction {
                 function: FunctionCall {
-                    id: i32::try_from(*block_id).unwrap(),
+                    id: self.proc_map[&self.current_proc.unwrap()].blocks[*block_id as usize],
                     parameters: vec![],
                 },
             })],
