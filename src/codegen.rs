@@ -242,14 +242,14 @@ impl Codegen<'_> {
                     mir::Action::Print => {
                         let (value, ty) = args.next().unwrap();
 
-                        self.print_action(value, ty)
+                        Self::print_action(value, ty)
                     }
                 })]
             }
         }
     }
 
-    fn print_action(&self, value: NovaValue, ty: Type) -> ActionType {
+    fn print_action(value: NovaValue, ty: Type) -> ActionType {
         let duration = new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0));
 
         match ty {
