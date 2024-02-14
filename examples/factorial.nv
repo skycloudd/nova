@@ -13,3 +13,5 @@ proc main() do
         factorial(nth);
     end
 end
+
+run main;

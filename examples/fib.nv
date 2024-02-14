@@ -16,3 +16,5 @@ proc main() do
         fib(n);
     end
 end
+
+run main();
