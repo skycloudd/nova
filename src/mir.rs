@@ -174,7 +174,7 @@ pub fn build<'src, 'file>(
     for top_level in ast {
         match &top_level.0 {
             TypedTopLevel::Procedure(procedure) => {
-                proc_id_map.insert(&procedure.name.0);
+                proc_id_map.insert(procedure.name.0);
 
                 for arg in &procedure.args.0 {
                     var_id_map.insert(&arg.0);
@@ -206,7 +206,7 @@ fn build_mir_procedure<'src>(
     procedure: &'src TypedProcedure<'src, '_>,
 ) -> Procedure<'src> {
     Procedure {
-        name: *proc_id_map.get(&procedure.name.0).unwrap(),
+        name: *proc_id_map.get(procedure.name.0).unwrap(),
         args: procedure
             .args
             .iter()
