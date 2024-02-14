@@ -7,8 +7,8 @@ use crate::{
     IdGen,
 };
 use levelfile::{
-    Action, ActionType, Activator, CallParameter, Colour, DynamicType, Exolvl, FunctionCall,
-    NovaScript, NovaValue, Parameter, StaticType, Variable, Vec2,
+    Action, ActionType, CallParameter, Colour, DynamicType, Exolvl, FunctionCall, NovaScript,
+    NovaValue, Parameter, StaticType, Variable, Vec2,
 };
 use rustc_hash::FxHashMap;
 
@@ -102,27 +102,27 @@ impl Codegen<'_> {
             }
         }
 
-        let main_proc_id = ProcId(1);
+        // let main_proc_id = ProcId(0);
 
-        self.exolvl.level_data.nova_scripts.push(NovaScript {
-            script_id: self.id_gen.next_i32(),
-            script_name: "run main".to_string(),
-            is_function: false,
-            activation_count: 0,
-            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
-            activation_list: vec![Activator {
-                activator_type: 0,
-                parameters: vec![],
-            }],
-            parameters: vec![],
-            variables: vec![],
-            actions: vec![new_action(ActionType::RunFunction {
-                function: FunctionCall {
-                    id: self.proc_map[&main_proc_id].call_block_id,
-                    parameters: vec![],
-                },
-            })],
-        });
+        // self.exolvl.level_data.nova_scripts.push(NovaScript {
+        //     script_id: self.id_gen.next_i32(),
+        //     script_name: "run main".to_string(),
+        //     is_function: false,
+        //     activation_count: 0,
+        //     condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
+        //     activation_list: vec![Activator {
+        //         activator_type: 0,
+        //         parameters: vec![],
+        //     }],
+        //     parameters: vec![],
+        //     variables: vec![],
+        //     actions: vec![new_action(ActionType::RunFunction {
+        //         function: FunctionCall {
+        //             id: self.proc_map[&main_proc_id].call_block_id,
+        //             parameters: vec![],
+        //         },
+        //     })],
+        // });
     }
 
     fn codegen_proc(&mut self, proc: &Procedure) {
