@@ -78,9 +78,9 @@ pub fn run<'src: 'file, 'file>(
 
         let low_ir = low_ir::lower(&mir);
 
-        for toplevel in &low_ir {
-            println!("{toplevel}");
-        }
+        // for toplevel in &low_ir {
+        //     println!("{toplevel}");
+        // }
 
         let mut decoder = flate2::read::GzDecoder::new(level);
 
@@ -88,7 +88,7 @@ pub fn run<'src: 'file, 'file>(
 
         codegen::codegen(&low_ir, &mut exolvl);
 
-        println!("{exolvl:#?}");
+        // println!("{exolvl:#?}");
 
         let mut encoder = GzEncoder::new(out, flate2::Compression::default());
 
