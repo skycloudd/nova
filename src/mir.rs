@@ -9,52 +9,52 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel {
-    Procedure(Procedure),
+pub enum TopLevel<'src> {
+    Procedure(Procedure<'src>),
 }
 
 #[derive(Debug)]
-pub struct Procedure {
+pub struct Procedure<'src> {
     pub name: ProcId,
     pub args: Vec<(VarId, Type)>,
-    pub body: Vec<Statement>,
+    pub body: Vec<Statement<'src>>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct ProcId(pub usize);
 
 #[derive(Debug)]
-pub enum Statement {
-    Expr(TypedExpression),
+pub enum Statement<'src> {
+    Expr(TypedExpression<'src>),
     Block(Vec<Self>),
     Loop(Vec<Self>),
     If {
-        condition: TypedExpression,
+        condition: TypedExpression<'src>,
         then_branch: Vec<Self>,
         else_branch: Option<Vec<Self>>,
     },
     Let {
         name: VarId,
-        value: TypedExpression,
+        value: TypedExpression<'src>,
     },
     Assign {
         name: VarId,
-        value: TypedExpression,
+        value: TypedExpression<'src>,
     },
     Break,
     Continue,
     Return,
     Action {
         action: Action,
-        args: Vec<TypedExpression>,
+        args: Vec<TypedExpression<'src>>,
     },
     Call {
         proc: ProcId,
-        args: Vec<TypedExpression>,
+        args: Vec<TypedExpression<'src>>,
     },
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
     /// `wait <float>`
     Wait,
@@ -65,17 +65,18 @@ pub enum Action {
 }
 
 #[derive(Debug)]
-pub struct TypedExpression {
-    pub expr: Expression,
+pub struct TypedExpression<'src> {
+    pub expr: Expression<'src>,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression {
+pub enum Expression<'src> {
     Variable(VarId),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
+    String(&'src str),
     Colour {
         r: u8,
         g: u8,
@@ -83,17 +84,17 @@ pub enum Expression {
         a: u8,
     },
     Vector {
-        x: Box<TypedExpression>,
-        y: Box<TypedExpression>,
+        x: Box<TypedExpression<'src>>,
+        y: Box<TypedExpression<'src>>,
     },
     Unary {
         op: UnaryOp,
-        rhs: Box<TypedExpression>,
+        rhs: Box<TypedExpression<'src>>,
     },
     Binary {
-        lhs: Box<TypedExpression>,
+        lhs: Box<TypedExpression<'src>>,
         op: BinaryOp,
-        rhs: Box<TypedExpression>,
+        rhs: Box<TypedExpression<'src>>,
     },
 }
 
@@ -164,9 +165,23 @@ impl<'src> IdMap<'src> for ProcIdMap<'src> {
     }
 }
 
-pub fn build<'file>(ast: &[Spanned<'file, TypedTopLevel<'_, 'file>>]) -> Vec<TopLevel> {
+pub fn build<'src, 'file>(
+    ast: &'src [Spanned<'file, TypedTopLevel<'_, 'file>>],
+) -> Vec<TopLevel<'src>> {
     let mut var_id_map = VarIdMap::new();
     let mut proc_id_map = ProcIdMap::new();
+
+    for top_level in ast {
+        match &top_level.0 {
+            TypedTopLevel::Procedure(procedure) => {
+                proc_id_map.insert(&procedure.name.0);
+
+                for arg in &procedure.args.0 {
+                    var_id_map.insert(&arg.0);
+                }
+            }
+        }
+    }
 
     ast.iter()
         .map(|top_level| build_mir_top_level(&mut var_id_map, &mut proc_id_map, &top_level.0))
@@ -176,8 +191,8 @@ pub fn build<'file>(ast: &[Spanned<'file, TypedTopLevel<'_, 'file>>]) -> Vec<Top
 fn build_mir_top_level<'src>(
     var_id_map: &mut VarIdMap<'src>,
     proc_id_map: &mut ProcIdMap<'src>,
-    top_level: &TypedTopLevel<'src, '_>,
-) -> TopLevel {
+    top_level: &'src TypedTopLevel<'src, '_>,
+) -> TopLevel<'src> {
     match top_level {
         TypedTopLevel::Procedure(procedure) => {
             TopLevel::Procedure(build_mir_procedure(var_id_map, proc_id_map, procedure))
@@ -188,14 +203,14 @@ fn build_mir_top_level<'src>(
 fn build_mir_procedure<'src>(
     var_id_map: &mut VarIdMap<'src>,
     proc_id_map: &mut ProcIdMap<'src>,
-    procedure: &TypedProcedure<'src, '_>,
-) -> Procedure {
+    procedure: &'src TypedProcedure<'src, '_>,
+) -> Procedure<'src> {
     Procedure {
-        name: proc_id_map.insert(procedure.name.0),
+        name: *proc_id_map.get(&procedure.name.0).unwrap(),
         args: procedure
             .args
             .iter()
-            .map(|arg| (var_id_map.insert(&arg.0), arg.1 .0))
+            .map(|arg| (*var_id_map.get(&arg.0).unwrap(), arg.1 .0))
             .collect(),
         body: procedure
             .body
@@ -208,8 +223,8 @@ fn build_mir_procedure<'src>(
 fn build_mir_statement<'src>(
     var_id_map: &mut VarIdMap<'src>,
     proc_id_map: &mut ProcIdMap<'src>,
-    statement: &TypedStatement<'src, '_>,
-) -> Statement {
+    statement: &'src TypedStatement<'src, '_>,
+) -> Statement<'src> {
     match statement {
         TypedStatement::Expr(expr) => Statement::Expr(build_mir_expr(var_id_map, &expr.0)),
         TypedStatement::Block(statements) => Statement::Block(
@@ -338,13 +353,14 @@ fn build_mir_statement<'src>(
 fn build_mir_expr<'src>(
     var_id_map: &mut VarIdMap<'src>,
     expr: &TypedExpr<'src, '_>,
-) -> TypedExpression {
+) -> TypedExpression<'src> {
     TypedExpression {
         expr: match &expr.expr {
             Expr::Variable(name) => Expression::Variable(*var_id_map.get(name).unwrap()),
             Expr::Boolean(value) => Expression::Boolean(*value),
             Expr::Integer(value) => Expression::Integer(*value),
             Expr::Float(value) => Expression::Float(*value),
+            Expr::String(value) => Expression::String(value),
             Expr::Colour { r, g, b, a } => Expression::Colour {
                 r: *r,
                 g: *g,

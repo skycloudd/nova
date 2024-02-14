@@ -70,6 +70,7 @@ macro_rules! ast_expr {
             Boolean(bool),
             Integer(crate::IntTy),
             Float(crate::FloatTy),
+            String(&'src str),
             Colour {
                 r: u8,
                 g: u8,
@@ -152,6 +153,7 @@ pub enum Type {
     Boolean,
     Integer,
     Float,
+    String,
     Colour,
     Vector,
 }
@@ -181,6 +183,7 @@ pub mod typed {
                 Self::Boolean => write!(f, "bool"),
                 Self::Integer => write!(f, "int"),
                 Self::Float => write!(f, "float"),
+                Self::String => write!(f, "string"),
                 Self::Colour => write!(f, "colour"),
                 Self::Vector => write!(f, "vector"),
             }

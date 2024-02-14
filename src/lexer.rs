@@ -2,13 +2,14 @@ use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
 use std::num::ParseIntError;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token<'src> {
     Error,
     Variable(&'src str),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
+    String(&'src str),
     HexCode(u8, u8, u8, Option<u8>),
     Kw(Kw),
     Ctrl(Ctrl),
@@ -77,6 +78,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Boolean(b) => write!(f, "{b}"),
             Token::Integer(n) => write!(f, "{n}"),
             Token::Float(n) => write!(f, "{n}"),
+            Token::String(s) => write!(f, "\"{s}\""),
             Token::HexCode(r, g, b, a) => write!(
                 f,
                 "#{r:02x}{g:02x}{b:02x}{}",
@@ -196,6 +198,12 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .map(Token::Float)
         .boxed();
 
+    let string = just('"')
+        .ignore_then(none_of('"').repeated())
+        .then_ignore(just('"'))
+        .to_slice()
+        .map(Token::String);
+
     let hex_byte = choice((
         just('0'),
         just('1'),
@@ -302,7 +310,7 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     .boxed();
 
     let token = choice((
-        keyword, bool, variable, float, integer, colour, operator, ctrl,
+        keyword, bool, variable, float, integer, string, colour, operator, ctrl,
     ))
     .boxed();
 

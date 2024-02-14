@@ -67,6 +67,7 @@ impl Codegen<'_> {
                             Type::Boolean => StaticType::Bool,
                             Type::Integer => StaticType::Int,
                             Type::Float => StaticType::Float,
+                            Type::String => StaticType::String,
                             Type::Colour => StaticType::Color,
                             Type::Vector => StaticType::Vector,
                         },
@@ -74,6 +75,7 @@ impl Codegen<'_> {
                             Type::Boolean => DynamicType::BoolConstant,
                             Type::Integer => DynamicType::IntConstant,
                             Type::Float => DynamicType::FloatConstant,
+                            Type::String => DynamicType::StringConstant,
                             Type::Colour => DynamicType::ColorConstant,
                             Type::Vector => DynamicType::VectorConstant,
                         }),
@@ -142,6 +144,7 @@ impl Codegen<'_> {
                             Type::Boolean => DynamicType::BoolParameter,
                             Type::Integer => DynamicType::IntParameter,
                             Type::Float => DynamicType::FloatParameter,
+                            Type::String => DynamicType::StringParameter,
                             Type::Colour => DynamicType::ColorParameter,
                             Type::Vector => DynamicType::VectorParameter,
                         },
@@ -185,6 +188,10 @@ impl Codegen<'_> {
                     Type::Float => (
                         StaticType::Float,
                         default_novavalue(DynamicType::FloatConstant),
+                    ),
+                    Type::String => (
+                        StaticType::String,
+                        default_novavalue(DynamicType::StringConstant),
                     ),
                     Type::Colour => (
                         StaticType::Color,
@@ -244,6 +251,7 @@ impl Codegen<'_> {
                     Type::Boolean => StaticType::Bool,
                     Type::Integer => StaticType::Int,
                     Type::Float => StaticType::Float,
+                    Type::String => StaticType::String,
                     Type::Colour => StaticType::Color,
                     Type::Vector => StaticType::Vector,
                 };
@@ -252,6 +260,7 @@ impl Codegen<'_> {
                     Type::Boolean => DynamicType::BoolConstant,
                     Type::Integer => DynamicType::IntConstant,
                     Type::Float => DynamicType::FloatConstant,
+                    Type::String => DynamicType::StringConstant,
                     Type::Colour => DynamicType::ColorConstant,
                     Type::Vector => DynamicType::VectorConstant,
                 });
@@ -328,6 +337,10 @@ impl Codegen<'_> {
                 ),
                 duration,
             },
+            Type::String => ActionType::GameTextShow {
+                text: value,
+                duration,
+            },
             Type::Colour | Type::Vector => unreachable!(),
         }
     }
@@ -383,7 +396,7 @@ impl Codegen<'_> {
         match goto {
             Goto::Block(block_id) => vec![new_action(ActionType::RunFunction {
                 function: FunctionCall {
-                    id: self.proc_map[&self.current_proc.unwrap()].blocks[*block_id as usize],
+                    id: self.proc_map[&self.current_proc.unwrap()].blocks[*block_id],
                     parameters: vec![],
                 },
             })],
@@ -405,6 +418,7 @@ impl Codegen<'_> {
                     Type::Boolean => DynamicType::BoolVariable,
                     Type::Integer => DynamicType::IntVariable,
                     Type::Float => DynamicType::FloatVariable,
+                    Type::String => DynamicType::StringVariable,
                     Type::Colour => DynamicType::ColorVariable,
                     Type::Vector => DynamicType::VectorVariable,
                 };
@@ -420,6 +434,10 @@ impl Codegen<'_> {
             Expression::Float(value) => {
                 new_novavalue(DynamicType::FloatConstant, NewValue::Float(*value))
             }
+            Expression::String(value) => new_novavalue(
+                DynamicType::StringConstant,
+                NewValue::String((*value).to_string()),
+            ),
             Expression::Colour { r, g, b, a } => new_novavalue(
                 DynamicType::ColorConstant,
                 NewValue::Color(Colour {
@@ -453,13 +471,19 @@ impl Codegen<'_> {
                                 new_novavalue(DynamicType::FloatConstant, NewValue::Float(-1.0)),
                             ]),
                         ),
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     UnaryOp::Not => match ty {
                         Type::Boolean => {
                             new_novavalue(DynamicType::BoolNot, NewValue::SubValues(vec![value]))
                         }
-                        Type::Integer | Type::Float | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Integer
+                        | Type::Float
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => unreachable!(),
                     },
                 }
             }
@@ -475,48 +499,65 @@ impl Codegen<'_> {
                     BinaryOp::Equals => match ty {
                         Type::Boolean => DynamicType::BoolEqualBool,
                         Type::Integer | Type::Float => DynamicType::BoolEqualNumber,
+                        Type::String => DynamicType::BoolEqualString,
                         Type::Colour | Type::Vector => unreachable!(),
                     },
                     BinaryOp::NotEquals => match ty {
                         Type::Boolean => DynamicType::BoolNotEqualBool,
                         Type::Integer | Type::Float => DynamicType::BoolNotEqualNumber,
+                        Type::String => DynamicType::BoolNotEqualString,
                         Type::Colour | Type::Vector => unreachable!(),
                     },
                     BinaryOp::Plus => match ty {
                         Type::Integer => DynamicType::IntAdd,
                         Type::Float => DynamicType::FloatAdd,
+                        Type::String => DynamicType::StringConcat,
                         Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
                     },
                     BinaryOp::Minus => match ty {
                         Type::Integer => DynamicType::IntSubtract,
                         Type::Float => DynamicType::FloatSubtract,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::Multiply => match ty {
                         Type::Integer => DynamicType::IntMultiply,
                         Type::Float => DynamicType::FloatMultiply,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::Divide => match ty {
                         Type::Integer => DynamicType::IntDivide,
                         Type::Float => DynamicType::FloatDivide,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::GreaterThanEquals => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolGreaterOrEqual,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::LessThanEquals => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolLessOrEqual,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::GreaterThan => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolGreater,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::LessThan => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolLess,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                 };
 

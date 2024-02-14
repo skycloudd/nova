@@ -3,5 +3,6 @@ proc main() do
 end
 
 proc aa(var: int) do
+    action print: "aa:";
     action print: var;
 end

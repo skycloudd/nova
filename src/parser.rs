@@ -269,6 +269,12 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
         .map_with(|float, e| Spanned(Expr::Float(float), e.span()))
         .boxed();
 
+        let string = select! {
+            Token::String(s) => s
+        }
+        .map_with(|string, e| Spanned(Expr::String(string), e.span()))
+        .boxed();
+
         let colour = select! {
             Token::HexCode(r, g, b, a) => (r, g, b, a)
         }
@@ -318,6 +324,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             boolean,
             integer,
             float,
+            string,
             colour,
             vector,
             parenthesized_expr,

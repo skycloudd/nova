@@ -72,9 +72,11 @@ pub fn run<'src: 'file, 'file>(
         });
 
     if errors.is_empty() {
-        let mir = mir::build(&typed_ast.unwrap());
+        let typed_ast = typed_ast.unwrap();
 
-        let low_ir = low_ir::lower(mir);
+        let mir = mir::build(&typed_ast);
+
+        let low_ir = low_ir::lower(&mir);
 
         for toplevel in &low_ir {
             println!("{toplevel}");

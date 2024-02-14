@@ -303,7 +303,12 @@ fn typecheck_statement<'src, 'file>(
                     "print" => {
                         action_args_count!(1, args.len(), name.1);
 
-                        vec![vec![TypeInfo::Boolean, TypeInfo::Integer, TypeInfo::Float]]
+                        vec![vec![
+                            TypeInfo::Boolean,
+                            TypeInfo::Integer,
+                            TypeInfo::Float,
+                            TypeInfo::String,
+                        ]]
                     }
                     _ => {
                         return Err(Box::new(Error::UnknownAction {
@@ -438,6 +443,10 @@ fn typecheck_expression<'src, 'file>(
                 expr: typed::Expr::Float(float),
                 ty: Type::Float,
             },
+            Expr::String(string) => TypedExpr {
+                expr: typed::Expr::String(string),
+                ty: Type::String,
+            },
             Expr::Colour { r, g, b, a } => TypedExpr {
                 expr: typed::Expr::Colour { r, g, b, a },
                 ty: Type::Colour,
@@ -498,7 +507,10 @@ fn typecheck_expression<'src, 'file>(
                     (Float, Float, GreaterThanEquals, Boolean),
                     (Float, Float, LessThanEquals, Boolean),
                     (Float, Float, GreaterThan, Boolean),
-                    (Float, Float, LessThan, Boolean)
+                    (Float, Float, LessThan, Boolean),
+                    (String, String, Equals, Boolean),
+                    (String, String, NotEquals, Boolean),
+                    (String, String, Plus, String)
                 )
                 .map_err(|()| Error::BinaryOp {
                     lhs: lhs.0.ty.to_string(),
@@ -564,7 +576,7 @@ impl<'file> Engine<'file> {
 
     fn insert(&mut self, info: Spanned<'file, TypeInfo>) -> TypeId {
         self.id_counter += 1;
-        let id = self.id_counter;
+        let id = TypeId(self.id_counter);
         self.vars.insert(id, info);
         id
     }
@@ -586,11 +598,7 @@ impl<'file> Engine<'file> {
                 Ok(())
             }
 
-            (TypeInfo::Boolean, TypeInfo::Boolean)
-            | (TypeInfo::Integer, TypeInfo::Integer)
-            | (TypeInfo::Float, TypeInfo::Float)
-            | (TypeInfo::Colour, TypeInfo::Colour)
-            | (TypeInfo::Vector, TypeInfo::Vector) => Ok(()),
+            (a, b) if a == b => Ok(()),
 
             (a, b) => Err(Box::new(Error::IncompatibleTypes {
                 a: a.to_string(),
@@ -610,6 +618,7 @@ impl<'file> Engine<'file> {
             TypeInfo::Boolean => Ok(Type::Boolean),
             TypeInfo::Integer => Ok(Type::Integer),
             TypeInfo::Float => Ok(Type::Float),
+            TypeInfo::String => Ok(Type::String),
             TypeInfo::Colour => Ok(Type::Colour),
             TypeInfo::Vector => Ok(Type::Vector),
         }
@@ -617,8 +626,10 @@ impl<'file> Engine<'file> {
     }
 }
 
-type TypeId = usize;
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct TypeId(usize);
 
+#[derive(Debug, PartialEq, Eq)]
 enum TypeInfo {
     #[allow(dead_code)]
     Unknown,
@@ -626,6 +637,7 @@ enum TypeInfo {
     Boolean,
     Integer,
     Float,
+    String,
     Colour,
     Vector,
 }
@@ -634,10 +646,11 @@ impl std::fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unknown => write!(f, "unknown"),
-            Self::Ref(id) => write!(f, "ref {id}"),
+            Self::Ref(id) => write!(f, "ref {}", id.0),
             Self::Boolean => write!(f, "boolean"),
             Self::Integer => write!(f, "integer"),
             Self::Float => write!(f, "float"),
+            Self::String => write!(f, "string"),
             Self::Colour => write!(f, "colour"),
             Self::Vector => write!(f, "vector"),
         }
@@ -649,6 +662,7 @@ fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo
         Type::Boolean => TypeInfo::Boolean,
         Type::Integer => TypeInfo::Integer,
         Type::Float => TypeInfo::Float,
+        Type::String => TypeInfo::String,
         Type::Colour => TypeInfo::Colour,
         Type::Vector => TypeInfo::Vector,
     })

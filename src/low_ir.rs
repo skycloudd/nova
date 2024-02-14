@@ -5,32 +5,32 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct UnfinishedBasicBlock {
+pub struct UnfinishedBasicBlock<'src> {
     id: BasicBlockId,
-    instructions: Vec<Instruction>,
-    terminator: Option<Terminator>,
+    instructions: Vec<Instruction<'src>>,
+    terminator: Option<Terminator<'src>>,
 }
 
 #[derive(Debug)]
-pub enum TopLevel {
-    Procedure(Procedure),
+pub enum TopLevel<'src> {
+    Procedure(Procedure<'src>),
 }
 
 #[derive(Debug)]
-pub struct Procedure {
+pub struct Procedure<'src> {
     pub name: ProcId,
     pub args: Vec<(VarId, Type)>,
-    pub body: Vec<BasicBlock>,
+    pub body: Vec<BasicBlock<'src>>,
 }
 
 #[derive(Debug)]
-pub struct BasicBlock {
+pub struct BasicBlock<'src> {
     id: BasicBlockId,
-    instructions: Vec<Instruction>,
-    terminator: Terminator,
+    instructions: Vec<Instruction<'src>>,
+    terminator: Terminator<'src>,
 }
 
-impl BasicBlock {
+impl BasicBlock<'_> {
     pub const fn id(&self) -> BasicBlockId {
         self.id
     }
@@ -53,16 +53,16 @@ fn finish_block(block: UnfinishedBasicBlock) -> Option<BasicBlock> {
 }
 
 #[derive(Debug)]
-pub enum Terminator {
+pub enum Terminator<'src> {
     Goto(Goto),
     If {
-        condition: TypedExpression,
+        condition: TypedExpression<'src>,
         then_block: Goto,
         else_block: Goto,
     },
     Call {
         proc: ProcId,
-        args: Vec<TypedExpression>,
+        args: Vec<TypedExpression<'src>>,
         continuation: Goto,
     },
 }
@@ -76,34 +76,35 @@ pub enum Goto {
 pub type BasicBlockId = usize;
 
 #[derive(Debug)]
-pub enum Instruction {
-    Expr(TypedExpression),
+pub enum Instruction<'src> {
+    Expr(TypedExpression<'src>),
     Let {
         name: VarId,
-        value: TypedExpression,
+        value: TypedExpression<'src>,
     },
     Assign {
         name: VarId,
-        value: TypedExpression,
+        value: TypedExpression<'src>,
     },
     Action {
         name: Action,
-        args: Vec<TypedExpression>,
+        args: Vec<TypedExpression<'src>>,
     },
 }
 
 #[derive(Debug)]
-pub struct TypedExpression {
-    pub expr: Expression,
+pub struct TypedExpression<'src> {
+    pub expr: Expression<'src>,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression {
+pub enum Expression<'src> {
     Variable(VarId),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
+    String(&'src str),
     Colour {
         r: u8,
         g: u8,
@@ -111,32 +112,32 @@ pub enum Expression {
         a: u8,
     },
     Vector {
-        x: Box<TypedExpression>,
-        y: Box<TypedExpression>,
+        x: Box<TypedExpression<'src>>,
+        y: Box<TypedExpression<'src>>,
     },
     Unary {
         op: UnaryOp,
-        value: Box<TypedExpression>,
+        value: Box<TypedExpression<'src>>,
     },
     Binary {
-        lhs: Box<TypedExpression>,
+        lhs: Box<TypedExpression<'src>>,
         op: BinaryOp,
-        rhs: Box<TypedExpression>,
+        rhs: Box<TypedExpression<'src>>,
     },
 }
 
-pub fn lower(ast: Vec<mir::TopLevel>) -> Vec<TopLevel> {
+pub fn lower<'src>(ast: &[mir::TopLevel<'src>]) -> Vec<TopLevel<'src>> {
     LoweringContext::default().lower(ast)
 }
 
 #[derive(Debug, Default)]
-struct LoweringContext {
-    blocks: Vec<UnfinishedBasicBlock>,
+struct LoweringContext<'src> {
+    blocks: Vec<UnfinishedBasicBlock<'src>>,
     current_block: BasicBlockId,
     loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
 }
 
-impl LoweringContext {
+impl<'src> LoweringContext<'src> {
     fn new_block(&mut self) -> BasicBlockId {
         let id = self.blocks.len();
 
@@ -157,11 +158,11 @@ impl LoweringContext {
         self.blocks.get(self.current_block).unwrap()
     }
 
-    fn current_mut(&mut self) -> &mut UnfinishedBasicBlock {
+    fn current_mut(&mut self) -> &mut UnfinishedBasicBlock<'src> {
         self.blocks.get_mut(self.current_block).unwrap()
     }
 
-    fn finish(&mut self, terminator: Terminator) {
+    fn finish(&mut self, terminator: Terminator<'src>) {
         assert!(
             self.current().terminator.is_none(),
             "block {} already finished",
@@ -171,7 +172,7 @@ impl LoweringContext {
         self.current_mut().terminator = Some(terminator);
     }
 
-    fn finish_checked(&mut self, terminator: Terminator) {
+    fn finish_checked(&mut self, terminator: Terminator<'src>) {
         if self.current().terminator.is_none() {
             self.current_mut().terminator = Some(terminator);
         }
@@ -189,17 +190,17 @@ impl LoweringContext {
         *self.loop_stack.last().unwrap()
     }
 
-    fn lower(mut self, ast: Vec<mir::TopLevel>) -> Vec<TopLevel> {
-        ast.into_iter()
+    fn lower(mut self, ast: &[mir::TopLevel<'src>]) -> Vec<TopLevel<'src>> {
+        ast.iter()
             .map(|top_level| match top_level {
                 mir::TopLevel::Procedure(procedure) => {
-                    self.lower_statements(procedure.body);
+                    self.lower_statements(&procedure.body);
 
                     let body = self.blocks.drain(..).filter_map(finish_block).collect();
 
                     TopLevel::Procedure(Procedure {
                         name: procedure.name,
-                        args: procedure.args,
+                        args: procedure.args.clone(),
                         body,
                     })
                 }
@@ -207,7 +208,7 @@ impl LoweringContext {
             .collect()
     }
 
-    fn lower_statements(&mut self, ast: Vec<Statement>) {
+    fn lower_statements(&mut self, ast: &[Statement<'src>]) {
         self.blocks.clear();
 
         let start = self.new_block();
@@ -220,7 +221,7 @@ impl LoweringContext {
         self.finish(Terminator::Goto(Goto::Return));
     }
 
-    fn lower_statement(&mut self, statement: Statement) -> bool {
+    fn lower_statement(&mut self, statement: &Statement<'src>) -> bool {
         match statement {
             Statement::Expr(expr) => {
                 let expr = Self::lower_expression(expr);
@@ -309,14 +310,14 @@ impl LoweringContext {
 
                 self.current_mut()
                     .instructions
-                    .push(Instruction::Let { name, value });
+                    .push(Instruction::Let { name: *name, value });
             }
             Statement::Assign { name, value } => {
                 let value = Self::lower_expression(value);
 
                 self.current_mut()
                     .instructions
-                    .push(Instruction::Assign { name, value });
+                    .push(Instruction::Assign { name: *name, value });
             }
             Statement::Break => {
                 let merge_block = self.loop_stack_top().1;
@@ -338,19 +339,19 @@ impl LoweringContext {
                 return true;
             }
             Statement::Action { action: name, args } => {
-                let args = args.into_iter().map(Self::lower_expression).collect();
+                let args = args.iter().map(Self::lower_expression).collect();
 
                 self.current_mut()
                     .instructions
-                    .push(Instruction::Action { name, args });
+                    .push(Instruction::Action { name: *name, args });
             }
             Statement::Call { proc, args } => {
-                let args = args.into_iter().map(Self::lower_expression).collect();
+                let args = args.iter().map(Self::lower_expression).collect();
 
                 let continuation = self.new_block();
 
                 self.finish(Terminator::Call {
-                    proc,
+                    proc: *proc,
                     args,
                     continuation: Goto::Block(continuation),
                 });
@@ -362,26 +363,32 @@ impl LoweringContext {
         false
     }
 
-    fn lower_expression(expression: mir::TypedExpression) -> TypedExpression {
+    fn lower_expression(expression: &mir::TypedExpression<'src>) -> TypedExpression<'src> {
         TypedExpression {
-            expr: match expression.expr {
-                mir::Expression::Variable(name) => Expression::Variable(name),
-                mir::Expression::Boolean(value) => Expression::Boolean(value),
-                mir::Expression::Integer(value) => Expression::Integer(value),
-                mir::Expression::Float(value) => Expression::Float(value),
-                mir::Expression::Colour { r, g, b, a } => Expression::Colour { r, g, b, a },
+            expr: match &expression.expr {
+                mir::Expression::Variable(name) => Expression::Variable(*name),
+                mir::Expression::Boolean(value) => Expression::Boolean(*value),
+                mir::Expression::Integer(value) => Expression::Integer(*value),
+                mir::Expression::Float(value) => Expression::Float(*value),
+                mir::Expression::String(value) => Expression::String(value),
+                mir::Expression::Colour { r, g, b, a } => Expression::Colour {
+                    r: *r,
+                    g: *g,
+                    b: *b,
+                    a: *a,
+                },
                 mir::Expression::Vector { x, y } => Expression::Vector {
-                    x: Box::new(Self::lower_expression(*x)),
-                    y: Box::new(Self::lower_expression(*y)),
+                    x: Box::new(Self::lower_expression(x)),
+                    y: Box::new(Self::lower_expression(y)),
                 },
                 mir::Expression::Unary { op, rhs } => Expression::Unary {
-                    op,
-                    value: Box::new(Self::lower_expression(*rhs)),
+                    op: *op,
+                    value: Box::new(Self::lower_expression(rhs)),
                 },
                 mir::Expression::Binary { lhs, op, rhs } => Expression::Binary {
-                    lhs: Box::new(Self::lower_expression(*lhs)),
-                    op,
-                    rhs: Box::new(Self::lower_expression(*rhs)),
+                    lhs: Box::new(Self::lower_expression(lhs)),
+                    op: *op,
+                    rhs: Box::new(Self::lower_expression(rhs)),
                 },
             },
             ty: expression.ty,
@@ -393,7 +400,7 @@ mod print {
     use super::{BasicBlock, Expression, Goto, Instruction, Procedure, Terminator, TopLevel};
     use crate::mir::Action;
 
-    impl std::fmt::Display for TopLevel {
+    impl std::fmt::Display for TopLevel<'_> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             print_toplevel(f, self)
         }
@@ -530,7 +537,7 @@ mod print {
             Expression::Boolean(value) => write!(f, "{value}")?,
             Expression::Integer(value) => write!(f, "{value}")?,
             Expression::Float(value) => write!(f, "{value}")?,
-
+            Expression::String(value) => write!(f, "\"{value}\"")?,
             Expression::Colour { r, g, b, a } => write!(f, "#{r:02x}{g:02x}{b:02x}{a:02x}")?,
             Expression::Vector { x, y } => {
                 write!(f, "{{ ")?;
