@@ -167,7 +167,7 @@ impl Codegen<'_> {
             activation_count: 0,
             condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
             activation_list: vec![],
-            parameters: Self::proc_args(&proc.args, &signature.param_ids.clone()),
+            parameters: Self::proc_args(&proc.args, signature.param_ids),
             variables: vec![],
             actions,
         };
@@ -175,10 +175,10 @@ impl Codegen<'_> {
         self.exolvl.level_data.nova_scripts.push(call_block);
     }
 
-    fn proc_args(args: &[(VarId, Type)], param_ids: &[i32]) -> Vec<Parameter> {
+    fn proc_args(args: &[(VarId, Type)], param_ids: Vec<i32>) -> Vec<Parameter> {
         args.iter()
             .zip(param_ids)
-            .map(|((arg, ty), id)| {
+            .map(|((arg, ty), parameter_id)| {
                 let (static_type, default_value) = match ty {
                     Type::Boolean => (
                         StaticType::Bool,
@@ -204,7 +204,7 @@ impl Codegen<'_> {
                 };
 
                 Parameter {
-                    parameter_id: *id,
+                    parameter_id,
                     name: format!("var_{}", arg.0),
                     static_type,
                     default_value,
