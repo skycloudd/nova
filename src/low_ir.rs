@@ -14,6 +14,7 @@ pub struct UnfinishedBasicBlock<'src> {
 #[derive(Debug)]
 pub enum TopLevel<'src> {
     Procedure(Procedure<'src>),
+    Run(ProcId),
 }
 
 #[derive(Debug)]
@@ -204,6 +205,7 @@ impl<'src> LoweringContext<'src> {
                         body,
                     })
                 }
+                mir::TopLevel::Run(name) => TopLevel::Run(*name),
             })
             .collect()
     }
@@ -409,6 +411,7 @@ mod print {
     fn print_toplevel(f: &mut std::fmt::Formatter<'_>, top_level: &TopLevel) -> std::fmt::Result {
         match top_level {
             TopLevel::Procedure(procedure) => print_procedure(f, procedure),
+            TopLevel::Run(name) => write!(f, "run proc_{};", name.0),
         }
     }
 

@@ -1,4 +1,4 @@
-proc main() do
+proc main(a: int) do
     let one = 1;
     let six = 2 * 3;
     let number = one + six;
@@ -21,3 +21,5 @@ proc main() do
         action print: true;
     end
 end
+
+run main;

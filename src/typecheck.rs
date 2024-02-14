@@ -19,11 +19,10 @@ pub fn typecheck<'src, 'file>(
     let mut errors = Vec::new();
 
     for top_level in &ast {
-        let TopLevel::Procedure(Procedure {
-            name,
-            args,
-            body: _,
-        }) = &top_level.0;
+        let (name, args) = match &top_level.0 {
+            TopLevel::Procedure(procedure) => (&procedure.name, &procedure.args),
+            _ => continue,
+        };
 
         match procedures.get(&name.0) {
             None => {
@@ -60,6 +59,14 @@ pub fn typecheck<'src, 'file>(
                     }
                 }
             }
+            TopLevel::Run(name) => match typecheck_run(&procedures, name) {
+                Ok(run) => Some(Spanned(run, top_level.1)),
+                Err(err) => {
+                    errors.push(err);
+
+                    None
+                }
+            },
         })
         .collect();
 
@@ -68,6 +75,31 @@ pub fn typecheck<'src, 'file>(
     } else {
         Err(errors)
     }
+}
+
+fn typecheck_run<'src, 'file>(
+    procedures: &FxHashMap<&'src str, (Span<'file>, Vec<TypeId>)>,
+    name: Spanned<'file, &'src str>,
+) -> Result<TypedTopLevel<'src, 'file>, Box<Error<'file>>> {
+    if !procedures.contains_key(name.0) {
+        return Err(Box::new(Error::UndefinedProcedure {
+            name: name.0.to_string(),
+            span: name.1,
+        }));
+    }
+
+    let span = procedures[name.0].0;
+    let number_args = procedures[name.0].1.len();
+
+    if number_args != 0 {
+        return Err(Box::new(Error::RunFunctionHasArgs {
+            got: number_args,
+            span,
+            run_span: name.1,
+        }));
+    }
+
+    Ok(TypedTopLevel::Run(name))
 }
 
 fn typecheck_procedure<'src, 'file>(

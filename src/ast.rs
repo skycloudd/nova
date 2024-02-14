@@ -5,6 +5,7 @@ macro_rules! top_level {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
             Procedure($proc<'src, 'file>),
+            Run(Spanned<'file, &'src str>),
         }
     };
 }

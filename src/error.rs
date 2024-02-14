@@ -64,6 +64,11 @@ pub enum Error<'file> {
         got: usize,
         span: Span<'file>,
     },
+    RunFunctionHasArgs {
+        got: usize,
+        span: Span<'file>,
+        run_span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -162,6 +167,15 @@ impl Error<'_> {
                 got,
                 span: _,
             } => format!("Expected {expected} arguments, got {got}").into(),
+            Error::RunFunctionHasArgs {
+                got,
+                span: _,
+                run_span: _,
+            } => format!(
+                "Function in a run statement takes {got} argument{}, but it should not take any",
+                if *got == 1 { "" } else { "s" }
+            )
+            .into(),
         }
     }
 
@@ -254,6 +268,25 @@ impl Error<'_> {
                 Some(format!("Expected {expected} arguments, got {got}").into()),
                 *span,
             )],
+            Error::RunFunctionHasArgs {
+                got,
+                span,
+                run_span,
+            } => {
+                vec![
+                    Spanned(
+                        Some(
+                            format!(
+                                "Function takes {got} argument{}",
+                                if *got == 1 { "" } else { "s" }
+                            )
+                            .into(),
+                        ),
+                        *span,
+                    ),
+                    Spanned(Some("Run statement here".into()), *run_span),
+                ]
+            }
         }
     }
 
@@ -274,6 +307,9 @@ impl Error<'_> {
             }
             Error::UndefinedProcedure { .. } => None,
             Error::WrongNumberOfProcedureArguments { .. } => None,
+            Error::RunFunctionHasArgs { .. } => {
+                Some("Functions passed to run statements cannot take any arguments. Consider creating a wrapper function.".into())
+            }
         }
     }
 }

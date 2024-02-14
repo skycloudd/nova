@@ -27,7 +27,20 @@ fn toplevel_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
     Spanned<'file, TopLevel<'src, 'file>>,
     ParserError<'tokens, 'src, 'file>,
 > {
-    procedure_parser()
+    choice((procedure_parser(), run_parser()))
+}
+
+fn run_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, TopLevel<'src, 'file>>,
+    ParserError<'tokens, 'src, 'file>,
+> {
+    just(Token::Kw(Kw::Run))
+        .ignore_then(ident())
+        .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
+        .map_with(|name, e| Spanned(TopLevel::Run(name), e.span()))
+        .boxed()
 }
 
 fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<

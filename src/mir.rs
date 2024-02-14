@@ -11,6 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub enum TopLevel<'src> {
     Procedure(Procedure<'src>),
+    Run(ProcId),
 }
 
 #[derive(Debug)]
@@ -180,6 +181,7 @@ pub fn build<'src, 'file>(
                     var_id_map.insert(&arg.0);
                 }
             }
+            _ => {}
         }
     }
 
@@ -197,7 +199,12 @@ fn build_mir_top_level<'src>(
         TypedTopLevel::Procedure(procedure) => {
             TopLevel::Procedure(build_mir_procedure(var_id_map, proc_id_map, procedure))
         }
+        TypedTopLevel::Run(name) => build_mir_run(proc_id_map, name.0),
     }
+}
+
+fn build_mir_run<'src>(proc_id_map: &mut ProcIdMap<'src>, name: &'src str) -> TopLevel<'src> {
+    TopLevel::Run(*proc_id_map.get(name).unwrap())
 }
 
 fn build_mir_procedure<'src>(

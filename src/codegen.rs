@@ -7,8 +7,8 @@ use crate::{
     IdGen,
 };
 use levelfile::{
-    Action, ActionType, CallParameter, Colour, DynamicType, Exolvl, FunctionCall, NovaScript,
-    NovaValue, Parameter, StaticType, Variable, Vec2,
+    Action, ActionType, Activator, CallParameter, Colour, DynamicType, Exolvl, FunctionCall,
+    NovaScript, NovaValue, Parameter, StaticType, Variable, Vec2,
 };
 use rustc_hash::FxHashMap;
 
@@ -45,8 +45,9 @@ impl Codegen<'_> {
     fn codegen(&mut self, low_ir: &[TopLevel]) {
         low_ir
             .iter()
-            .map(|tl| match tl {
-                TopLevel::Procedure(proc) => proc,
+            .filter_map(|tl| match tl {
+                TopLevel::Procedure(proc) => Some(proc),
+                TopLevel::Run(_) => None,
             })
             .for_each(|proc| {
                 let call_block_id = self.id_gen.next_i32();
@@ -99,30 +100,32 @@ impl Codegen<'_> {
                 TopLevel::Procedure(proc) => {
                     self.codegen_proc(proc);
                 }
+                TopLevel::Run(name) => self.codegen_run(name),
             }
         }
+    }
 
-        // let main_proc_id = ProcId(0);
+    fn codegen_run(&mut self, name: &ProcId) {
+        let signature = self.proc_map[name].clone();
 
-        // self.exolvl.level_data.nova_scripts.push(NovaScript {
-        //     script_id: self.id_gen.next_i32(),
-        //     script_name: "run main".to_string(),
-        //     is_function: false,
-        //     activation_count: 0,
-        //     condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
-        //     activation_list: vec![Activator {
-        //         activator_type: 0,
-        //         parameters: vec![],
-        //     }],
-        //     parameters: vec![],
-        //     variables: vec![],
-        //     actions: vec![new_action(ActionType::RunFunction {
-        //         function: FunctionCall {
-        //             id: self.proc_map[&main_proc_id].call_block_id,
-        //             parameters: vec![],
-        //         },
-        //     })],
-        // });
+        let call_block = NovaScript {
+            script_id: self.id_gen.next_i32(),
+            script_name: format!("run_{}", name.0),
+            is_function: false,
+            activation_count: 0,
+            condition: new_novavalue(DynamicType::BoolConstant, NewValue::Bool(true)),
+            activation_list: vec![ON_LEVEL_START],
+            parameters: vec![],
+            variables: vec![],
+            actions: vec![new_action(ActionType::RunFunction {
+                function: FunctionCall {
+                    id: signature.call_block_id,
+                    parameters: vec![],
+                },
+            })],
+        };
+
+        self.exolvl.level_data.nova_scripts.push(call_block);
     }
 
     fn codegen_proc(&mut self, proc: &Procedure) {
@@ -698,3 +701,8 @@ const fn new_action(action_type: ActionType) -> Action {
         action_type,
     }
 }
+
+const ON_LEVEL_START: Activator = Activator {
+    activator_type: 0,
+    parameters: vec![],
+};
