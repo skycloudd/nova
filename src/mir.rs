@@ -181,7 +181,7 @@ pub fn build<'src, 'file>(
                     var_id_map.insert(&arg.0);
                 }
             }
-            _ => {}
+            TypedTopLevel::Run(_) => {}
         }
     }
 
@@ -203,7 +203,7 @@ fn build_mir_top_level<'src>(
     }
 }
 
-fn build_mir_run<'src>(proc_id_map: &mut ProcIdMap<'src>, name: &'src str) -> TopLevel<'src> {
+fn build_mir_run<'src>(proc_id_map: &ProcIdMap<'src>, name: &'src str) -> TopLevel<'src> {
     TopLevel::Run(*proc_id_map.get(name).unwrap())
 }
 

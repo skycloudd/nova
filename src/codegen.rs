@@ -100,13 +100,13 @@ impl Codegen<'_> {
                 TopLevel::Procedure(proc) => {
                     self.codegen_proc(proc);
                 }
-                TopLevel::Run(name) => self.codegen_run(name),
+                TopLevel::Run(name) => self.codegen_run(*name),
             }
         }
     }
 
-    fn codegen_run(&mut self, name: &ProcId) {
-        let signature = self.proc_map[name].clone();
+    fn codegen_run(&mut self, name: ProcId) {
+        let signature = self.proc_map[&name].clone();
 
         let call_block = NovaScript {
             script_id: self.id_gen.next_i32(),

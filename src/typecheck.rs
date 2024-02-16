@@ -21,7 +21,7 @@ pub fn typecheck<'src, 'file>(
     for top_level in &ast {
         let (name, args) = match &top_level.0 {
             TopLevel::Procedure(procedure) => (&procedure.name, &procedure.args),
-            _ => continue,
+            TopLevel::Run(_) => continue,
         };
 
         match procedures.get(&name.0) {
