@@ -17,4 +17,4 @@ proc main() do
     end
 end
 
-run main();
+run main;

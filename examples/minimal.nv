@@ -7,4 +7,4 @@ proc aa(var: int) do
     action print: var;
 end
 
-run main();
+run main;
