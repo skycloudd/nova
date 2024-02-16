@@ -6,7 +6,7 @@ use crate::{
     mir::{self, ProcId, VarId},
     IdGen,
 };
-use levelfile::{
+use exolvl::{
     Action, ActionType, Activator, CallParameter, Colour, DynamicType, Exolvl, FunctionCall,
     NovaScript, NovaValue, Parameter, StaticType, Variable, Vec2,
 };

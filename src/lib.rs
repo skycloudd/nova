@@ -8,8 +8,8 @@
 use ariadne::{ColorGenerator, Label, Report};
 use chumsky::prelude::*;
 use error::{convert, Error};
+use exolvl::{Exolvl, Read as _, Write as _};
 use flate2::write::GzEncoder;
-use levelfile::{Exolvl, Read as _, Write as _};
 use span::{Span, Spanned};
 use std::{
     fmt::Display,
