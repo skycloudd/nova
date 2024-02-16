@@ -1,9 +1,11 @@
 use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
+#[cfg(test)]
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Deserialize, Serialize))]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token<'src> {
     Error,
     Variable(&'src str),
@@ -17,7 +19,8 @@ pub enum Token<'src> {
     Op(Op),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Deserialize, Serialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kw {
     End,
     Loop,
@@ -37,7 +40,8 @@ pub enum Kw {
     Run,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Deserialize, Serialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ctrl {
     LeftParen,
     RightParen,
@@ -51,7 +55,8 @@ pub enum Ctrl {
     Colon,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Deserialize, Serialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Op {
     Equals,
     NotEquals,
