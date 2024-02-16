@@ -1,0 +1,10 @@
+---
+source: src/lexer.rs
+expression: "lex(\"123.456 789.123 123.456 0.123 0.00\")"
+---
+- Float: 123.456
+- Float: 789.123
+- Float: 123.456
+- Float: 0.123
+- Float: 0
+

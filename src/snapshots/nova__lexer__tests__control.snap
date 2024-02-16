@@ -1,0 +1,15 @@
+---
+source: src/lexer.rs
+expression: "lex(\"..= .. ( ) { } ; , = :\")"
+---
+- Ctrl: RangeInclusive
+- Ctrl: Range
+- Ctrl: LeftParen
+- Ctrl: RightParen
+- Ctrl: LeftCurly
+- Ctrl: RightCurly
+- Ctrl: SemiColon
+- Ctrl: Comma
+- Ctrl: Equals
+- Ctrl: Colon
+

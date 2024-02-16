@@ -1,8 +1,9 @@
 use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
+use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Token<'src> {
     Error,
     Variable(&'src str),
@@ -16,7 +17,7 @@ pub enum Token<'src> {
     Op(Op),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kw {
     End,
     Loop,
@@ -36,7 +37,7 @@ pub enum Kw {
     Run,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Ctrl {
     LeftParen,
     RightParen,
@@ -48,10 +49,9 @@ pub enum Ctrl {
     Range,
     RangeInclusive,
     Colon,
-    Arrow,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Op {
     Equals,
     NotEquals,
@@ -127,7 +127,6 @@ impl std::fmt::Display for Ctrl {
             Self::Range => write!(f, ".."),
             Self::RangeInclusive => write!(f, "..="),
             Self::Colon => write!(f, ":"),
-            Self::Arrow => write!(f, "->"),
         }
     }
 }
@@ -290,7 +289,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just(',').to(Token::Ctrl(Ctrl::Comma)),
         just('=').to(Token::Ctrl(Ctrl::Equals)),
         just(':').to(Token::Ctrl(Ctrl::Colon)),
-        just("->").to(Token::Ctrl(Ctrl::Arrow)),
     ))
     .boxed();
 
@@ -321,10 +319,101 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
 
     token
         .map_with(|tok, e| (tok, e.span()))
-        .padded_by(comment.repeated())
+        .padded_by(comment.clone().repeated())
         .padded()
         .repeated()
         .collect()
+        .padded_by(comment.repeated())
+        .padded()
         .then_ignore(end())
         .boxed()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{lexer, Token};
+    use chumsky::prelude::*;
+    use std::path::Path;
+
+    fn lex(input: &str) -> Vec<Token> {
+        lexer()
+            .parse(input.with_context(Path::new("")))
+            .unwrap()
+            .into_iter()
+            .map(|(tok, _)| tok)
+            .collect()
+    }
+
+    macro_rules! test_lex {
+        ($input:expr) => {
+            insta::assert_yaml_snapshot!(lex($input));
+        };
+    }
+
+    #[test]
+    fn integers() {
+        test_lex!("123 456 789");
+    }
+
+    #[test]
+    fn floats() {
+        test_lex!("123.456 789.123 123.456 0.123 0.00");
+    }
+
+    #[test]
+    fn bools() {
+        test_lex!("true false true false");
+    }
+
+    #[test]
+    fn strings() {
+        test_lex!(r#""hello" "world" "hello world""#);
+    }
+
+    #[test]
+    fn colours() {
+        test_lex!("#123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00");
+    }
+
+    #[test]
+    fn keywords() {
+        test_lex!(
+            "end loop if else then let const break continue for do in action proc return run"
+        );
+    }
+
+    #[test]
+    fn operators() {
+        test_lex!("== != >= <= + - * / > < !");
+    }
+
+    #[test]
+    fn control() {
+        test_lex!("..= .. ( ) { } ; , = :");
+    }
+
+    #[test]
+    fn comments() {
+        test_lex!("// hello\n// world\n// hello world");
+    }
+
+    #[test]
+
+    fn mixed() {
+        test_lex!(
+            r#"
+            // hello
+            123 456 789
+            123.456 789.123 123.456 0.123 0.00
+            true false true false
+            "hello" "world" "hello world"
+            #123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00
+            end loop if else then let const break continue for do in action proc return run
+            == != >= <= + - * / > < !
+            ..= .. ( ) { } ; , = :
+            // world
+            // hello world
+            "#
+        );
+    }
 }

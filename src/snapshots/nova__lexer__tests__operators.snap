@@ -1,0 +1,16 @@
+---
+source: src/lexer.rs
+expression: "lex(\"== != >= <= + - * / > < !\")"
+---
+- Op: Equals
+- Op: NotEquals
+- Op: GreaterThanEquals
+- Op: LessThanEquals
+- Op: Plus
+- Op: Minus
+- Op: Multiply
+- Op: Divide
+- Op: GreaterThan
+- Op: LessThan
+- Op: Not
+
