@@ -24,23 +24,9 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let level = match args.level {
-        Some(path) => Box::new(std::fs::File::open(path).unwrap()) as Box<dyn Read>,
-        None => Box::new(Cursor::new(include_bytes!("default.exolvl"))) as Box<dyn Read>,
-    };
+    let level = level(args.level);
 
-    let out = match args.out {
-        Some(path) => match path.try_exists() {
-            Ok(true) | Err(_) if path.extension() != Some("exolvl".as_ref()) || args.overwrite => {
-                panic!(
-                    "output file `{}` already exists",
-                    path.display().fg(Color::Yellow)
-                )
-            }
-            _ => Box::new(std::fs::File::create(path).unwrap()) as Box<dyn Write>,
-        },
-        None => Box::new(std::io::stdout()) as Box<dyn Write>,
-    };
+    let out = output(args.out, args.overwrite);
 
     match run(
         &read_to_string(&args.filename).unwrap(),
@@ -62,5 +48,27 @@ fn main() {
                 if errors.len() == 1 { "" } else { "s" }
             );
         }
+    }
+}
+
+fn level(input: Option<PathBuf>) -> Box<dyn Read> {
+    match input {
+        Some(path) => Box::new(std::fs::File::open(path).unwrap()),
+        None => Box::new(Cursor::new(include_bytes!("default.exolvl"))),
+    }
+}
+
+fn output(out: Option<PathBuf>, overwrite: bool) -> Box<dyn Write> {
+    match out {
+        Some(path) => Box::new(match path.try_exists() {
+            Ok(true) | Err(_) if path.extension() != Some("exolvl".as_ref()) || overwrite => {
+                panic!(
+                    "output file `{}` already exists",
+                    path.display().fg(Color::Yellow)
+                )
+            }
+            _ => std::fs::File::create(path).unwrap(),
+        }),
+        None => Box::new(std::io::stdout()),
     }
 }
