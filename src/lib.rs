@@ -36,7 +36,7 @@ pub fn run<'src: 'file, 'file>(
     filename: &'file Path,
     level: impl Read,
     out: impl Write,
-) -> Result<(), Vec<error::Error<'file>>> {
+) -> Result<(), Vec<Error<'file>>> {
     let mut errors = vec![];
 
     let tokens = lexer::lexer()
@@ -68,7 +68,7 @@ pub fn run<'src: 'file, 'file>(
     let typed_ast = ast
         .map_or_else(|| Err(vec![]), typecheck::typecheck)
         .map_err(|type_errors| {
-            errors.extend(map_boxed_errors(type_errors));
+            errors.extend(type_errors);
         });
 
     if errors.is_empty() {
@@ -102,7 +102,7 @@ pub fn run<'src: 'file, 'file>(
     }
 }
 
-pub fn report<'file, Id>(filename: Id, error: &'file error::Error<'file>) -> Report<'_, Span<'file>>
+pub fn report<'file, Id>(filename: Id, error: &'file Error<'file>) -> Report<'_, Span<'file>>
 where
     Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned>,
 {
@@ -137,16 +137,12 @@ where
 
 fn map_errors<'file, T: Clone + Display>(
     errors: Vec<Rich<'_, T, Span<'file>>>,
-) -> Vec<error::Error<'file>> {
+) -> Vec<Error<'file>> {
     errors
         .into_iter()
         .map(|e| e.map_token(|t| t.to_string()))
         .flat_map(|e| convert(&e))
         .collect()
-}
-
-fn map_boxed_errors(errors: Vec<Box<Error>>) -> Vec<error::Error> {
-    errors.into_iter().map(|e| *e).collect()
 }
 
 #[derive(Default)]

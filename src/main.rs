@@ -31,9 +31,7 @@ fn main() {
 
     let out = match args.out {
         Some(path) => match path.try_exists() {
-            Ok(true) | Err(_)
-                if (path.extension() != Some("exolvl".as_ref()) || args.overwrite) =>
-            {
+            Ok(true) | Err(_) if path.extension() != Some("exolvl".as_ref()) || args.overwrite => {
                 panic!(
                     "output file `{}` already exists",
                     path.display().fg(Color::Yellow)
