@@ -2,96 +2,217 @@
 source: src/lexer.rs
 expression: "lex(r#\"\n            // hello\n            123 456 789\n            123.456 789.123 123.456 0.123 0.00\n            true false true false\n            \"hello\" \"world\" \"hello world\"\n            #123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00\n            end loop if else then let const break continue for do in action proc return run\n            == != >= <= + - * / > < !\n            ..= .. ( ) { } ; , = :\n            // world\n            // hello world\n            \"#)"
 ---
-- Integer: 123
-- Integer: 456
-- Integer: 789
-- Float: 123.456
-- Float: 789.123
-- Float: 123.456
-- Float: 0.123
-- Float: 0
-- Boolean: true
-- Boolean: false
-- Boolean: true
-- Boolean: false
-- String: "\"hello\""
-- String: "\"world\""
-- String: "\"hello world\""
-- HexCode:
-    - 18
-    - 52
-    - 86
-    - ~
-- HexCode:
-    - 120
-    - 154
-    - 188
-    - ~
-- HexCode:
-    - 222
-    - 253
-    - 239
-    - ~
-- HexCode:
-    - 171
-    - 205
-    - 239
-    - ~
-- HexCode:
-    - 18
-    - 52
-    - 86
-    - 120
-- HexCode:
-    - 120
-    - 154
-    - 188
-    - 222
-- HexCode:
-    - 222
-    - 253
-    - 239
-    - 0
-- HexCode:
-    - 171
-    - 205
-    - 239
-    - 0
-- Kw: End
-- Kw: Loop
-- Kw: If
-- Kw: Else
-- Kw: Then
-- Kw: Let
-- Kw: Const
-- Kw: Break
-- Kw: Continue
-- Kw: For
-- Kw: Do
-- Kw: In
-- Kw: Action
-- Kw: Proc
-- Kw: Return
-- Kw: Run
-- Op: Equals
-- Op: NotEquals
-- Op: GreaterThanEquals
-- Op: LessThanEquals
-- Op: Plus
-- Op: Minus
-- Op: Multiply
-- Op: Divide
-- Op: GreaterThan
-- Op: LessThan
-- Op: Not
-- Ctrl: RangeInclusive
-- Ctrl: Range
-- Ctrl: LeftParen
-- Ctrl: RightParen
-- Ctrl: LeftCurly
-- Ctrl: RightCurly
-- Ctrl: SemiColon
-- Ctrl: Comma
-- Ctrl: Equals
-- Ctrl: Colon
-
+[
+    Integer(
+        123,
+    ),
+    Integer(
+        456,
+    ),
+    Integer(
+        789,
+    ),
+    Float(
+        123.456,
+    ),
+    Float(
+        789.123,
+    ),
+    Float(
+        123.456,
+    ),
+    Float(
+        0.123,
+    ),
+    Float(
+        0.0,
+    ),
+    Boolean(
+        true,
+    ),
+    Boolean(
+        false,
+    ),
+    Boolean(
+        true,
+    ),
+    Boolean(
+        false,
+    ),
+    String(
+        "\"hello\"",
+    ),
+    String(
+        "\"world\"",
+    ),
+    String(
+        "\"hello world\"",
+    ),
+    HexCode(
+        18,
+        52,
+        86,
+        None,
+    ),
+    HexCode(
+        120,
+        154,
+        188,
+        None,
+    ),
+    HexCode(
+        222,
+        253,
+        239,
+        None,
+    ),
+    HexCode(
+        171,
+        205,
+        239,
+        None,
+    ),
+    HexCode(
+        18,
+        52,
+        86,
+        Some(
+            120,
+        ),
+    ),
+    HexCode(
+        120,
+        154,
+        188,
+        Some(
+            222,
+        ),
+    ),
+    HexCode(
+        222,
+        253,
+        239,
+        Some(
+            0,
+        ),
+    ),
+    HexCode(
+        171,
+        205,
+        239,
+        Some(
+            0,
+        ),
+    ),
+    Kw(
+        End,
+    ),
+    Kw(
+        Loop,
+    ),
+    Kw(
+        If,
+    ),
+    Kw(
+        Else,
+    ),
+    Kw(
+        Then,
+    ),
+    Kw(
+        Let,
+    ),
+    Kw(
+        Const,
+    ),
+    Kw(
+        Break,
+    ),
+    Kw(
+        Continue,
+    ),
+    Kw(
+        For,
+    ),
+    Kw(
+        Do,
+    ),
+    Kw(
+        In,
+    ),
+    Kw(
+        Action,
+    ),
+    Kw(
+        Proc,
+    ),
+    Kw(
+        Return,
+    ),
+    Kw(
+        Run,
+    ),
+    Op(
+        Equals,
+    ),
+    Op(
+        NotEquals,
+    ),
+    Op(
+        GreaterThanEquals,
+    ),
+    Op(
+        LessThanEquals,
+    ),
+    Op(
+        Plus,
+    ),
+    Op(
+        Minus,
+    ),
+    Op(
+        Multiply,
+    ),
+    Op(
+        Divide,
+    ),
+    Op(
+        GreaterThan,
+    ),
+    Op(
+        LessThan,
+    ),
+    Op(
+        Not,
+    ),
+    Ctrl(
+        RangeInclusive,
+    ),
+    Ctrl(
+        Range,
+    ),
+    Ctrl(
+        LeftParen,
+    ),
+    Ctrl(
+        RightParen,
+    ),
+    Ctrl(
+        LeftCurly,
+    ),
+    Ctrl(
+        RightCurly,
+    ),
+    Ctrl(
+        SemiColon,
+    ),
+    Ctrl(
+        Comma,
+    ),
+    Ctrl(
+        Equals,
+    ),
+    Ctrl(
+        Colon,
+    ),
+]

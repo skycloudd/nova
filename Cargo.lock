@@ -378,7 +378,6 @@ dependencies = [
  "flate2",
  "insta",
  "rustc-hash",
- "serde",
 ]
 
 [[package]]

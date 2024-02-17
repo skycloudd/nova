@@ -2,44 +2,61 @@
 source: src/lexer.rs
 expression: "lex(\"#123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00\")"
 ---
-- HexCode:
-    - 18
-    - 52
-    - 86
-    - ~
-- HexCode:
-    - 120
-    - 154
-    - 188
-    - ~
-- HexCode:
-    - 222
-    - 253
-    - 239
-    - ~
-- HexCode:
-    - 171
-    - 205
-    - 239
-    - ~
-- HexCode:
-    - 18
-    - 52
-    - 86
-    - 120
-- HexCode:
-    - 120
-    - 154
-    - 188
-    - 222
-- HexCode:
-    - 222
-    - 253
-    - 239
-    - 0
-- HexCode:
-    - 171
-    - 205
-    - 239
-    - 0
-
+[
+    HexCode(
+        18,
+        52,
+        86,
+        None,
+    ),
+    HexCode(
+        120,
+        154,
+        188,
+        None,
+    ),
+    HexCode(
+        222,
+        253,
+        239,
+        None,
+    ),
+    HexCode(
+        171,
+        205,
+        239,
+        None,
+    ),
+    HexCode(
+        18,
+        52,
+        86,
+        Some(
+            120,
+        ),
+    ),
+    HexCode(
+        120,
+        154,
+        188,
+        Some(
+            222,
+        ),
+    ),
+    HexCode(
+        222,
+        253,
+        239,
+        Some(
+            0,
+        ),
+    ),
+    HexCode(
+        171,
+        205,
+        239,
+        Some(
+            0,
+        ),
+    ),
+]

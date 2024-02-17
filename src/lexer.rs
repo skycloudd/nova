@@ -1,10 +1,7 @@
 use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
-#[cfg(test)]
-use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 
-#[cfg_attr(test, derive(Deserialize, Serialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token<'src> {
     Error,
@@ -19,7 +16,6 @@ pub enum Token<'src> {
     Op(Op),
 }
 
-#[cfg_attr(test, derive(Deserialize, Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kw {
     End,
@@ -40,7 +36,6 @@ pub enum Kw {
     Run,
 }
 
-#[cfg_attr(test, derive(Deserialize, Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ctrl {
     LeftParen,
@@ -55,7 +50,6 @@ pub enum Ctrl {
     Colon,
 }
 
-#[cfg_attr(test, derive(Deserialize, Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Op {
     Equals,
@@ -336,82 +330,64 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
 
 #[cfg(test)]
 mod tests {
-    use super::{lexer, Token};
-    use chumsky::prelude::*;
-    use std::path::Path;
+    use super::*;
 
     fn lex(input: &str) -> Vec<Token> {
         lexer()
-            .parse(input.with_context(Path::new("")))
+            .parse(input.with_context(std::path::Path::new("")))
             .unwrap()
             .into_iter()
             .map(|(tok, _)| tok)
             .collect()
     }
 
-    #[test]
-    fn integers() {
-        insta::assert_yaml_snapshot!(lex("123 456 789"));
+    macro_rules! lexer_test {
+        ($name:ident, $input:expr) => {
+            #[test]
+            fn $name() {
+                insta::assert_debug_snapshot!(lex($input));
+            }
+        };
     }
 
-    #[test]
-    fn floats() {
-        insta::assert_yaml_snapshot!(lex("123.456 789.123 123.456 0.123 0.00"));
-    }
+    lexer_test!(integers, "123 456 789");
 
-    #[test]
-    fn bools() {
-        insta::assert_yaml_snapshot!(lex("true false true false"));
-    }
+    lexer_test!(floats, "123.456 789.123 123.456 0.123 0.00");
 
-    #[test]
-    fn strings() {
-        insta::assert_yaml_snapshot!(lex(r#""hello" "world" "hello world""#));
-    }
+    lexer_test!(bools, "true false true false");
 
-    #[test]
-    fn colours() {
-        insta::assert_yaml_snapshot!(lex(
-            "#123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00"
-        ));
-    }
+    lexer_test!(strings, r#""hello" "world" "hello world""#);
 
-    #[test]
-    fn keywords() {
-        insta::assert_yaml_snapshot!(lex(
-            "end loop if else then let const break continue for do in action proc return run"
-        ));
-    }
+    lexer_test!(
+        colours,
+        "#123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00"
+    );
 
-    #[test]
-    fn operators() {
-        insta::assert_yaml_snapshot!(lex("== != >= <= + - * / > < !"));
-    }
+    lexer_test!(
+        keywords,
+        "end loop if else then let const break continue for do in action proc return run"
+    );
 
-    #[test]
-    fn control() {
-        insta::assert_yaml_snapshot!(lex("..= .. ( ) { } (){} ; , = :"));
-    }
+    lexer_test!(operators, "== != >= <= + - * / > < !");
 
-    #[test]
-    fn comments() {
-        insta::assert_yaml_snapshot!(lex("// hello\n// world\n// hello world"));
-    }
+    lexer_test!(control, "..= .. ( ) { } (){} ; , = :");
 
-    #[test]
-    fn mixed() {
-        insta::assert_yaml_snapshot!(lex(r#"
-            // hello
-            123 456 789
-            123.456 789.123 123.456 0.123 0.00
-            true false true false
-            "hello" "world" "hello world"
-            #123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00
-            end loop if else then let const break continue for do in action proc return run
-            == != >= <= + - * / > < !
-            ..= .. ( ) { } ; , = :
-            // world
-            // hello world
-            "#));
-    }
+    lexer_test!(comments, "// hello\n// world\n// hello world");
+
+    lexer_test!(
+        mixed,
+        r#"
+        // hello
+        123 456 789
+        123.456 789.123 123.456 0.123 0.00
+        true false true false
+        "hello" "world" "hello world"
+        #123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00
+        end loop if else then let const break continue for do in action proc return run
+        == != >= <= + - * / > < !
+        ..= .. ( ) { } ; , = :
+        // world
+        // hello world
+        "#
+    );
 }

@@ -2,7 +2,14 @@
 source: src/lexer.rs
 expression: "lex(r#\"\"hello\" \"world\" \"hello world\"\"#)"
 ---
-- String: "\"hello\""
-- String: "\"world\""
-- String: "\"hello world\""
-
+[
+    String(
+        "\"hello\"",
+    ),
+    String(
+        "\"world\"",
+    ),
+    String(
+        "\"hello world\"",
+    ),
+]
