@@ -349,64 +349,58 @@ mod tests {
             .collect()
     }
 
-    macro_rules! test_lex {
-        ($input:expr) => {
-            insta::assert_yaml_snapshot!(lex($input));
-        };
-    }
-
     #[test]
     fn integers() {
-        test_lex!("123 456 789");
+        insta::assert_yaml_snapshot!(lex("123 456 789"));
     }
 
     #[test]
     fn floats() {
-        test_lex!("123.456 789.123 123.456 0.123 0.00");
+        insta::assert_yaml_snapshot!(lex("123.456 789.123 123.456 0.123 0.00"));
     }
 
     #[test]
     fn bools() {
-        test_lex!("true false true false");
+        insta::assert_yaml_snapshot!(lex("true false true false"));
     }
 
     #[test]
     fn strings() {
-        test_lex!(r#""hello" "world" "hello world""#);
+        insta::assert_yaml_snapshot!(lex(r#""hello" "world" "hello world""#));
     }
 
     #[test]
     fn colours() {
-        test_lex!("#123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00");
+        insta::assert_yaml_snapshot!(lex(
+            "#123456 #789abc #defDEF #ABCDEF #12345678 #789abcde #defDEF00 #ABCDEF00"
+        ));
     }
 
     #[test]
     fn keywords() {
-        test_lex!(
+        insta::assert_yaml_snapshot!(lex(
             "end loop if else then let const break continue for do in action proc return run"
-        );
+        ));
     }
 
     #[test]
     fn operators() {
-        test_lex!("== != >= <= + - * / > < !");
+        insta::assert_yaml_snapshot!(lex("== != >= <= + - * / > < !"));
     }
 
     #[test]
     fn control() {
-        test_lex!("..= .. ( ) { } ; , = :");
+        insta::assert_yaml_snapshot!(lex("..= .. ( ) { } (){} ; , = :"));
     }
 
     #[test]
     fn comments() {
-        test_lex!("// hello\n// world\n// hello world");
+        insta::assert_yaml_snapshot!(lex("// hello\n// world\n// hello world"));
     }
 
     #[test]
-
     fn mixed() {
-        test_lex!(
-            r#"
+        insta::assert_yaml_snapshot!(lex(r#"
             // hello
             123 456 789
             123.456 789.123 123.456 0.123 0.00
@@ -418,7 +412,6 @@ mod tests {
             ..= .. ( ) { } ; , = :
             // world
             // hello world
-            "#
-        );
+            "#));
     }
 }
