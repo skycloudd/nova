@@ -1,6 +1,0 @@
----
-source: src/lexer.rs
-expression: "lex(\"// hello\\n// world\\n// hello world\")"
----
-[]
-
