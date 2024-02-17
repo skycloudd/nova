@@ -308,7 +308,6 @@ dependencies = [
  "console",
  "lazy_static",
  "linked-hash-map",
- "serde",
  "similar",
  "yaml-rust",
 ]
