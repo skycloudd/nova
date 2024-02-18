@@ -1,24 +1,31 @@
+#![forbid(unsafe_code)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+
 use ariadne::{Color, FileCache, Fmt};
 use clap::Parser;
 use nova::{report, run};
 use std::{
     fs::read_to_string,
     io::{Cursor, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 #[derive(clap::Parser)]
 struct Args {
     filename: PathBuf,
 
-    #[clap(short, long)]
+    /// The .exolvl file to modify
+    #[clap(short = 'i', long = "input")]
     level: Option<PathBuf>,
 
-    #[clap(short, long)]
-    out: Option<PathBuf>,
+    /// Output file
+    #[clap(short, long = "out")]
+    output: PathBuf,
 
+    /// Force-overwrite the output file if it exists
     #[clap(long)]
-    overwrite: bool,
+    force: bool,
 }
 
 fn main() {
@@ -26,7 +33,7 @@ fn main() {
 
     let level = level(args.level);
 
-    let out = output(args.out, args.overwrite);
+    let out = output(args.output, args.force);
 
     match run(
         &read_to_string(&args.filename).unwrap(),
@@ -52,23 +59,22 @@ fn main() {
 }
 
 fn level(input: Option<PathBuf>) -> Box<dyn Read> {
-    match input {
-        Some(path) => Box::new(std::fs::File::open(path).unwrap()),
-        None => Box::new(Cursor::new(include_bytes!("default.exolvl"))),
-    }
+    input.map_or_else(
+        || Box::new(Cursor::new(include_bytes!("default.exolvl"))) as Box<dyn Read>,
+        |path| Box::new(std::fs::File::open(path).unwrap()),
+    )
 }
 
-fn output(out: Option<PathBuf>, overwrite: bool) -> Box<dyn Write> {
-    match out {
-        Some(path) => Box::new(match path.try_exists() {
-            Ok(true) | Err(_) if path.extension() != Some("exolvl".as_ref()) || overwrite => {
-                panic!(
-                    "output file `{}` already exists",
-                    path.display().fg(Color::Yellow)
-                )
-            }
-            _ => std::fs::File::create(path).unwrap(),
-        }),
-        None => Box::new(std::io::stdout()),
-    }
+fn output<P: AsRef<Path>>(out: P, overwrite: bool) -> Box<dyn Write> {
+    let out = out.as_ref();
+
+    Box::new(match out.try_exists() {
+        Ok(true) | Err(_) if out.extension() != Some("exolvl".as_ref()) || overwrite => {
+            panic!(
+                "output file `{}` already exists",
+                out.display().fg(Color::Yellow)
+            )
+        }
+        _ => std::fs::File::create(out).unwrap(),
+    })
 }
