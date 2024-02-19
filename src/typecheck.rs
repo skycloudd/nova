@@ -22,7 +22,7 @@ pub fn typecheck<'src: 'file, 'file>(
 
 struct Typechecker<'src, 'file> {
     engine: Engine<'file>,
-    procedures: FxHashMap<&'src str, (Span<'file>, Vec<TypeId>)>,
+    procedures: FxHashMap<&'src str, (Span<'file>, (Span<'file>, Vec<TypeId>))>,
     variables: Scopes<&'src str, TypeId>,
 }
 
@@ -54,13 +54,16 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
 
             match self.procedures.get(&name.0) {
                 None => {
-                    let args = args
+                    let args_tys = args
                         .0
                         .iter()
-                        .map(|(_, ty)| self.engine.insert(type_to_typeinfo(Spanned(ty, ty.1))))
+                        .map(|(name, ty)| {
+                            self.engine
+                                .insert(type_to_typeinfo(Spanned(ty, name.1.union(ty.1))))
+                        })
                         .collect();
 
-                    self.procedures.insert(name.0, (name.1, args));
+                    self.procedures.insert(name.0, (name.1, (args.1, args_tys)));
                 }
                 Some((span, _)) => {
                     errors.push(Error::ProcedureRedefinition {
@@ -119,7 +122,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
         }
 
         let span = self.procedures[name.0].0;
-        let number_args = self.procedures[name.0].1.len();
+        let number_args = self.procedures[name.0].1 .1.len();
 
         if number_args != 0 {
             errors.push(Error::RunFunctionHasArgs {
@@ -157,7 +160,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
             .0
             .iter()
             .map(|(name, _)| name)
-            .zip(&self.procedures.get(&procedure.name.0).unwrap().1)
+            .zip(&self.procedures.get(&procedure.name.0).unwrap().1 .1)
             .for_each(|(name, ty)| {
                 if bad_name(name.0) {
                     warnings.push(Error::NameWarning {
@@ -550,17 +553,18 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     return TypedStatement::Error;
                 };
 
-                if arg_types.len() != args.0.len() {
+                if arg_types.1.len() != args.0.len() {
                     errors.push(Error::WrongNumberOfProcedureArguments {
-                        expected: arg_types.len(),
+                        expected: arg_types.1.len(),
                         got: args.0.len(),
-                        span: proc.1,
+                        span: args.1,
+                        def_span: arg_types.0,
                     });
 
                     return TypedStatement::Error;
                 }
 
-                for (ty, arg) in arg_types.iter().zip(args.0.iter().map(|arg| arg.0.ty)) {
+                for (ty, arg) in arg_types.1.iter().zip(args.0.iter().map(|arg| arg.0.ty)) {
                     let arg_ty = self.engine.insert(type_to_typeinfo(Spanned(&arg, args.1)));
 
                     self.engine.unify(*ty, arg_ty).unwrap_or_else(|err| {
@@ -848,11 +852,11 @@ impl<'file> Engine<'file> {
         if var.0 == ty {
             Ok(())
         } else {
-            Err(Box::new(Error::IncompatibleTypes {
-                a: var.0.to_string(),
-                a_span: var.1,
-                b: ty.to_string(),
-                b_span: var.1,
+            Err(Box::new(Error::ExpectedTypeFound {
+                found: var.0.to_string(),
+                found_span: var.1,
+                expected: ty.to_string(),
+                expected_span: var.1,
             }))
         }
     }

@@ -64,6 +64,7 @@ pub enum Error<'file> {
         expected: usize,
         got: usize,
         span: Span<'file>,
+        def_span: Span<'file>,
     },
     RunFunctionHasArgs {
         got: usize,
@@ -73,6 +74,12 @@ pub enum Error<'file> {
     NameWarning {
         name: String,
         span: Span<'file>,
+    },
+    ExpectedTypeFound {
+        found: String,
+        found_span: Span<'file>,
+        expected: String,
+        expected_span: Span<'file>,
     },
 }
 
@@ -171,6 +178,7 @@ impl Error<'_> {
                 expected,
                 got,
                 span: _,
+                def_span: _,
             } => format!("expected {expected} arguments, got {got}").into(),
             Error::RunFunctionHasArgs {
                 got,
@@ -184,6 +192,17 @@ impl Error<'_> {
             Error::NameWarning { name, span: _ } => {
                 format!("identifier `{name}` should have a snake case name").into()
             }
+            Error::ExpectedTypeFound {
+                found,
+                found_span: _,
+                expected,
+                expected_span: _,
+            } => format!(
+                "found type `{}`, expected `{}`",
+                found.fg(Color::Yellow),
+                expected.fg(Color::Yellow),
+            )
+            .into(),
         }
     }
 
@@ -211,8 +230,14 @@ impl Error<'_> {
                 b,
                 b_span,
             } => vec![
-                Spanned(Some(format!("`{a}`").into()), *a_span),
-                Spanned(Some(format!("`{b}`").into()), *b_span),
+                Spanned(
+                    Some(format!("found `{}` here", a.fg(Color::Yellow)).into()),
+                    *a_span,
+                ),
+                Spanned(
+                    Some(format!("found `{}` here", b.fg(Color::Yellow)).into()),
+                    *b_span,
+                ),
             ],
             Error::BinaryOp {
                 lhs,
@@ -272,10 +297,14 @@ impl Error<'_> {
                 expected,
                 got,
                 span,
-            } => vec![Spanned(
-                Some(format!("Expected {expected} arguments, got {got}").into()),
-                *span,
-            )],
+                def_span,
+            } => vec![
+                Spanned(
+                    Some(format!("Expected {expected} arguments, got {got}").into()),
+                    *span,
+                ),
+                Spanned(Some("Procedure definition here".into()), *def_span),
+            ],
             Error::RunFunctionHasArgs {
                 got,
                 span,
@@ -298,6 +327,15 @@ impl Error<'_> {
             Error::NameWarning { name: _, span } => {
                 vec![Spanned(None, *span)]
             }
+            Error::ExpectedTypeFound {
+                found,
+                found_span,
+                expected,
+                expected_span,
+            } => vec![
+                Spanned(Some(format!("Expected {expected}").into()), *expected_span),
+                Spanned(Some(format!("Found {found}").into()), *found_span),
+            ],
         }
     }
 
@@ -324,6 +362,7 @@ impl Error<'_> {
             Error::NameWarning { name, span:_ } => {
                 Some(format!("convert the identifier to a snake case: `{}`", name.to_snake_case()))
             }
+            Error::ExpectedTypeFound { .. } => None,
         }
     }
 }

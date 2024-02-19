@@ -60,7 +60,6 @@ fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
 
     just(Token::Kw(Kw::Proc))
         .ignore_then(ident())
-        .then_ignore(just(Token::Ctrl(Ctrl::LeftParen)))
         .then(
             ident()
                 .then_ignore(just(Token::Ctrl(Ctrl::Colon)))
@@ -68,19 +67,21 @@ fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 .separated_by(just(Token::Ctrl(Ctrl::Comma)))
                 .allow_trailing()
                 .collect()
+                .delimited_by(
+                    just(Token::Ctrl(Ctrl::LeftParen)),
+                    just(Token::Ctrl(Ctrl::RightParen)),
+                )
                 .map_with(|args, e| Spanned(args, e.span()))
                 .boxed(),
         )
-        .then_ignore(just(Token::Ctrl(Ctrl::RightParen)))
-        .then_ignore(just(Token::Kw(Kw::Do)))
         .then(
             statement_parser()
                 .repeated()
                 .collect()
+                .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
                 .map_with(|body, e| Spanned(body, e.span()))
                 .boxed(),
         )
-        .then_ignore(just(Token::Kw(Kw::End)))
         .map(|((name, args), body)| Procedure { name, args, body })
         .map_with(|procedure, e| Spanned(TopLevel::Procedure(procedure), e.span()))
         .boxed()
@@ -98,26 +99,22 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .map(Statement::Expr)
             .boxed();
 
-        let block = just(Token::Kw(Kw::Do))
-            .ignore_then(
-                statement
-                    .clone()
-                    .repeated()
-                    .collect()
-                    .map_with(|body, e| Spanned(body, e.span())),
-            )
-            .then_ignore(just(Token::Kw(Kw::End)))
+        let block = statement
+            .clone()
+            .repeated()
+            .collect()
+            .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
+            .map_with(|body, e| Spanned(body, e.span()))
             .map(Statement::Block)
             .boxed();
 
         let loop_ = just(Token::Kw(Kw::Loop))
-            .ignore_then(just(Token::Kw(Kw::Do)))
             .ignore_then(
                 statement
                     .clone()
                     .repeated()
                     .collect()
-                    .then_ignore(just(Token::Kw(Kw::End)))
+                    .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
                     .map_with(|body, e| Spanned(body, e.span())),
             )
             .map(Statement::Loop)
@@ -166,15 +163,14 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                     .then(expr_parser())
                     .boxed(),
             )
-            .then_ignore(just(Token::Kw(Kw::Do)))
             .then(
                 statement
                     .repeated()
                     .collect()
+                    .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
                     .map_with(|body, e| Spanned(body, e.span()))
                     .boxed(),
             )
-            .then_ignore(just(Token::Kw(Kw::End)))
             .map(|((name, ((start, inclusive), end)), body)| Statement::For {
                 name,
                 start,
@@ -232,15 +228,17 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         let call = ident()
-            .then_ignore(just(Token::Ctrl(Ctrl::LeftParen)))
             .then(
                 expr_parser()
                     .separated_by(just(Token::Ctrl(Ctrl::Comma)))
                     .collect()
+                    .delimited_by(
+                        just(Token::Ctrl(Ctrl::LeftParen)),
+                        just(Token::Ctrl(Ctrl::RightParen)),
+                    )
                     .map_with(|args, e| Spanned(args, e.span()))
                     .boxed(),
             )
-            .then_ignore(just(Token::Ctrl(Ctrl::RightParen)))
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
             .map(|(proc, args)| Statement::Call { proc, args })
             .boxed();

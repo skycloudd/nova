@@ -21,7 +21,7 @@ struct Args {
 
     /// Output file
     #[clap(short, long = "out")]
-    output: PathBuf,
+    output: Option<PathBuf>,
 
     /// Force-overwrite the output file if it exists
     #[clap(long)]
@@ -54,9 +54,7 @@ fn main() {
                     .unwrap();
             }
 
-            if warnings.is_empty() {
-                eprintln!("No warnings generated");
-            } else {
+            if !warnings.is_empty() {
                 eprintln!(
                     "{} warning{} generated",
                     warnings.len(),
@@ -77,11 +75,13 @@ fn main() {
                     .unwrap();
             }
 
-            eprintln!(
-                "{} warning{} generated",
-                warnings.len(),
-                if warnings.len() == 1 { "" } else { "s" }
-            );
+            if !warnings.is_empty() {
+                eprintln!(
+                    "{} warning{} generated",
+                    warnings.len(),
+                    if warnings.len() == 1 { "" } else { "s" }
+                );
+            }
 
             for error in &errors {
                 report(&args.filename, error, ariadne::ReportKind::Error)
@@ -105,19 +105,24 @@ fn level(input: Option<PathBuf>) -> Box<dyn Read> {
     )
 }
 
-fn output<P: AsRef<Path>>(out: P, overwrite: bool) -> Box<dyn Write> {
-    let out = out.as_ref();
+fn output<P: AsRef<Path>>(out: Option<P>, overwrite: bool) -> Box<dyn Write> {
+    match out {
+        Some(out) => {
+            let out = out.as_ref();
 
-    match out.try_exists() {
-        Ok(true) | Err(_) if out.extension() != Some("exolvl".as_ref()) || overwrite => {
-            panic!(
-                "output file `{}` already exists",
-                out.display().fg(Color::Yellow)
-            )
+            match out.try_exists() {
+                Ok(true) | Err(_) if out.extension() != Some("exolvl".as_ref()) || overwrite => {
+                    panic!(
+                        "output file `{}` already exists",
+                        out.display().fg(Color::Yellow)
+                    )
+                }
+                _ => match out.as_os_str().to_str() {
+                    Some("-") => Box::new(std::io::stdout()) as Box<dyn Write>,
+                    _ => Box::new(std::fs::File::create(out).unwrap()),
+                },
+            }
         }
-        _ => match out.as_os_str().to_str() {
-            Some("-") => Box::new(std::io::stdout()) as Box<dyn Write>,
-            _ => Box::new(std::fs::File::create(out).unwrap()),
-        },
+        None => Box::new(std::io::stdout()) as Box<dyn Write>,
     }
 }
