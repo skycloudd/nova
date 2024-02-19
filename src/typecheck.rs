@@ -656,18 +656,16 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 let x_ty = self.engine.insert(type_to_typeinfo(Spanned(&x.0.ty, x.1)));
                 let y_ty = self.engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
 
-                self.engine.unify(x_ty, y_ty).unwrap_or_else(|err| {
-                    errors.push(*err);
-                });
-
-                let float_ty = self.engine.insert(Spanned(TypeInfo::Float, x.1));
-
-                self.engine.unify(x_ty, float_ty).unwrap_or_else(|err| {
-                    errors.push(*err);
-                });
-                self.engine.unify(y_ty, float_ty).unwrap_or_else(|err| {
-                    errors.push(*err);
-                });
+                self.engine
+                    .expect(x_ty, TypeInfo::Float)
+                    .unwrap_or_else(|err| {
+                        errors.push(*err);
+                    });
+                self.engine
+                    .expect(y_ty, TypeInfo::Float)
+                    .unwrap_or_else(|err| {
+                        errors.push(*err);
+                    });
 
                 TypedExpr {
                     expr: typed::Expr::Vector {
