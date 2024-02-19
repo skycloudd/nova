@@ -163,7 +163,7 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     LexerOutput<'src, 'src, 'file>,
     LexerError<'src, 'src, 'file>,
 > {
-    let variable = text::ident().map(Token::Variable);
+    let variable = text::ascii::ident().map(Token::Variable);
 
     let bool = choice((
         text::keyword("true").to(Token::Boolean(true)),

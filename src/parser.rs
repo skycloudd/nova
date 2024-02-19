@@ -261,7 +261,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
 > {
     recursive(|expression| {
         let variable = ident()
-            .map_with(|variable, e| Spanned(Expr::Variable(variable.0), e.span()))
+            .map_with(|variable, e| Spanned(Expr::Variable(variable), e.span()))
             .boxed();
 
         let boolean = select! {

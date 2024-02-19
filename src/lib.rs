@@ -4,8 +4,9 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::too_many_lines)]
 #![warn(clippy::nursery)]
+#![allow(dead_code)]
 
-use ariadne::{ColorGenerator, Label, Report};
+use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
 use error::{convert, Error};
 use exolvl::{Exolvl, Read as _, Write as _};
@@ -36,16 +37,15 @@ pub fn run<'src: 'file, 'file>(
     filename: &'file Path,
     level: impl Read,
     out: impl Write,
-) -> Result<(), Vec<Error<'file>>> {
+) -> (bool, Vec<Error<'file>>, Vec<Error<'file>>) {
+    let mut warnings = vec![];
     let mut errors = vec![];
 
-    let tokens = lexer::lexer()
+    let (tokens, lex_errors) = lexer::lexer()
         .parse(input.with_context(filename))
-        .into_result()
-        .map_err(|lex_errors| {
-            errors.extend(map_errors(lex_errors));
-        })
-        .ok();
+        .into_output_errors();
+
+    errors.extend(map_errors(lex_errors));
 
     let ast = tokens
         .as_ref()
@@ -65,15 +65,13 @@ pub fn run<'src: 'file, 'file>(
         })
         .ok();
 
-    let typed_ast = ast
-        .map_or_else(|| Err(vec![]), typecheck::typecheck)
-        .map_err(|type_errors| {
-            errors.extend(type_errors);
-        });
+    let (typed_ast, typecheck_warnings, typecheck_errs) =
+        ast.map_or_else(|| (vec![], vec![], vec![]), typecheck::typecheck);
+
+    warnings.extend(typecheck_warnings);
+    errors.extend(typecheck_errs);
 
     if errors.is_empty() {
-        let typed_ast = typed_ast.unwrap();
-
         let mir = mir::build(&typed_ast);
 
         let low_ir = low_ir::lower(&mir);
@@ -96,13 +94,36 @@ pub fn run<'src: 'file, 'file>(
 
         encoder.finish().unwrap();
 
-        Ok(())
+        (true, warnings, errors)
     } else {
-        Err(errors)
+        (false, warnings, errors)
     }
 }
 
-pub fn report<'file, Id>(filename: Id, error: &'file Error<'file>) -> Report<'_, Span<'file>>
+pub fn report_warnings_errors<'file, Id>(filename: Id, warnings: Vec<Error>, errors: Vec<Error>)
+where
+    Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned> + Copy,
+{
+    for (error, kind) in warnings
+        .iter()
+        .map(|warning| (warning, ariadne::ReportKind::Warning))
+        .chain(
+            errors
+                .iter()
+                .map(|error| (error, ariadne::ReportKind::Error)),
+        )
+    {
+        report(filename, error, kind)
+            .eprint(FileCache::default())
+            .unwrap();
+    }
+}
+
+pub fn report<'a: 'file, 'file, Id>(
+    filename: Id,
+    error: &'file Error<'file>,
+    kind: ariadne::ReportKind<'a>,
+) -> Report<'file, Span<'file>>
 where
     Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned>,
 {
@@ -114,7 +135,7 @@ where
 
     let offset = spans.iter().map(|s| s.1.start()).min().unwrap_or(0);
 
-    let mut report = Report::build(ariadne::ReportKind::Error, filename, offset);
+    let mut report = Report::build(kind, filename, offset);
 
     report.set_message(message);
 

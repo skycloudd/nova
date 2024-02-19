@@ -1,9 +1,9 @@
 use crate::{
-    ast::{BinaryOp, Type, UnaryOp},
+    ast::{BinaryOp, UnaryOp},
     low_ir::{
         BasicBlock, Expression, Goto, Instruction, Procedure, Terminator, TopLevel, TypedExpression,
     },
-    mir::{self, ProcId, VarId},
+    mir::{self, ProcId, Type, VarId},
     IdGen,
 };
 use exolvl::{

@@ -1,6 +1,7 @@
 use crate::span::{Span, Spanned};
 use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
+use heck::ToSnakeCase;
 use std::borrow::Cow;
 
 #[derive(Debug)]
@@ -69,6 +70,10 @@ pub enum Error<'file> {
         span: Span<'file>,
         run_span: Span<'file>,
     },
+    NameWarning {
+        name: String,
+        span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -85,7 +90,7 @@ impl Error<'_> {
                     .fg(Color::Yellow);
 
                 if expected.is_empty() {
-                    format!("Found {found}, expected something else").into()
+                    format!("found {found}, expected something else").into()
                 } else {
                     let expected_string = expected
                         .iter()
@@ -94,7 +99,7 @@ impl Error<'_> {
                         .join(", ");
 
                     format!(
-                        "Expected {}{}, found {}",
+                        "expected {}{}, found {}",
                         if expected.len() > 1 { "one of " } else { "" },
                         expected_string,
                         found
@@ -104,16 +109,16 @@ impl Error<'_> {
             }
             Error::Custom { message, span: _ } => message.into(),
             Error::UndefinedVariable { name, span: _ } => {
-                format!("Undefined variable `{}`", name.fg(Color::Yellow)).into()
+                format!("undefined variable `{}`", name.fg(Color::Yellow)).into()
             }
-            Error::UnknownType { span: _ } => "Unknown type".into(),
+            Error::UnknownType { span: _ } => "unknown type".into(),
             Error::IncompatibleTypes {
                 a,
                 a_span: _,
                 b,
                 b_span: _,
             } => format!(
-                "Incompatible types `{}` and `{}`",
+                "incompatible types `{}` and `{}`",
                 a.fg(Color::Yellow),
                 b.fg(Color::Yellow)
             )
@@ -126,7 +131,7 @@ impl Error<'_> {
                 op,
                 op_span: _,
             } => format!(
-                "Cannot apply `{}` to `{}` and `{}`",
+                "cannot apply `{}` to `{}` and `{}`",
                 op.fg(Color::Yellow),
                 lhs.fg(Color::Yellow),
                 rhs.fg(Color::Yellow)
@@ -138,7 +143,7 @@ impl Error<'_> {
                 op,
                 op_span: _,
             } => format!(
-                "Cannot apply `{}` to `{}`",
+                "cannot apply `{}` to `{}`",
                 op.fg(Color::Yellow),
                 ty.fg(Color::Yellow)
             )
@@ -148,34 +153,37 @@ impl Error<'_> {
                 got,
                 span: _,
             } => format!(
-                "Expected {} arguments, got {}",
+                "expected {} arguments, got {}",
                 expected.fg(Color::Yellow),
                 got.fg(Color::Yellow)
             )
             .into(),
-            Error::UnknownAction { name, span: _ } => format!("Unknown action `{name}`").into(),
+            Error::UnknownAction { name, span: _ } => format!("unknown action `{name}`").into(),
             Error::ProcedureRedefinition {
                 name,
                 old_span: _,
                 new_span: _,
-            } => format!("Procedure `{}` redefined", name.fg(Color::Yellow)).into(),
+            } => format!("procedure `{}` redefined", name.fg(Color::Yellow)).into(),
             Error::UndefinedProcedure { name, span: _ } => {
-                format!("Undefined procedure `{name}`").into()
+                format!("undefined procedure `{name}`").into()
             }
             Error::WrongNumberOfProcedureArguments {
                 expected,
                 got,
                 span: _,
-            } => format!("Expected {expected} arguments, got {got}").into(),
+            } => format!("expected {expected} arguments, got {got}").into(),
             Error::RunFunctionHasArgs {
                 got,
                 span: _,
                 run_span: _,
             } => format!(
-                "Function in a run statement takes {got} argument{}, but it should not take any",
+                "function in a run statement takes {got} argument{}, but it should not take any",
                 if *got == 1 { "" } else { "s" }
             )
             .into(),
+            Error::NameWarning { name, span: _ } => {
+                format!("identifier `{name}` should have a snake case name").into()
+            }
         }
     }
 
@@ -287,6 +295,9 @@ impl Error<'_> {
                     Spanned(Some("Run statement here".into()), *run_span),
                 ]
             }
+            Error::NameWarning { name: _, span } => {
+                vec![Spanned(None, *span)]
+            }
         }
     }
 
@@ -309,6 +320,9 @@ impl Error<'_> {
             Error::WrongNumberOfProcedureArguments { .. } => None,
             Error::RunFunctionHasArgs { .. } => {
                 Some("Functions passed to run statements cannot take any arguments. Consider creating a wrapper function.".into())
+            }
+            Error::NameWarning { name, span:_ } => {
+                Some(format!("convert the identifier to a snake case: `{}`", name.to_snake_case()))
             }
         }
     }

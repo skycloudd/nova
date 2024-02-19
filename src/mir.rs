@@ -1,7 +1,8 @@
 use crate::{
     ast::{
+        self,
         typed::{Expr, TypedExpr, TypedProcedure, TypedStatement, TypedTopLevel},
-        BinaryOp, Type, UnaryOp,
+        BinaryOp, UnaryOp,
     },
     scopes::Scopes,
     span::Spanned,
@@ -97,6 +98,45 @@ pub enum Expression<'src> {
         op: BinaryOp,
         rhs: Box<TypedExpression<'src>>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Type {
+    Integer,
+    Float,
+    Boolean,
+    String,
+    Colour,
+    Vector,
+}
+
+impl TryFrom<ast::Type> for Type {
+    type Error = ();
+
+    fn try_from(ty: ast::Type) -> Result<Self, Self::Error> {
+        match ty {
+            ast::Type::Error => Err(()),
+            ast::Type::Integer => Ok(Type::Integer),
+            ast::Type::Float => Ok(Type::Float),
+            ast::Type::Boolean => Ok(Type::Boolean),
+            ast::Type::String => Ok(Type::String),
+            ast::Type::Colour => Ok(Type::Colour),
+            ast::Type::Vector => Ok(Type::Vector),
+        }
+    }
+}
+
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Integer => write!(f, "int"),
+            Type::Float => write!(f, "float"),
+            Type::Boolean => write!(f, "bool"),
+            Type::String => write!(f, "string"),
+            Type::Colour => write!(f, "colour"),
+            Type::Vector => write!(f, "vector"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -196,7 +236,7 @@ impl<'src> MirBuilder<'src> {
                         self.var_id_map.insert(&arg.0);
                     }
                 }
-                TypedTopLevel::Run(_) => {}
+                TypedTopLevel::Run(_) | TypedTopLevel::Error => {}
             }
         }
 
@@ -211,6 +251,7 @@ impl<'src> MirBuilder<'src> {
                 TopLevel::Procedure(self.build_mir_procedure(procedure))
             }
             TypedTopLevel::Run(name) => self.build_mir_run(name.0),
+            TypedTopLevel::Error => unreachable!(),
         }
     }
 
@@ -227,7 +268,12 @@ impl<'src> MirBuilder<'src> {
             args: procedure
                 .args
                 .iter()
-                .map(|arg| (*self.var_id_map.get(&arg.0).unwrap(), arg.1 .0))
+                .map(|arg| {
+                    (
+                        *self.var_id_map.get(&arg.0).unwrap(),
+                        arg.1 .0.try_into().unwrap(),
+                    )
+                })
                 .collect(),
             body: self.build_statements(&procedure.body),
         }
@@ -248,6 +294,7 @@ impl<'src> MirBuilder<'src> {
         statement: &'src TypedStatement<'src, '_>,
     ) -> Statement<'src> {
         match statement {
+            TypedStatement::Error => unreachable!(),
             TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(&expr.0)),
             TypedStatement::Block(statements) => {
                 Statement::Block(self.build_statements(statements))
@@ -353,6 +400,7 @@ impl<'src> MirBuilder<'src> {
     fn build_mir_expr(&mut self, expr: &TypedExpr<'src, '_>) -> TypedExpression<'src> {
         TypedExpression {
             expr: match &expr.expr {
+                Expr::Error => unreachable!(),
                 Expr::Variable(name) => Expression::Variable(*self.var_id_map.get(name).unwrap()),
                 Expr::Boolean(value) => Expression::Boolean(*value),
                 Expr::Integer(value) => Expression::Integer(*value),
@@ -387,7 +435,7 @@ impl<'src> MirBuilder<'src> {
                     }
                 }
             },
-            ty: expr.ty,
+            ty: expr.ty.try_into().unwrap(),
         }
     }
 }

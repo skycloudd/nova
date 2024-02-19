@@ -1,6 +1,6 @@
 use crate::{
-    ast::{BinaryOp, Type, UnaryOp},
-    mir::{self, Action, ProcId, Statement, VarId},
+    ast::{BinaryOp, UnaryOp},
+    mir::{self, Action, ProcId, Statement, Type, VarId},
     FloatTy, IntTy,
 };
 

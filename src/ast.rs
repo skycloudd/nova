@@ -4,6 +4,7 @@ macro_rules! top_level {
     ($name:ident, $proc:ident) => {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
+            Error,
             Procedure($proc<'src, 'file>),
             Run(Spanned<'file, &'src str>),
         }
@@ -25,6 +26,7 @@ macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
+            Error,
             Expr(Spanned<'file, $expr<'src, 'file>>),
             Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
             Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
@@ -67,7 +69,8 @@ macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
-            Variable(&'src str),
+            Error,
+            Variable(Spanned<'file, &'src str>),
             Boolean(bool),
             Integer(crate::IntTy),
             Float(crate::FloatTy),
@@ -151,6 +154,7 @@ impl std::fmt::Display for UnaryOp {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
+    Error,
     Boolean,
     Integer,
     Float,
@@ -181,6 +185,7 @@ pub mod typed {
     impl std::fmt::Display for Type {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                Self::Error => write!(f, "error"),
                 Self::Boolean => write!(f, "bool"),
                 Self::Integer => write!(f, "int"),
                 Self::Float => write!(f, "float"),

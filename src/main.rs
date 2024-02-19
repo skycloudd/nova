@@ -35,16 +35,56 @@ fn main() {
 
     let out = output(args.output, args.force);
 
+    println!(
+        "{} {}",
+        "Compiling".fg(Color::Green),
+        args.filename.display()
+    );
+
     match run(
         &read_to_string(&args.filename).unwrap(),
         &args.filename,
         level,
         out,
     ) {
-        Ok(()) => {}
-        Err(errors) => {
+        (true, warnings, _) => {
+            for warning in &warnings {
+                report(&args.filename, warning, ariadne::ReportKind::Warning)
+                    .eprint(FileCache::default())
+                    .unwrap();
+            }
+
+            if warnings.is_empty() {
+                eprintln!("No warnings generated");
+            } else {
+                eprintln!(
+                    "{} warning{} generated",
+                    warnings.len(),
+                    if warnings.len() == 1 { "" } else { "s" }
+                );
+            }
+
+            eprintln!(
+                "{} {}",
+                "Finished".fg(Color::Green),
+                args.filename.display()
+            );
+        }
+        (false, warnings, errors) => {
+            for warning in &warnings {
+                report(&args.filename, warning, ariadne::ReportKind::Warning)
+                    .eprint(FileCache::default())
+                    .unwrap();
+            }
+
+            eprintln!(
+                "{} warning{} generated",
+                warnings.len(),
+                if warnings.len() == 1 { "" } else { "s" }
+            );
+
             for error in &errors {
-                report(&args.filename, error)
+                report(&args.filename, error, ariadne::ReportKind::Error)
                     .eprint(FileCache::default())
                     .unwrap();
             }
@@ -68,13 +108,16 @@ fn level(input: Option<PathBuf>) -> Box<dyn Read> {
 fn output<P: AsRef<Path>>(out: P, overwrite: bool) -> Box<dyn Write> {
     let out = out.as_ref();
 
-    Box::new(match out.try_exists() {
+    match out.try_exists() {
         Ok(true) | Err(_) if out.extension() != Some("exolvl".as_ref()) || overwrite => {
             panic!(
                 "output file `{}` already exists",
                 out.display().fg(Color::Yellow)
             )
         }
-        _ => std::fs::File::create(out).unwrap(),
-    })
+        _ => match out.as_os_str().to_str() {
+            Some("-") => Box::new(std::io::stdout()) as Box<dyn Write>,
+            _ => Box::new(std::fs::File::create(out).unwrap()),
+        },
+    }
 }
