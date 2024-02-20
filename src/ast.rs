@@ -76,7 +76,7 @@ macro_rules! ast_expr {
             Boolean(bool),
             Integer(crate::IntTy),
             Float(crate::FloatTy),
-            String(&'src str),
+            String(String),
             Colour {
                 r: u8,
                 g: u8,

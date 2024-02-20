@@ -10,65 +10,65 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'src> {
-    Procedure(Procedure<'src>),
+pub enum TopLevel<'ast> {
+    Procedure(Procedure<'ast>),
     Run(ProcId),
 }
 
 #[derive(Debug)]
-pub struct Procedure<'src> {
+pub struct Procedure<'ast> {
     pub name: ProcId,
     pub args: Vec<(VarId, Type)>,
-    pub body: Vec<Statement<'src>>,
+    pub body: Vec<Statement<'ast>>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct ProcId(pub usize);
 
 #[derive(Debug)]
-pub enum Statement<'src> {
-    Expr(TypedExpression<'src>),
+pub enum Statement<'ast> {
+    Expr(TypedExpression<'ast>),
     Block(Vec<Self>),
     Loop(Vec<Self>),
     If {
-        condition: TypedExpression<'src>,
+        condition: TypedExpression<'ast>,
         then_branch: Vec<Self>,
         else_branch: Option<Vec<Self>>,
     },
     Let {
         name: VarId,
-        value: TypedExpression<'src>,
+        value: TypedExpression<'ast>,
     },
     Assign {
         name: VarId,
-        value: TypedExpression<'src>,
+        value: TypedExpression<'ast>,
     },
     Break,
     Continue,
     Return,
     Action {
         action: Action,
-        args: Vec<TypedExpression<'src>>,
+        args: Vec<TypedExpression<'ast>>,
     },
     Call {
         proc: ProcId,
-        args: Vec<TypedExpression<'src>>,
+        args: Vec<TypedExpression<'ast>>,
     },
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<'src> {
-    pub expr: Expression<'src>,
+pub struct TypedExpression<'ast> {
+    pub expr: Expression<'ast>,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression<'src> {
+pub enum Expression<'ast> {
     Variable(VarId),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(&'src str),
+    String(&'ast str),
     Colour {
         r: u8,
         g: u8,
@@ -76,21 +76,21 @@ pub enum Expression<'src> {
         a: u8,
     },
     Vector {
-        x: Box<TypedExpression<'src>>,
-        y: Box<TypedExpression<'src>>,
+        x: Box<TypedExpression<'ast>>,
+        y: Box<TypedExpression<'ast>>,
     },
     Unary {
         op: UnaryOp,
-        rhs: Box<TypedExpression<'src>>,
+        rhs: Box<TypedExpression<'ast>>,
     },
     Binary {
-        lhs: Box<TypedExpression<'src>>,
+        lhs: Box<TypedExpression<'ast>>,
         op: BinaryOp,
-        rhs: Box<TypedExpression<'src>>,
+        rhs: Box<TypedExpression<'ast>>,
     },
     Convert {
         ty: Type,
-        expr: Box<TypedExpression<'src>>,
+        expr: Box<TypedExpression<'ast>>,
     },
 }
 
@@ -210,7 +210,9 @@ impl<'src> IdMap<'src> for ProcIdMap<'src> {
     }
 }
 
-pub fn build<'src>(ast: &'src [Spanned<'_, TypedTopLevel<'_, '_>>]) -> Vec<TopLevel<'src>> {
+pub fn build<'src, 'file, 'ast>(
+    ast: &'ast [Spanned<'file, TypedTopLevel<'src, 'file>>],
+) -> Vec<TopLevel<'ast>> {
     MirBuilder::new().build(ast)
 }
 
@@ -227,10 +229,10 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build<'file>(
+    fn build<'file: 'src, 'ast>(
         &mut self,
-        ast: &'src [Spanned<'file, TypedTopLevel<'_, '_>>],
-    ) -> Vec<TopLevel<'src>> {
+        ast: &'ast [Spanned<'file, TypedTopLevel<'src, 'file>>],
+    ) -> Vec<TopLevel<'ast>> {
         for top_level in ast {
             match &top_level.0 {
                 TypedTopLevel::Procedure(procedure) => {
@@ -249,7 +251,10 @@ impl<'src> MirBuilder<'src> {
             .collect()
     }
 
-    fn build_mir_top_level(&mut self, top_level: &'src TypedTopLevel<'src, '_>) -> TopLevel<'src> {
+    fn build_mir_top_level<'file: 'src, 'ast>(
+        &mut self,
+        top_level: &'ast TypedTopLevel<'src, 'file>,
+    ) -> TopLevel<'ast> {
         match top_level {
             TypedTopLevel::Procedure(procedure) => {
                 TopLevel::Procedure(self.build_mir_procedure(procedure))
@@ -259,14 +264,14 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build_mir_run(&mut self, name: &'src str) -> TopLevel<'src> {
+    fn build_mir_run<'ast>(&mut self, name: &'src str) -> TopLevel<'ast> {
         TopLevel::Run(*self.proc_id_map.get(name).unwrap())
     }
 
-    fn build_mir_procedure(
+    fn build_mir_procedure<'file: 'src, 'ast>(
         &mut self,
-        procedure: &'src TypedProcedure<'src, '_>,
-    ) -> Procedure<'src> {
+        procedure: &'ast TypedProcedure<'src, 'file>,
+    ) -> Procedure<'ast> {
         Procedure {
             name: *self.proc_id_map.get(procedure.name.0).unwrap(),
             args: procedure
@@ -283,20 +288,20 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build_statements(
+    fn build_statements<'file: 'src, 'ast>(
         &mut self,
-        statements: &'src [Spanned<'src, TypedStatement<'src, '_>>],
-    ) -> Vec<Statement<'src>> {
+        statements: &'ast [Spanned<'src, TypedStatement<'src, 'file>>],
+    ) -> Vec<Statement<'ast>> {
         statements
             .iter()
             .map(|stmt| self.build_mir_statement(&stmt.0))
             .collect()
     }
 
-    fn build_mir_statement(
+    fn build_mir_statement<'file: 'src, 'ast>(
         &mut self,
-        statement: &'src TypedStatement<'src, '_>,
-    ) -> Statement<'src> {
+        statement: &'ast TypedStatement<'src, 'file>,
+    ) -> Statement<'ast> {
         match statement {
             TypedStatement::Error => unreachable!(),
             TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(&expr.0)),
@@ -401,7 +406,7 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build_mir_expr(&mut self, expr: &TypedExpr<'src, '_>) -> TypedExpression<'src> {
+    fn build_mir_expr<'ast>(&mut self, expr: &'ast TypedExpr<'src, '_>) -> TypedExpression<'ast> {
         TypedExpression {
             expr: match &expr.expr {
                 Expr::Error => unreachable!(),

@@ -9,7 +9,7 @@ pub enum Token<'src> {
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(&'src str),
+    String(String),
     Colour(u8, u8, u8, Option<u8>),
     Kw(Kw),
     Ctrl(Ctrl),
@@ -196,11 +196,34 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .map(Token::Float)
         .boxed();
 
-    let string = just('"')
-        .ignore_then(none_of('"').repeated())
-        .then_ignore(just('"'))
+    let escape = just('\\')
+        .then(choice((
+            just('\\'),
+            just('/'),
+            just('"'),
+            just('n').to('\n'),
+            just('u').ignore_then(text::digits(16).exactly(4).to_slice().validate(
+                |digits, e, emitter| {
+                    char::from_u32(u32::from_str_radix(digits, 16).unwrap()).unwrap_or_else(|| {
+                        emitter.emit(Rich::custom(e.span(), "invalid unicode character"));
+
+                        '\u{FFFD}'
+                    })
+                },
+            )),
+        )))
+        .ignored()
+        .boxed();
+
+    let string = none_of("\\\"")
+        .ignored()
+        .or(escape)
+        .repeated()
         .to_slice()
-        .map(Token::String);
+        .map(ToString::to_string)
+        .delimited_by(just('"'), just('"'))
+        .map(Token::String)
+        .boxed();
 
     let hex_byte = choice((
         just('0'),

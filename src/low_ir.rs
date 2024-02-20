@@ -5,30 +5,30 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct UnfinishedBasicBlock<'src> {
+pub struct UnfinishedBasicBlock<'ast> {
     id: BasicBlockId,
-    instructions: Vec<Instruction<'src>>,
-    terminator: Option<Terminator<'src>>,
+    instructions: Vec<Instruction<'ast>>,
+    terminator: Option<Terminator<'ast>>,
 }
 
 #[derive(Debug)]
-pub enum TopLevel<'src> {
-    Procedure(Procedure<'src>),
+pub enum TopLevel<'ast> {
+    Procedure(Procedure<'ast>),
     Run(ProcId),
 }
 
 #[derive(Debug)]
-pub struct Procedure<'src> {
+pub struct Procedure<'ast> {
     pub name: ProcId,
     pub args: Vec<(VarId, Type)>,
-    pub body: Vec<BasicBlock<'src>>,
+    pub body: Vec<BasicBlock<'ast>>,
 }
 
 #[derive(Debug)]
-pub struct BasicBlock<'src> {
+pub struct BasicBlock<'ast> {
     id: BasicBlockId,
-    instructions: Vec<Instruction<'src>>,
-    terminator: Terminator<'src>,
+    instructions: Vec<Instruction<'ast>>,
+    terminator: Terminator<'ast>,
 }
 
 impl BasicBlock<'_> {
@@ -54,16 +54,16 @@ fn finish_block(block: UnfinishedBasicBlock) -> Option<BasicBlock> {
 }
 
 #[derive(Debug)]
-pub enum Terminator<'src> {
+pub enum Terminator<'ast> {
     Goto(Goto),
     If {
-        condition: TypedExpression<'src>,
+        condition: TypedExpression<'ast>,
         then_block: Goto,
         else_block: Goto,
     },
     Call {
         proc: ProcId,
-        args: Vec<TypedExpression<'src>>,
+        args: Vec<TypedExpression<'ast>>,
         continuation: Goto,
     },
 }
@@ -77,35 +77,35 @@ pub enum Goto {
 pub type BasicBlockId = usize;
 
 #[derive(Debug)]
-pub enum Instruction<'src> {
-    Expr(TypedExpression<'src>),
+pub enum Instruction<'ast> {
+    Expr(TypedExpression<'ast>),
     Let {
         name: VarId,
-        value: TypedExpression<'src>,
+        value: TypedExpression<'ast>,
     },
     Assign {
         name: VarId,
-        value: TypedExpression<'src>,
+        value: TypedExpression<'ast>,
     },
     Action {
         name: Action,
-        args: Vec<TypedExpression<'src>>,
+        args: Vec<TypedExpression<'ast>>,
     },
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<'src> {
-    pub expr: Expression<'src>,
+pub struct TypedExpression<'ast> {
+    pub expr: Expression<'ast>,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression<'src> {
+pub enum Expression<'ast> {
     Variable(VarId),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(&'src str),
+    String(&'ast str),
     Colour {
         r: u8,
         g: u8,
@@ -113,36 +113,36 @@ pub enum Expression<'src> {
         a: u8,
     },
     Vector {
-        x: Box<TypedExpression<'src>>,
-        y: Box<TypedExpression<'src>>,
+        x: Box<TypedExpression<'ast>>,
+        y: Box<TypedExpression<'ast>>,
     },
     Unary {
         op: UnaryOp,
-        value: Box<TypedExpression<'src>>,
+        value: Box<TypedExpression<'ast>>,
     },
     Binary {
-        lhs: Box<TypedExpression<'src>>,
+        lhs: Box<TypedExpression<'ast>>,
         op: BinaryOp,
-        rhs: Box<TypedExpression<'src>>,
+        rhs: Box<TypedExpression<'ast>>,
     },
     Convert {
         ty: Type,
-        expr: Box<TypedExpression<'src>>,
+        expr: Box<TypedExpression<'ast>>,
     },
 }
 
-pub fn lower<'src>(ast: &[mir::TopLevel<'src>]) -> Vec<TopLevel<'src>> {
+pub fn lower<'ast>(ast: &[mir::TopLevel<'ast>]) -> Vec<TopLevel<'ast>> {
     LoweringContext::default().lower(ast)
 }
 
 #[derive(Debug, Default)]
-struct LoweringContext<'src> {
-    blocks: Vec<UnfinishedBasicBlock<'src>>,
+struct LoweringContext<'ast> {
+    blocks: Vec<UnfinishedBasicBlock<'ast>>,
     current_block: BasicBlockId,
     loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
 }
 
-impl<'src> LoweringContext<'src> {
+impl<'ast> LoweringContext<'ast> {
     fn new_block(&mut self) -> BasicBlockId {
         let id = self.blocks.len();
 
@@ -163,11 +163,11 @@ impl<'src> LoweringContext<'src> {
         self.blocks.get(self.current_block).unwrap()
     }
 
-    fn current_mut(&mut self) -> &mut UnfinishedBasicBlock<'src> {
+    fn current_mut(&mut self) -> &mut UnfinishedBasicBlock<'ast> {
         self.blocks.get_mut(self.current_block).unwrap()
     }
 
-    fn finish(&mut self, terminator: Terminator<'src>) {
+    fn finish(&mut self, terminator: Terminator<'ast>) {
         assert!(
             self.current().terminator.is_none(),
             "block {} already finished",
@@ -177,7 +177,7 @@ impl<'src> LoweringContext<'src> {
         self.current_mut().terminator = Some(terminator);
     }
 
-    fn finish_checked(&mut self, terminator: Terminator<'src>) {
+    fn finish_checked(&mut self, terminator: Terminator<'ast>) {
         if self.current().terminator.is_none() {
             self.current_mut().terminator = Some(terminator);
         }
@@ -195,7 +195,7 @@ impl<'src> LoweringContext<'src> {
         *self.loop_stack.last().unwrap()
     }
 
-    fn lower(mut self, ast: &[mir::TopLevel<'src>]) -> Vec<TopLevel<'src>> {
+    fn lower(mut self, ast: &[mir::TopLevel<'ast>]) -> Vec<TopLevel<'ast>> {
         ast.iter()
             .map(|top_level| match top_level {
                 mir::TopLevel::Procedure(procedure) => {
@@ -214,7 +214,7 @@ impl<'src> LoweringContext<'src> {
             .collect()
     }
 
-    fn lower_statements(&mut self, ast: &[Statement<'src>]) {
+    fn lower_statements(&mut self, ast: &[Statement<'ast>]) {
         self.blocks.clear();
 
         let start = self.new_block();
@@ -227,7 +227,7 @@ impl<'src> LoweringContext<'src> {
         self.finish(Terminator::Goto(Goto::Return));
     }
 
-    fn lower_statement(&mut self, statement: &Statement<'src>) -> bool {
+    fn lower_statement(&mut self, statement: &Statement<'ast>) -> bool {
         match statement {
             Statement::Expr(expr) => {
                 let expr = Self::lower_expression(expr);
@@ -369,7 +369,7 @@ impl<'src> LoweringContext<'src> {
         false
     }
 
-    fn lower_expression(expression: &mir::TypedExpression<'src>) -> TypedExpression<'src> {
+    fn lower_expression(expression: &mir::TypedExpression<'ast>) -> TypedExpression<'ast> {
         TypedExpression {
             expr: match &expression.expr {
                 mir::Expression::Variable(name) => Expression::Variable(*name),
