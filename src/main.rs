@@ -41,7 +41,7 @@ fn main() {
         args.filename.display()
     );
 
-    match run(
+    let exit_code = match run(
         &read_to_string(&args.filename).unwrap(),
         &args.filename,
         level,
@@ -67,6 +67,8 @@ fn main() {
                 "Finished".fg(Color::Green),
                 args.filename.display()
             );
+
+            0
         }
         (false, warnings, errors) => {
             for warning in &warnings {
@@ -94,8 +96,12 @@ fn main() {
                 errors.len(),
                 if errors.len() == 1 { "" } else { "s" }
             );
+
+            1
         }
-    }
+    };
+
+    std::process::exit(exit_code);
 }
 
 fn level(input: Option<PathBuf>) -> Box<dyn Read> {
