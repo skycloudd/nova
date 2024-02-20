@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         typed::{self, TypedExpr, TypedProcedure, TypedStatement, TypedTopLevel},
-        BinaryOp, Expr, Procedure, Statement, TopLevel, Type, UnaryOp,
+        Action, BinaryOp, Expr, Procedure, Statement, TopLevel, Type, UnaryOp,
     },
     error::Error,
     scopes::Scopes,
@@ -451,64 +451,59 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 });
 
                 let expected_types = match name.0 {
-                    "wait" => {
+                    Action::Wait => {
                         if (args.len()) != 1 {
                             errors.push(Error::WrongNumberOfActionArguments {
                                 expected: 1,
-                                got: (args.len()),
-                                span: (name.1),
+                                got: args.len(),
+                                span: name.1,
                             });
 
                             return TypedStatement::Error;
                         };
 
-                        vec![TypeInfo::Float]
+                        vec![vec![TypeInfo::Float]]
                     }
-                    "waitframes" => {
+                    Action::WaitFrames => {
                         if (args.len()) != 1 {
                             errors.push(Error::WrongNumberOfActionArguments {
                                 expected: 1,
-                                got: (args.len()),
-                                span: (name.1),
+                                got: args.len(),
+                                span: name.1,
                             });
 
                             return TypedStatement::Error;
                         };
 
-                        vec![TypeInfo::Integer]
+                        vec![vec![TypeInfo::Integer]]
                     }
-                    "print" => {
+                    Action::Print => {
                         if (args.len()) != 1 {
                             errors.push(Error::WrongNumberOfActionArguments {
                                 expected: 1,
-                                got: (args.len()),
-                                span: (name.1),
+                                got: args.len(),
+                                span: name.1,
                             });
 
                             return TypedStatement::Error;
                         };
 
-                        vec![TypeInfo::String]
+                        vec![vec![TypeInfo::String]]
                     }
-                    _ => {
-                        errors.push(Error::UnknownAction {
-                            name: name.0.to_string(),
-                            span: name.1,
-                        });
-
-                        return TypedStatement::Error;
-                    }
+                    Action::Error => return TypedStatement::Error,
                 };
 
                 for (expected, got) in expected_types
                     .into_iter()
-                    .zip(args.0.iter().map(|arg| arg.0.ty))
+                    .zip(args.0.iter().map(|arg| Spanned(&arg.0.ty, arg.1)))
                 {
-                    let got = self.engine.insert(type_to_typeinfo(Spanned(&got, args.1)));
+                    let got = self.engine.insert(type_to_typeinfo(got));
 
-                    self.engine.expect(got, expected).unwrap_or_else(|err| {
-                        errors.push(*err);
-                    });
+                    self.engine
+                        .expect_one_of(got, &expected, Some(name.0))
+                        .unwrap_or_else(|err| {
+                            errors.push(*err);
+                        });
                 }
 
                 TypedStatement::Action { name, args }
@@ -874,6 +869,28 @@ impl<'file> Engine<'file> {
                 expected_span: var.1,
             }))
         }
+    }
+
+    fn expect_one_of(
+        &self,
+        id: TypeId,
+        tys: &[TypeInfo],
+        action: Option<Action>,
+    ) -> Result<(), Box<Error<'file>>> {
+        let var = &self.vars[&id];
+
+        tys.iter()
+            .any(|ty| &var.0 == ty)
+            .then(|| ())
+            .ok_or_else(|| {
+                Box::new(Error::ExpectedOneOfTypeFound {
+                    found: var.0.to_string(),
+                    found_span: var.1,
+                    expected: tys.iter().map(ToString::to_string).collect(),
+                    expected_span: var.1,
+                    action,
+                })
+            })
     }
 
     fn reconstruct(&self, id: TypeId) -> Result<Spanned<Type>, Box<Error<'file>>> {

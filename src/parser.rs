@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryOp, Expr, Procedure, Statement, TopLevel, Type, UnaryOp},
+    ast::{Action, BinaryOp, Expr, Procedure, Statement, TopLevel, Type, UnaryOp},
     lexer::{Ctrl, Kw, Op, Token},
     span::{Span, Spanned},
 };
@@ -250,7 +250,18 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         let action = just(Token::Kw(Kw::Action))
-            .ignore_then(ident())
+            .ignore_then(ident().validate(|name, e, emitter| {
+                name.map(|name| match name {
+                    "wait" => Action::Wait,
+                    "waitframes" => Action::WaitFrames,
+                    "print" => Action::Print,
+                    other => {
+                        emitter.emit(Rich::custom(e.span(), format!("unknown action: {other}")));
+
+                        Action::Error
+                    }
+                })
+            }))
             .then_ignore(just(Token::Ctrl(Ctrl::Colon)))
             .then(
                 expr_parser()

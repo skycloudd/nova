@@ -56,16 +56,6 @@ pub enum Statement<'src> {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Action {
-    /// `wait <float>`
-    Wait,
-    /// `waitframes <integer>`
-    WaitFrames,
-    /// `print <int/float/bool>`
-    Print,
-}
-
 #[derive(Debug)]
 pub struct TypedExpression<'src> {
     pub expr: Expression<'src>,
@@ -141,6 +131,16 @@ impl std::fmt::Display for Type {
             Type::Vector => write!(f, "vector"),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Action {
+    /// `wait <float>`
+    Wait,
+    /// `waitframes <integer>`
+    WaitFrames,
+    /// `print <int/float/bool>`
+    Print,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -387,10 +387,10 @@ impl<'src> MirBuilder<'src> {
             TypedStatement::Return => Statement::Return,
             TypedStatement::Action { name, args } => Statement::Action {
                 action: match name.0 {
-                    "wait" => Action::Wait,
-                    "waitframes" => Action::WaitFrames,
-                    "print" => Action::Print,
-                    _ => unreachable!(),
+                    ast::Action::Error => unreachable!(),
+                    ast::Action::Wait => Action::Wait,
+                    ast::Action::WaitFrames => Action::WaitFrames,
+                    ast::Action::Print => Action::Print,
                 },
                 args: args.iter().map(|arg| self.build_mir_expr(&arg.0)).collect(),
             },

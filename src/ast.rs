@@ -56,7 +56,7 @@ macro_rules! ast_statement {
             Continue,
             Return,
             Action {
-                name: Spanned<'file, &'src str>,
+                name: Spanned<'file, Action>,
                 args: Spanned<'file, Vec<Spanned<'file, $expr<'src, 'file>>>>,
             },
             Call {
@@ -169,8 +169,16 @@ pub enum Type {
     Vector,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Action {
+    Error,
+    Wait,
+    WaitFrames,
+    Print,
+}
+
 pub mod typed {
-    use super::{BinaryOp, Type, UnaryOp};
+    use super::{Action, BinaryOp, Type, UnaryOp};
     use crate::span::Spanned;
 
     top_level!(TypedTopLevel, TypedProcedure);

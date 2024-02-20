@@ -1,4 +1,7 @@
-use crate::span::{Span, Spanned};
+use crate::{
+    ast::Action,
+    span::{Span, Spanned},
+};
 use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
 use heck::ToSnakeCase;
@@ -47,10 +50,6 @@ pub enum Error<'file> {
         got: usize,
         span: Span<'file>,
     },
-    UnknownAction {
-        name: String,
-        span: Span<'file>,
-    },
     ProcedureRedefinition {
         name: String,
         old_span: Span<'file>,
@@ -86,6 +85,13 @@ pub enum Error<'file> {
         from_span: Span<'file>,
         to: String,
         to_span: Span<'file>,
+    },
+    ExpectedOneOfTypeFound {
+        found: String,
+        found_span: Span<'file>,
+        expected: Vec<String>,
+        expected_span: Span<'file>,
+        action: Option<Action>,
     },
 }
 
@@ -171,7 +177,6 @@ impl Error<'_> {
                 got.fg(Color::Yellow)
             )
             .into(),
-            Error::UnknownAction { name, span: _ } => format!("unknown action `{name}`").into(),
             Error::ProcedureRedefinition {
                 name,
                 old_span: _,
@@ -219,6 +224,31 @@ impl Error<'_> {
                 from.fg(Color::Yellow),
                 to.fg(Color::Yellow)
             )
+            .into(),
+            Error::ExpectedOneOfTypeFound {
+                found,
+                found_span: _,
+                expected,
+                expected_span: _,
+                action: _,
+            } => if expected.len() == 1 {
+                format!(
+                    "found type `{}`, expected `{}`",
+                    found.fg(Color::Yellow),
+                    (&expected[0]).fg(Color::Yellow)
+                )
+                .into()
+            } else {
+                format!(
+                    "found type `{}`, expected one of: {}",
+                    found.fg(Color::Yellow),
+                    expected
+                        .iter()
+                        .map(|expected| format!("`{}`", expected.fg(Color::Yellow)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             .into(),
         }
     }
@@ -290,12 +320,6 @@ impl Error<'_> {
                 Some(format!("Expected {expected} arguments, got {got}").into()),
                 *span,
             )],
-            Error::UnknownAction { name, span } => {
-                vec![Spanned(
-                    Some(format!("Unknown action `{name}`").into()),
-                    *span,
-                )]
-            }
             Error::ProcedureRedefinition {
                 name,
                 old_span,
@@ -367,6 +391,34 @@ impl Error<'_> {
                 Spanned(Some(format!("`{from}` here").into()), *from_span),
                 Spanned(Some(format!("`{to}` here").into()), *to_span),
             ],
+            Error::ExpectedOneOfTypeFound {
+                found,
+                found_span: _,
+                expected,
+                expected_span,
+                action: _,
+            } => vec![
+                Spanned(
+                    Some(format!("Found type `{found}` here").into()),
+                    *expected_span,
+                ),
+                Spanned(
+                    Some(if expected.len() == 1 {
+                        format!("Expected a value of type `{}`", expected[0]).into()
+                    } else {
+                        format!(
+                            "Expected one of: {}",
+                            expected
+                                .iter()
+                                .map(|expected| format!("`{expected}`"))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                        .into()
+                    }),
+                    *expected_span,
+                ),
+            ],
         }
     }
 
@@ -381,20 +433,41 @@ impl Error<'_> {
             Error::BinaryOp { .. } => None,
             Error::UnaryOp { .. } => None,
             Error::WrongNumberOfActionArguments { .. } => None,
-            Error::UnknownAction { .. } => None,
             Error::ProcedureRedefinition { .. } => {
                 Some("Two procedures cannot share the same name".into())
             }
             Error::UndefinedProcedure { .. } => None,
             Error::WrongNumberOfProcedureArguments { .. } => None,
-            Error::RunFunctionHasArgs { .. } => {
-                Some("Functions passed to run statements cannot take any arguments. Consider creating a wrapper function.".into())
-            }
-            Error::NameWarning { name, span:_ } => {
-                Some(format!("convert the identifier to a snake case: `{}`", name.to_snake_case()))
-            }
+            Error::RunFunctionHasArgs { .. } => Some(
+                "Functions passed to run statements cannot take any arguments. \
+                Consider creating a wrapper function."
+                    .into(),
+            ),
+            Error::NameWarning { name, span: _ } => Some(format!(
+                "convert the identifier to a snake case: `{}`",
+                name.to_snake_case().fg(Color::Red)
+            )),
             Error::ExpectedTypeFound { .. } => None,
             Error::InvalidConversion { .. } => None,
+            Error::ExpectedOneOfTypeFound {
+                found,
+                found_span: _,
+                expected,
+                expected_span: _,
+                action: _,
+            } => {
+                if expected.len() == 1
+                    && expected[0] == "str"
+                    && (found == "int" || found == "float")
+                {
+                    Some(format!(
+                        "Try wrapping this value in a converter: `{}`",
+                        "@str(...)".fg(Color::Red)
+                    ))
+                } else {
+                    None
+                }
+            }
         }
     }
 }

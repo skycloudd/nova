@@ -237,10 +237,13 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .then(hex_byte.clone())
         .then(hex_byte.or_not())
         .map(|(((r, g), b), a)| {
-            let r = u8::from_str_radix(&r, 16).unwrap();
-            let g = u8::from_str_radix(&g, 16).unwrap();
-            let b = u8::from_str_radix(&b, 16).unwrap();
-            let a = a.map(|a| u8::from_str_radix(&a, 16).unwrap());
+            let r = u8::from_str_radix(&r, 16)?;
+            let g = u8::from_str_radix(&g, 16)?;
+            let b = u8::from_str_radix(&b, 16)?;
+            let a = match a {
+                Some(a) => Some(u8::from_str_radix(&a, 16)?),
+                None => None,
+            };
 
             Ok(Token::Colour(r, g, b, a))
         })
