@@ -462,7 +462,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                             return TypedStatement::Error;
                         };
 
-                        vec![vec![TypeInfo::Float]]
+                        vec![TypeInfo::Float]
                     }
                     "waitframes" => {
                         if (args.len()) != 1 {
@@ -475,7 +475,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                             return TypedStatement::Error;
                         };
 
-                        vec![vec![TypeInfo::Integer]]
+                        vec![TypeInfo::Integer]
                     }
                     "print" => {
                         if (args.len()) != 1 {
@@ -488,12 +488,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                             return TypedStatement::Error;
                         };
 
-                        vec![vec![
-                            TypeInfo::Boolean,
-                            TypeInfo::Integer,
-                            TypeInfo::Float,
-                            TypeInfo::String,
-                        ]]
+                        vec![TypeInfo::String]
                     }
                     _ => {
                         errors.push(Error::UnknownAction {
@@ -511,21 +506,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 {
                     let got = self.engine.insert(type_to_typeinfo(Spanned(&got, args.1)));
 
-                    let mut my_errs = vec![];
-
-                    for expected in expected {
-                        match self.engine.expect(got, expected) {
-                            Ok(()) => {
-                                my_errs.clear();
-                                break;
-                            }
-                            Err(err) => my_errs.push(err),
-                        }
-                    }
-
-                    if let Some(error) = my_errs.into_iter().next() {
-                        errors.push(*error);
-                    }
+                    self.engine.expect(got, expected).unwrap_or_else(|err| {
+                        errors.push(*err);
+                    });
                 }
 
                 TypedStatement::Action { name, args }
@@ -693,10 +676,6 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     .engine
                     .insert(type_to_typeinfo(Spanned(&rhs.0.ty, rhs.1)));
 
-                self.engine.unify(lhs_ty, rhs_ty).unwrap_or_else(|err| {
-                    errors.push(*err);
-                });
-
                 let ty = bin_op!(
                     lhs.0.ty,
                     rhs.0.ty,
@@ -744,6 +723,8 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     }
                 };
 
+                self.engine.unify(lhs_ty, rhs_ty).ok();
+
                 TypedExpr {
                     expr: typed::Expr::Binary(lhs.map(Box::new), op, rhs.map(Box::new)),
                     ty,
@@ -780,6 +761,38 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 TypedExpr {
                     expr: typed::Expr::Unary(op, expr.map(Box::new)),
                     ty,
+                }
+            }
+            Expr::Convert { ty, expr } => {
+                let (expr, wrnings, errs) = self.typecheck_expression(expr.map(|e| *e));
+
+                warnings.extend(wrnings);
+                errors.extend(errs);
+
+                match (expr.ty, ty.0) {
+                    (from, to) if from == to => {}
+                    (Type::Error, _) => {}
+                    (_, Type::Error) => {}
+                    (Type::Integer, Type::Float) => {}
+                    (Type::Float, Type::Integer) => {}
+                    (Type::Integer, Type::String) => {}
+                    (Type::Float, Type::String) => {}
+                    _ => {
+                        errors.push(Error::InvalidConversion {
+                            from: expr.0.ty.to_string(),
+                            from_span: expr.1,
+                            to: ty.0.to_string(),
+                            to_span: ty.1,
+                        });
+                    }
+                }
+
+                TypedExpr {
+                    ty: ty.0,
+                    expr: typed::Expr::Convert {
+                        ty,
+                        expr: expr.map(Box::new),
+                    },
                 }
             }
         });
@@ -833,6 +846,10 @@ impl<'file> Engine<'file> {
                 Ok(())
             }
 
+            (TypeInfo::Error, _) => Ok(()),
+
+            (_, TypeInfo::Error) => Ok(()),
+
             (a, b) if a == b => Ok(()),
 
             (a, b) => Err(Box::new(Error::IncompatibleTypes {
@@ -865,6 +882,7 @@ impl<'file> Engine<'file> {
         match var.0 {
             TypeInfo::Unknown => Err(Box::new(Error::UnknownType { span: var.1 })),
             TypeInfo::Ref(id) => Ok(self.reconstruct(id)?.0),
+            TypeInfo::Error => Ok(Type::Error),
             TypeInfo::Boolean => Ok(Type::Boolean),
             TypeInfo::Integer => Ok(Type::Integer),
             TypeInfo::Float => Ok(Type::Float),
@@ -884,6 +902,7 @@ enum TypeInfo {
     #[allow(dead_code)]
     Unknown,
     Ref(TypeId),
+    Error,
     Boolean,
     Integer,
     Float,
@@ -897,10 +916,11 @@ impl std::fmt::Display for TypeInfo {
         match self {
             Self::Unknown => write!(f, "unknown"),
             Self::Ref(id) => write!(f, "ref {}", id.0),
-            Self::Boolean => write!(f, "boolean"),
-            Self::Integer => write!(f, "integer"),
+            Self::Error => write!(f, "error"),
+            Self::Boolean => write!(f, "bool"),
+            Self::Integer => write!(f, "int"),
             Self::Float => write!(f, "float"),
-            Self::String => write!(f, "string"),
+            Self::String => write!(f, "str"),
             Self::Colour => write!(f, "colour"),
             Self::Vector => write!(f, "vector"),
         }
@@ -909,7 +929,7 @@ impl std::fmt::Display for TypeInfo {
 
 fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
     ty.map(|ty| match ty {
-        Type::Error => TypeInfo::Unknown,
+        Type::Error => TypeInfo::Error,
         Type::Boolean => TypeInfo::Boolean,
         Type::Integer => TypeInfo::Integer,
         Type::Float => TypeInfo::Float,
@@ -925,6 +945,8 @@ macro_rules! bin_op {
             $(
                 (Type::$lhs, Type::$rhs, BinaryOp::$op) => Ok(Type::$ret_ty),
             )*
+            (Type::Error, _, _) => Ok(Type::Error),
+            (_, Type::Error, _) => Ok(Type::Error),
             _ => Err(()),
         }
     };

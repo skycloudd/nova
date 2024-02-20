@@ -23,17 +23,16 @@ The following are all valid expressions, with comments saying what value they ev
 
 It's important to mention data types. Nova has these types.
 
--   int
--   float
--   bool
--   colour
--   vector
+-   `int`
+-   `float`
+-   `bool`
+-   `str`
+-   `colour` or `color`
+-   `vector`
 
 These are all the same types Exoracer has.
 
 The type of an expression tells you what kind of value it will evaulate to. For example, the expression `1 + 2` has the type of `int` because it evaulates to a whole number (an integer). And the expression `(2 + 2) == 5` is of type `bool`, because it is a boolean (either `true` or `false`)
-
-Strings are currently **not** implemented in the language. They will be added in the near future.
 
 ## Literals
 
@@ -64,6 +63,15 @@ Booleans are either `true` or `false`.
 ```swift
 true
 false
+```
+
+### Strings
+
+Strings are text, surrounded by double quotes.
+
+```swift
+"hello, world"
+"this is a string"
 ```
 
 ### Colours

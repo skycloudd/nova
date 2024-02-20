@@ -8,7 +8,7 @@ proc fib(n: int) do
         b = c;
     end
 
-    action print: a;
+    action print: @str(a);
 end
 
 proc main() do

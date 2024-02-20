@@ -283,68 +283,32 @@ impl Codegen<'_> {
             }
             Instruction::Assign { name, value } => vec![self.codegen_assign(*name, value)],
             Instruction::Action { name, args } => {
-                let mut args = args
-                    .iter()
-                    .map(|arg| (self.codegen_expression(arg), arg.ty));
+                let mut args = args.iter().map(|arg| self.codegen_expression(arg));
 
                 vec![new_action(match name {
                     mir::Action::Wait => {
-                        let duration = args.next().unwrap().0;
+                        let duration = args.next().unwrap();
 
                         ActionType::Wait { duration }
                     }
                     mir::Action::WaitFrames => {
-                        let frames = args.next().unwrap().0;
+                        let frames = args.next().unwrap();
 
                         ActionType::WaitFrames { frames }
                     }
                     mir::Action::Print => {
-                        let (value, ty) = args.next().unwrap();
+                        let text = args.next().unwrap();
 
-                        Self::print_action(value, ty)
+                        ActionType::GameTextShow {
+                            text,
+                            duration: new_novavalue(
+                                DynamicType::FloatConstant,
+                                NewValue::Float(1.0),
+                            ),
+                        }
                     }
                 })]
             }
-        }
-    }
-
-    fn print_action(value: NovaValue, ty: Type) -> ActionType {
-        let duration = new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0));
-
-        match ty {
-            Type::Boolean => ActionType::ConditionBlock {
-                if_actions: vec![new_action(ActionType::GameTextShow {
-                    text: new_novavalue(
-                        DynamicType::StringConstant,
-                        NewValue::String("true".to_string()),
-                    ),
-                    duration: new_novavalue(DynamicType::FloatConstant, NewValue::Float(1.0)),
-                })],
-                else_actions: vec![new_action(ActionType::GameTextShow {
-                    text: new_novavalue(
-                        DynamicType::StringConstant,
-                        NewValue::String("false".to_string()),
-                    ),
-                    duration,
-                })],
-                condition: value,
-            },
-            Type::Integer => ActionType::GameTextShow {
-                text: new_novavalue(DynamicType::StringFromInt, NewValue::SubValues(vec![value])),
-                duration,
-            },
-            Type::Float => ActionType::GameTextShow {
-                text: new_novavalue(
-                    DynamicType::StringFromFloat,
-                    NewValue::SubValues(vec![value]),
-                ),
-                duration,
-            },
-            Type::String => ActionType::GameTextShow {
-                text: value,
-                duration,
-            },
-            Type::Colour | Type::Vector => unreachable!(),
         }
     }
 
@@ -565,6 +529,25 @@ impl Codegen<'_> {
                 };
 
                 new_novavalue(dyn_ty, NewValue::SubValues(vec![lhs, rhs]))
+            }
+            Expression::Convert { ty: to_ty, expr } => {
+                let dynamic_type = match (&expr.ty, to_ty) {
+                    (from, to) if from == to => None,
+                    (Type::Integer, Type::Float) => Some(DynamicType::FloatRound),
+                    (Type::Float, Type::Integer) => Some(DynamicType::IntRound),
+                    (Type::Integer, Type::String) => Some(DynamicType::StringFromInt),
+                    (Type::Float, Type::String) => Some(DynamicType::StringFromFloat),
+                    _ => unreachable!(),
+                };
+
+                let expr = self.codegen_expression(expr);
+
+                match dynamic_type {
+                    Some(dynamic_type) => {
+                        new_novavalue(dynamic_type, NewValue::SubValues(vec![expr]))
+                    }
+                    None => expr,
+                }
             }
         }
     }

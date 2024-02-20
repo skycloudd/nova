@@ -81,6 +81,12 @@ pub enum Error<'file> {
         expected: String,
         expected_span: Span<'file>,
     },
+    InvalidConversion {
+        from: String,
+        from_span: Span<'file>,
+        to: String,
+        to_span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -203,6 +209,17 @@ impl Error<'_> {
                 expected.fg(Color::Yellow),
             )
             .into(),
+            Error::InvalidConversion {
+                from,
+                from_span: _,
+                to,
+                to_span: _,
+            } => format!(
+                "cannot convert `{}` to `{}`",
+                from.fg(Color::Yellow),
+                to.fg(Color::Yellow)
+            )
+            .into(),
         }
     }
 
@@ -244,22 +261,27 @@ impl Error<'_> {
                 lhs_span,
                 rhs,
                 rhs_span,
-                op,
-                op_span,
+                op: _,
+                op_span: _,
             } => vec![
-                Spanned(Some(format!("`{lhs}`").into()), *lhs_span),
-                Spanned(Some(format!("`{rhs}`").into()), *rhs_span),
-                Spanned(Some(format!("`{op}`").into()), *op_span),
+                Spanned(
+                    Some(format!("found `{}` here", lhs.fg(Color::Yellow)).into()),
+                    *lhs_span,
+                ),
+                Spanned(
+                    Some(format!("found `{}` here", rhs.fg(Color::Yellow)).into()),
+                    *rhs_span,
+                ),
             ],
             Error::UnaryOp {
                 ty,
                 ty_span,
-                op,
-                op_span,
-            } => vec![
-                Spanned(Some(format!("`{ty}`").into()), *ty_span),
-                Spanned(Some(format!("`{op}`").into()), *op_span),
-            ],
+                op: _,
+                op_span: _,
+            } => vec![Spanned(
+                Some(format!("found `{}` here", ty.fg(Color::Yellow)).into()),
+                *ty_span,
+            )],
             Error::WrongNumberOfActionArguments {
                 expected,
                 got,
@@ -336,6 +358,15 @@ impl Error<'_> {
                 Spanned(Some(format!("Expected {expected}").into()), *expected_span),
                 Spanned(Some(format!("Found {found}").into()), *found_span),
             ],
+            Error::InvalidConversion {
+                from,
+                from_span,
+                to,
+                to_span,
+            } => vec![
+                Spanned(Some(format!("`{from}` here").into()), *from_span),
+                Spanned(Some(format!("`{to}` here").into()), *to_span),
+            ],
         }
     }
 
@@ -363,6 +394,7 @@ impl Error<'_> {
                 Some(format!("convert the identifier to a snake case: `{}`", name.to_snake_case()))
             }
             Error::ExpectedTypeFound { .. } => None,
+            Error::InvalidConversion { .. } => None,
         }
     }
 }

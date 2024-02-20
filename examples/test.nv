@@ -5,10 +5,14 @@ proc main() do
     let six = 2 * 3;
     let number = one + six;
 
-    action print: number == 7;
+    if number == 7 then
+        action print: "number is 7";
+    else
+        action print: "number is not 7";
+    end
 
     for x in one..number do
-        action print: x;
+        action print: @str(x);
     end
 
     do
@@ -18,8 +22,12 @@ proc main() do
     end
 
     if 2 + 2 == 5 then
-        action print: 4;
+        action print: @str(4);
     else
-        action print: true;
+        if true then
+            action print: "true";
+        else
+            action print: "false";
+        end
     end
 end

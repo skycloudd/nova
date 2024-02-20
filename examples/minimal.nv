@@ -4,7 +4,7 @@ end
 
 proc aa(var: int) do
     action print: "aa:";
-    action print: var;
+    action print: @str(var);
 end
 
 run main;

@@ -4,7 +4,6 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::too_many_lines)]
 #![warn(clippy::nursery)]
-#![allow(dead_code)]
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
@@ -47,23 +46,19 @@ pub fn run<'src: 'file, 'file>(
 
     errors.extend(map_errors(lex_errors));
 
-    let ast = tokens
-        .as_ref()
-        .map_or_else(
-            || Err(vec![]),
-            |tokens| {
-                let eof = input.chars().count() - 1;
-                let end_of_input = Span::new(filename, eof..eof);
+    let (ast, parse_errors) = tokens.as_ref().map_or_else(
+        || (None, vec![]),
+        |tokens| {
+            let eof = input.chars().count() - 1;
+            let end_of_input = Span::new(filename, eof..eof);
 
-                parser::parser()
-                    .parse(tokens.spanned(end_of_input))
-                    .into_result()
-            },
-        )
-        .map_err(|parse_errors| {
-            errors.extend(map_errors(parse_errors));
-        })
-        .ok();
+            parser::parser()
+                .parse(tokens.spanned(end_of_input))
+                .into_output_errors()
+        },
+    );
+
+    errors.extend(map_errors(parse_errors));
 
     let (typed_ast, typecheck_warnings, typecheck_errs) =
         ast.map_or_else(|| (vec![], vec![], vec![]), typecheck::typecheck);

@@ -5,7 +5,7 @@ proc factorial(n: int) do
         x = x * i;
     end
 
-    action print: x;
+    action print: @str(x);
 end
 
 proc main() do

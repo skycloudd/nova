@@ -35,7 +35,7 @@ fn main() {
 
     let out = output(args.output, args.force);
 
-    println!(
+    eprintln!(
         "{} {}",
         "Compiling".fg(Color::Green),
         args.filename.display()

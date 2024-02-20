@@ -49,21 +49,12 @@ fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
     Spanned<'file, TopLevel<'src, 'file>>,
     ParserError<'tokens, 'src, 'file>,
 > {
-    let ty_parser = select! {
-        Token::Variable("bool") => Type::Boolean,
-        Token::Variable("int") => Type::Integer,
-        Token::Variable("float") => Type::Float,
-        Token::Variable("colour" | "color") => Type::Colour,
-        Token::Variable("vector") => Type::Vector,
-    }
-    .map_with(|ty, e| Spanned(ty, e.span()));
-
     just(Token::Kw(Kw::Proc))
         .ignore_then(ident())
         .then(
             ident()
                 .then_ignore(just(Token::Ctrl(Ctrl::Colon)))
-                .then(ty_parser)
+                .then(type_parser())
                 .separated_by(just(Token::Ctrl(Ctrl::Comma)))
                 .allow_trailing()
                 .collect()
@@ -72,6 +63,15 @@ fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                     just(Token::Ctrl(Ctrl::RightParen)),
                 )
                 .map_with(|args, e| Spanned(args, e.span()))
+                .recover_with(via_parser(nested_delimiters(
+                    Token::Ctrl(Ctrl::LeftParen),
+                    Token::Ctrl(Ctrl::RightParen),
+                    [
+                        (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                        (Token::Kw(Kw::Do), Token::Kw(Kw::End)),
+                    ],
+                    |span| Spanned(vec![], span),
+                )))
                 .boxed(),
         )
         .then(
@@ -80,6 +80,15 @@ fn procedure_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 .collect()
                 .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
                 .map_with(|body, e| Spanned(body, e.span()))
+                .recover_with(via_parser(nested_delimiters(
+                    Token::Kw(Kw::Do),
+                    Token::Kw(Kw::End),
+                    [
+                        (Token::Ctrl(Ctrl::LeftParen), Token::Ctrl(Ctrl::RightParen)),
+                        (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                    ],
+                    |span| Spanned(vec![], span),
+                )))
                 .boxed(),
         )
         .map(|((name, args), body)| Procedure { name, args, body })
@@ -105,6 +114,15 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .collect()
             .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
             .map_with(|body, e| Spanned(body, e.span()))
+            .recover_with(via_parser(nested_delimiters(
+                Token::Kw(Kw::Do),
+                Token::Kw(Kw::End),
+                [
+                    (Token::Ctrl(Ctrl::LeftParen), Token::Ctrl(Ctrl::RightParen)),
+                    (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                ],
+                |span| Spanned(vec![], span),
+            )))
             .map(Statement::Block)
             .boxed();
 
@@ -115,7 +133,16 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                     .repeated()
                     .collect()
                     .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
-                    .map_with(|body, e| Spanned(body, e.span())),
+                    .map_with(|body, e| Spanned(body, e.span()))
+                    .recover_with(via_parser(nested_delimiters(
+                        Token::Kw(Kw::Do),
+                        Token::Kw(Kw::End),
+                        [
+                            (Token::Ctrl(Ctrl::LeftParen), Token::Ctrl(Ctrl::RightParen)),
+                            (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                        ],
+                        |span| Spanned(vec![], span),
+                    ))),
             )
             .map(Statement::Loop)
             .boxed();
@@ -169,6 +196,15 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                     .collect()
                     .delimited_by(just(Token::Kw(Kw::Do)), just(Token::Kw(Kw::End)))
                     .map_with(|body, e| Spanned(body, e.span()))
+                    .recover_with(via_parser(nested_delimiters(
+                        Token::Kw(Kw::Do),
+                        Token::Kw(Kw::End),
+                        [
+                            (Token::Ctrl(Ctrl::LeftParen), Token::Ctrl(Ctrl::RightParen)),
+                            (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                        ],
+                        |span| Spanned(vec![], span),
+                    )))
                     .boxed(),
             )
             .map(|((name, ((start, inclusive), end)), body)| Statement::For {
@@ -237,6 +273,15 @@ fn statement_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                         just(Token::Ctrl(Ctrl::RightParen)),
                     )
                     .map_with(|args, e| Spanned(args, e.span()))
+                    .recover_with(via_parser(nested_delimiters(
+                        Token::Ctrl(Ctrl::LeftParen),
+                        Token::Ctrl(Ctrl::RightParen),
+                        [
+                            (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                            (Token::Kw(Kw::Do), Token::Kw(Kw::End)),
+                        ],
+                        |span| Spanned(vec![], span),
+                    )))
                     .boxed(),
             )
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
@@ -287,7 +332,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
         .boxed();
 
         let colour = select! {
-            Token::HexCode(r, g, b, a) => (r, g, b, a)
+            Token::Colour(r, g, b, a) => (r, g, b, a)
         }
         .map_with(|(r, g, b, a), e| {
             Spanned(
@@ -320,6 +365,15 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                     e.span(),
                 )
             })
+            .recover_with(via_parser(nested_delimiters(
+                Token::Ctrl(Ctrl::LeftCurly),
+                Token::Ctrl(Ctrl::RightCurly),
+                [
+                    (Token::Ctrl(Ctrl::LeftParen), Token::Ctrl(Ctrl::RightParen)),
+                    (Token::Kw(Kw::Do), Token::Kw(Kw::End)),
+                ],
+                |span| Spanned(Expr::Error, span),
+            )))
             .boxed();
 
         let parenthesized_expr = expression
@@ -328,6 +382,32 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 just(Token::Ctrl(Ctrl::LeftParen)),
                 just(Token::Ctrl(Ctrl::RightParen)),
             )
+            .recover_with(via_parser(nested_delimiters(
+                Token::Ctrl(Ctrl::LeftParen),
+                Token::Ctrl(Ctrl::RightParen),
+                [
+                    (Token::Ctrl(Ctrl::LeftCurly), Token::Ctrl(Ctrl::RightCurly)),
+                    (Token::Kw(Kw::Do), Token::Kw(Kw::End)),
+                ],
+                |span| Spanned(Expr::Error, span),
+            )))
+            .boxed();
+
+        let convert = just(Token::Ctrl(Ctrl::At))
+            .ignore_then(type_parser())
+            .then(expression.delimited_by(
+                just(Token::Ctrl(Ctrl::LeftParen)),
+                just(Token::Ctrl(Ctrl::RightParen)),
+            ))
+            .map_with(|(ty, expr), e| {
+                Spanned(
+                    Expr::Convert {
+                        ty,
+                        expr: expr.map(Box::new),
+                    },
+                    e.span(),
+                )
+            })
             .boxed();
 
         let atom = choice((
@@ -339,6 +419,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             colour,
             vector,
             parenthesized_expr,
+            convert,
         ))
         .boxed();
 
@@ -431,5 +512,23 @@ fn ident<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
         Token::Variable(name) => name
     }
     .map_with(|name, e| Spanned(name, e.span()))
+    .boxed()
+}
+
+fn type_parser<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'tokens, 'src, 'file>,
+    Spanned<'file, Type>,
+    ParserError<'tokens, 'src, 'file>,
+> {
+    select! {
+        Token::Variable("bool") => Type::Boolean,
+        Token::Variable("int") => Type::Integer,
+        Token::Variable("float") => Type::Float,
+        Token::Variable("str") => Type::String,
+        Token::Variable("colour" | "color") => Type::Colour,
+        Token::Variable("vector") => Type::Vector,
+    }
+    .map_with(|ty, e| Spanned(ty, e.span()))
     .boxed()
 }

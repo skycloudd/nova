@@ -125,6 +125,10 @@ pub enum Expression<'src> {
         op: BinaryOp,
         rhs: Box<TypedExpression<'src>>,
     },
+    Convert {
+        ty: Type,
+        expr: Box<TypedExpression<'src>>,
+    },
 }
 
 pub fn lower<'src>(ast: &[mir::TopLevel<'src>]) -> Vec<TopLevel<'src>> {
@@ -392,6 +396,10 @@ impl<'src> LoweringContext<'src> {
                     op: *op,
                     rhs: Box::new(Self::lower_expression(rhs)),
                 },
+                mir::Expression::Convert { ty, expr } => Expression::Convert {
+                    ty: *ty,
+                    expr: Box::new(Self::lower_expression(expr)),
+                },
             },
             ty: expression.ty,
         }
@@ -564,6 +572,13 @@ mod print {
                 write!(f, " {op} ")?;
 
                 print_expression(f, &rhs.expr)?;
+            }
+            Expression::Convert { ty, expr } => {
+                write!(f, "@{ty}(")?;
+
+                print_expression(f, &expr.expr)?;
+
+                write!(f, ")")?;
             }
         }
 

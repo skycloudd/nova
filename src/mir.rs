@@ -98,6 +98,10 @@ pub enum Expression<'src> {
         op: BinaryOp,
         rhs: Box<TypedExpression<'src>>,
     },
+    Convert {
+        ty: Type,
+        expr: Box<TypedExpression<'src>>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -132,7 +136,7 @@ impl std::fmt::Display for Type {
             Type::Integer => write!(f, "int"),
             Type::Float => write!(f, "float"),
             Type::Boolean => write!(f, "bool"),
-            Type::String => write!(f, "string"),
+            Type::String => write!(f, "str"),
             Type::Colour => write!(f, "colour"),
             Type::Vector => write!(f, "vector"),
         }
@@ -432,6 +436,14 @@ impl<'src> MirBuilder<'src> {
                         lhs: Box::new(lhs),
                         op: op.0,
                         rhs: Box::new(rhs),
+                    }
+                }
+                Expr::Convert { ty, expr } => {
+                    let expr = self.build_mir_expr(&expr.0);
+
+                    Expression::Convert {
+                        ty: ty.0.try_into().unwrap(),
+                        expr: Box::new(expr),
                     }
                 }
             },

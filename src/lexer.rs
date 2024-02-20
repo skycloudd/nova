@@ -10,7 +10,7 @@ pub enum Token<'src> {
     Integer(IntTy),
     Float(FloatTy),
     String(&'src str),
-    HexCode(u8, u8, u8, Option<u8>),
+    Colour(u8, u8, u8, Option<u8>),
     Kw(Kw),
     Ctrl(Ctrl),
     Op(Op),
@@ -24,7 +24,6 @@ pub enum Kw {
     Else,
     Then,
     Let,
-    Const,
     Break,
     Continue,
     For,
@@ -48,6 +47,7 @@ pub enum Ctrl {
     Range,
     RangeInclusive,
     Colon,
+    At,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,7 +78,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Integer(n) => write!(f, "{n}"),
             Token::Float(n) => write!(f, "{n}"),
             Token::String(s) => write!(f, "\"{s}\""),
-            Token::HexCode(r, g, b, a) => write!(
+            Token::Colour(r, g, b, a) => write!(
                 f,
                 "#{r:02x}{g:02x}{b:02x}{}",
                 a.as_ref().map_or_else(String::new, |a| format!("{a:02x}")),
@@ -99,7 +99,6 @@ impl std::fmt::Display for Kw {
             Self::Else => write!(f, "else"),
             Self::Then => write!(f, "then"),
             Self::Let => write!(f, "let"),
-            Self::Const => write!(f, "const"),
             Self::Break => write!(f, "break"),
             Self::Continue => write!(f, "continue"),
             Self::For => write!(f, "for"),
@@ -126,6 +125,7 @@ impl std::fmt::Display for Ctrl {
             Self::Range => write!(f, ".."),
             Self::RangeInclusive => write!(f, "..="),
             Self::Colon => write!(f, ":"),
+            Self::At => write!(f, "@"),
         }
     }
 }
@@ -242,18 +242,17 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
             let b = u8::from_str_radix(&b, 16).unwrap();
             let a = a.map(|a| u8::from_str_radix(&a, 16).unwrap());
 
-            Ok(Token::HexCode(r, g, b, a))
+            Ok(Token::Colour(r, g, b, a))
         })
-        .validate(|res: Result<_, ParseIntError>, e, emitter| match res {
-            Ok(token) => token,
-            Err(err) => {
+        .validate(|res: Result<_, ParseIntError>, e, emitter| {
+            res.unwrap_or_else(|err| {
                 emitter.emit(Rich::custom(
                     e.span(),
                     format!("ICE: parsed invalid hex code: {err}"),
                 ));
 
                 Token::Error
-            }
+            })
         })
         .boxed();
 
@@ -264,7 +263,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         text::keyword("else").to(Token::Kw(Kw::Else)),
         text::keyword("then").to(Token::Kw(Kw::Then)),
         text::keyword("let").to(Token::Kw(Kw::Let)),
-        text::keyword("const").to(Token::Kw(Kw::Const)),
         text::keyword("break").to(Token::Kw(Kw::Break)),
         text::keyword("continue").to(Token::Kw(Kw::Continue)),
         text::keyword("for").to(Token::Kw(Kw::For)),
@@ -288,6 +286,7 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just(',').to(Token::Ctrl(Ctrl::Comma)),
         just('=').to(Token::Ctrl(Ctrl::Equals)),
         just(':').to(Token::Ctrl(Ctrl::Colon)),
+        just('@').to(Token::Ctrl(Ctrl::At)),
     ))
     .boxed();
 
@@ -320,6 +319,7 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .map_with(|tok, e| (tok, e.span()))
         .padded_by(comment.clone().repeated())
         .padded()
+        .recover_with(skip_then_retry_until(any().ignored(), end()))
         .repeated()
         .collect()
         .padded_by(comment.repeated())

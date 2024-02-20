@@ -4,6 +4,7 @@ macro_rules! top_level {
     ($name:ident, $proc:ident) => {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
+            #[allow(dead_code)]
             Error,
             Procedure($proc<'src, 'file>),
             Run(Spanned<'file, &'src str>),
@@ -26,6 +27,7 @@ macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
         #[derive(Debug)]
         pub enum $name<'src, 'file> {
+            #[allow(dead_code)]
             Error,
             Expr(Spanned<'file, $expr<'src, 'file>>),
             Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
@@ -94,6 +96,10 @@ macro_rules! ast_expr {
                 Spanned<'file, BinaryOp>,
                 Spanned<'file, Box<$self_expr<'src, 'file>>>,
             ),
+            Convert {
+                ty: Spanned<'file, Type>,
+                expr: Spanned<'file, Box<$self_expr<'src, 'file>>>,
+            },
         }
     };
 }
@@ -189,7 +195,7 @@ pub mod typed {
                 Self::Boolean => write!(f, "bool"),
                 Self::Integer => write!(f, "int"),
                 Self::Float => write!(f, "float"),
-                Self::String => write!(f, "string"),
+                Self::String => write!(f, "str"),
                 Self::Colour => write!(f, "colour"),
                 Self::Vector => write!(f, "vector"),
             }
