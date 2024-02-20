@@ -7,7 +7,7 @@ use clap::Parser;
 use nova::{report, run};
 use std::{
     fs::read_to_string,
-    io::{Cursor, Read, Write},
+    io::{BufReader, BufWriter, Cursor, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -16,7 +16,7 @@ struct Args {
     filename: PathBuf,
 
     /// The .exolvl file to modify
-    #[clap(short = 'i', long = "input")]
+    #[clap(short, long)]
     level: Option<PathBuf>,
 
     /// Output file
@@ -104,31 +104,31 @@ fn main() {
     std::process::exit(exit_code);
 }
 
-fn level(input: Option<PathBuf>) -> Box<dyn Read> {
-    input.map_or_else(
+fn level<P: AsRef<Path>>(input: Option<P>) -> BufReader<impl Read> {
+    BufReader::new(input.map_or_else(
         || Box::new(Cursor::new(include_bytes!("default.exolvl"))) as Box<dyn Read>,
         |path| Box::new(std::fs::File::open(path).unwrap()),
-    )
+    ))
 }
 
-fn output<P: AsRef<Path>>(out: Option<P>, overwrite: bool) -> Box<dyn Write> {
-    out.map_or_else(
+fn output<P: AsRef<Path>>(out: Option<P>, force: bool) -> BufWriter<impl Write> {
+    BufWriter::new(out.map_or_else(
         || Box::new(std::io::stdout()) as Box<dyn Write>,
         |out| {
             let out = out.as_ref();
 
             match out.try_exists() {
-                Ok(true) | Err(_) if out.extension() != Some("exolvl".as_ref()) || overwrite => {
+                Ok(true) | Err(_) if out.extension() != Some("exolvl".as_ref()) || force => {
                     panic!(
                         "output file `{}` already exists",
                         out.display().fg(Color::Yellow)
                     )
                 }
                 _ => match out.as_os_str().to_str() {
-                    Some("-") => Box::new(std::io::stdout()) as Box<dyn Write>,
+                    Some("-") => Box::new(std::io::stdout()),
                     _ => Box::new(std::fs::File::create(out).unwrap()),
                 },
             }
         },
-    )
+    ))
 }
