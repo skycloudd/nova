@@ -110,12 +110,12 @@ impl TryFrom<ast::Type> for Type {
     fn try_from(ty: ast::Type) -> Result<Self, Self::Error> {
         match ty {
             ast::Type::Error => Err(()),
-            ast::Type::Integer => Ok(Type::Integer),
-            ast::Type::Float => Ok(Type::Float),
-            ast::Type::Boolean => Ok(Type::Boolean),
-            ast::Type::String => Ok(Type::String),
-            ast::Type::Colour => Ok(Type::Colour),
-            ast::Type::Vector => Ok(Type::Vector),
+            ast::Type::Integer => Ok(Self::Integer),
+            ast::Type::Float => Ok(Self::Float),
+            ast::Type::Boolean => Ok(Self::Boolean),
+            ast::Type::String => Ok(Self::String),
+            ast::Type::Colour => Ok(Self::Colour),
+            ast::Type::Vector => Ok(Self::Vector),
         }
     }
 }
@@ -123,12 +123,12 @@ impl TryFrom<ast::Type> for Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Integer => write!(f, "int"),
-            Type::Float => write!(f, "float"),
-            Type::Boolean => write!(f, "bool"),
-            Type::String => write!(f, "str"),
-            Type::Colour => write!(f, "colour"),
-            Type::Vector => write!(f, "vector"),
+            Self::Integer => write!(f, "int"),
+            Self::Float => write!(f, "float"),
+            Self::Boolean => write!(f, "bool"),
+            Self::String => write!(f, "str"),
+            Self::Colour => write!(f, "colour"),
+            Self::Vector => write!(f, "vector"),
         }
     }
 }

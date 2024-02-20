@@ -169,7 +169,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     });
                 }
 
-                self.variables.insert(name, *ty)
+                self.variables.insert(name, *ty);
             });
 
         let body = procedure.body.map(|body| {
@@ -286,7 +286,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     .insert(type_to_typeinfo(Spanned(&condition.0.ty, condition.1)));
 
                 self.engine
-                    .expect(condition_ty, TypeInfo::Boolean)
+                    .expect(condition_ty, &TypeInfo::Boolean)
                     .unwrap_or_else(|err| {
                         errors.push(*err);
                     });
@@ -300,8 +300,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
 
                 self.pop_scope();
 
-                let else_branch = match else_branch {
-                    Some(else_branch) => {
+                let else_branch = else_branch.map_or_else(
+                    || None,
+                    |else_branch| {
                         self.push_scope();
 
                         let (else_branch, wrnings, errs) = self.typecheck_statements(else_branch);
@@ -312,9 +313,8 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                         self.pop_scope();
 
                         Some(else_branch)
-                    }
-                    None => None,
-                };
+                    },
+                );
 
                 TypedStatement::If {
                     condition,
@@ -347,13 +347,13 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     .insert(type_to_typeinfo(Spanned(&end.0.ty, end.1)));
 
                 self.engine
-                    .expect(start_ty, TypeInfo::Integer)
+                    .expect(start_ty, &TypeInfo::Integer)
                     .unwrap_or_else(|err| {
                         errors.push(*err);
                     });
 
                 self.engine
-                    .expect(end_ty, TypeInfo::Integer)
+                    .expect(end_ty, &TypeInfo::Integer)
                     .unwrap_or_else(|err| {
                         errors.push(*err);
                     });
@@ -576,8 +576,8 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
             Expr::Variable(var) => {
                 let var_result = self.variables.get(&var);
 
-                match var_result {
-                    Some(ty) => TypedExpr {
+                if let Some(ty) = var_result {
+                    TypedExpr {
                         expr: typed::Expr::Variable(var),
                         ty: match self.engine.reconstruct(*ty) {
                             Ok(ty) => ty.0,
@@ -586,17 +586,16 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                                 Type::Error
                             }
                         },
-                    },
-                    None => {
-                        errors.push(Error::UndefinedVariable {
-                            name: var.0.to_string(),
-                            span: var.1,
-                        });
+                    }
+                } else {
+                    errors.push(Error::UndefinedVariable {
+                        name: var.0.to_string(),
+                        span: var.1,
+                    });
 
-                        TypedExpr {
-                            expr: typed::Expr::Error,
-                            ty: Type::Error,
-                        }
+                    TypedExpr {
+                        expr: typed::Expr::Error,
+                        ty: Type::Error,
                     }
                 }
             }
@@ -635,12 +634,12 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 let y_ty = self.engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
 
                 self.engine
-                    .expect(x_ty, TypeInfo::Float)
+                    .expect(x_ty, &TypeInfo::Float)
                     .unwrap_or_else(|err| {
                         errors.push(*err);
                     });
                 self.engine
-                    .expect(y_ty, TypeInfo::Float)
+                    .expect(y_ty, &TypeInfo::Float)
                     .unwrap_or_else(|err| {
                         errors.push(*err);
                     });
@@ -766,12 +765,11 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
 
                 match (expr.ty, ty.0) {
                     (from, to) if from == to => {}
-                    (Type::Error, _) => {}
-                    (_, Type::Error) => {}
-                    (Type::Integer, Type::Float) => {}
-                    (Type::Float, Type::Integer) => {}
-                    (Type::Integer, Type::String) => {}
-                    (Type::Float, Type::String) => {}
+                    (Type::Error, _)
+                    | (_, Type::Error)
+                    | (Type::Integer, Type::Float | Type::String)
+                    | (Type::Float, Type::Integer | Type::String) => {}
+
                     _ => {
                         errors.push(Error::InvalidConversion {
                             from: expr.0.ty.to_string(),
@@ -841,9 +839,7 @@ impl<'file> Engine<'file> {
                 Ok(())
             }
 
-            (TypeInfo::Error, _) => Ok(()),
-
-            (_, TypeInfo::Error) => Ok(()),
+            (TypeInfo::Error, _) | (_, TypeInfo::Error) => Ok(()),
 
             (a, b) if a == b => Ok(()),
 
@@ -856,10 +852,10 @@ impl<'file> Engine<'file> {
         }
     }
 
-    fn expect(&self, id: TypeId, ty: TypeInfo) -> Result<(), Box<Error<'file>>> {
+    fn expect(&self, id: TypeId, ty: &TypeInfo) -> Result<(), Box<Error<'file>>> {
         let var = &self.vars[&id];
 
-        if var.0 == ty {
+        if &var.0 == ty {
             Ok(())
         } else {
             Err(Box::new(Error::ExpectedTypeFound {
@@ -881,7 +877,7 @@ impl<'file> Engine<'file> {
 
         tys.iter()
             .any(|ty| &var.0 == ty)
-            .then(|| ())
+            .then_some(())
             .ok_or_else(|| {
                 Box::new(Error::ExpectedOneOfTypeFound {
                     found: var.0.to_string(),
@@ -914,7 +910,7 @@ impl<'file> Engine<'file> {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct TypeId(usize);
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TypeInfo {
     #[allow(dead_code)]
     Unknown,
@@ -982,6 +978,6 @@ macro_rules! unary_op {
 }
 use unary_op;
 
-fn bad_name(name: &str) -> bool {
+const fn bad_name(name: &str) -> bool {
     !is_snake_case(name)
 }

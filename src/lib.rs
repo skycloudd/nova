@@ -95,7 +95,7 @@ pub fn run<'src: 'file, 'file>(
     }
 }
 
-pub fn report_warnings_errors<'file, Id>(filename: Id, warnings: Vec<Error>, errors: Vec<Error>)
+pub fn report_warnings_errors<'file, Id>(filename: Id, warnings: &[Error], errors: &[Error])
 where
     Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned> + Copy,
 {

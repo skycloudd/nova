@@ -106,8 +106,9 @@ fn level(input: Option<PathBuf>) -> Box<dyn Read> {
 }
 
 fn output<P: AsRef<Path>>(out: Option<P>, overwrite: bool) -> Box<dyn Write> {
-    match out {
-        Some(out) => {
+    out.map_or_else(
+        || Box::new(std::io::stdout()) as Box<dyn Write>,
+        |out| {
             let out = out.as_ref();
 
             match out.try_exists() {
@@ -122,7 +123,6 @@ fn output<P: AsRef<Path>>(out: Option<P>, overwrite: bool) -> Box<dyn Write> {
                     _ => Box::new(std::fs::File::create(out).unwrap()),
                 },
             }
-        }
-        None => Box::new(std::io::stdout()) as Box<dyn Write>,
-    }
+        },
+    )
 }

@@ -237,7 +237,6 @@ impl Error<'_> {
                     found.fg(Color::Yellow),
                     (&expected[0]).fg(Color::Yellow)
                 )
-                .into()
             } else {
                 format!(
                     "found type `{}`, expected one of: {}",
