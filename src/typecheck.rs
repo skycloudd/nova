@@ -80,20 +80,12 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
             .map(|top_level| {
                 top_level.map(|top_level| match top_level {
                     TopLevel::Procedure(procedure) => {
-                        let (procedure, wrnings, errs) = self.typecheck_procedure(procedure);
-
-                        warnings.extend(wrnings);
-                        errors.extend(errs);
-
-                        procedure
+                        with_extend(&mut warnings, &mut errors, || {
+                            self.typecheck_procedure(procedure)
+                        })
                     }
                     TopLevel::Run(name) => {
-                        let (run, wrnings, errs) = self.typecheck_run(name);
-
-                        warnings.extend(wrnings);
-                        errors.extend(errs);
-
-                        run
+                        with_extend(&mut warnings, &mut errors, || self.typecheck_run(name))
                     }
                     TopLevel::Error => TypedTopLevel::Error,
                 })
@@ -175,12 +167,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
         let body = procedure.body.map(|body| {
             body.into_iter()
                 .map(|stmt| {
-                    let (stmt, wrnings, errs) = self.typecheck_statement(stmt);
-
-                    warnings.extend(wrnings);
-                    errors.extend(errs);
-
-                    stmt
+                    with_extend(&mut warnings, &mut errors, || {
+                        self.typecheck_statement(stmt)
+                    })
                 })
                 .collect()
         });
@@ -213,12 +202,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
             statements
                 .into_iter()
                 .map(|stmt| {
-                    let (stmt, wrnings, errs) = self.typecheck_statement(stmt);
-
-                    warnings.extend(wrnings);
-                    errors.extend(errs);
-
-                    stmt
+                    with_extend(&mut warnings, &mut errors, || {
+                        self.typecheck_statement(stmt)
+                    })
                 })
                 .collect()
         });
@@ -240,20 +226,18 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
         let stmt = statement.map(|statement| match statement {
             Statement::Error => TypedStatement::Error,
             Statement::Expr(expr) => {
-                let (expr, wrnings, errs) = self.typecheck_expression(expr);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let expr = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(expr)
+                });
 
                 TypedStatement::Expr(expr)
             }
             Statement::Block(statements) => {
                 self.push_scope();
 
-                let (statements, wrnings, errs) = self.typecheck_statements(statements);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let statements = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_statements(statements)
+                });
 
                 self.pop_scope();
 
@@ -262,10 +246,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
             Statement::Loop(statements) => {
                 self.push_scope();
 
-                let (statements, wrnings, errs) = self.typecheck_statements(statements);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let statements = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_statements(statements)
+                });
 
                 self.pop_scope();
 
@@ -276,10 +259,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 then_branch,
                 else_branch,
             } => {
-                let (condition, wrnings, errs) = self.typecheck_expression(condition);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let condition = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(condition)
+                });
 
                 let condition_ty = self
                     .engine
@@ -293,10 +275,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
 
                 self.push_scope();
 
-                let (then_branch, wrnings, errs) = self.typecheck_statements(then_branch);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let then_branch = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_statements(then_branch)
+                });
 
                 self.pop_scope();
 
@@ -305,10 +286,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     |else_branch| {
                         self.push_scope();
 
-                        let (else_branch, wrnings, errs) = self.typecheck_statements(else_branch);
-
-                        warnings.extend(wrnings);
-                        errors.extend(errs);
+                        let else_branch = with_extend(&mut warnings, &mut errors, || {
+                            self.typecheck_statements(else_branch)
+                        });
 
                         self.pop_scope();
 
@@ -329,19 +309,18 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 inclusive,
                 body,
             } => {
-                let (start, wrnings, errs) = self.typecheck_expression(start);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
-
-                let (end, wrnings, errs) = self.typecheck_expression(end);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let start = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(start)
+                });
 
                 let start_ty = self
                     .engine
                     .insert(type_to_typeinfo(Spanned(&start.0.ty, start.1)));
+
+                let end = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(end)
+                });
+
                 let end_ty = self
                     .engine
                     .insert(type_to_typeinfo(Spanned(&end.0.ty, end.1)));
@@ -372,10 +351,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     .insert(type_to_typeinfo(Spanned(&Type::Integer, name.1)));
                 self.variables.insert(name.0, name_ty);
 
-                let (body, wrnings, errs) = self.typecheck_statements(body);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let body = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_statements(body)
+                });
 
                 self.pop_scope();
 
@@ -388,10 +366,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 }
             }
             Statement::Let { name, value } => {
-                let (value, wrnings, errs) = self.typecheck_expression(value);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let value = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(value)
+                });
 
                 let value_ty = self
                     .engine
@@ -409,10 +386,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 TypedStatement::Let { name, value }
             }
             Statement::Assign { name, value } => {
-                let (value, wrnings, errs) = self.typecheck_expression(value);
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let value = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(value)
+                });
 
                 let value_ty = self
                     .engine
@@ -440,12 +416,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 let args = args.map(|args| {
                     args.into_iter()
                         .map(|arg| {
-                            let (arg, wrnings, errs) = self.typecheck_expression(arg);
-
-                            warnings.extend(wrnings);
-                            errors.extend(errs);
-
-                            arg
+                            with_extend(&mut warnings, &mut errors, || {
+                                self.typecheck_expression(arg)
+                            })
                         })
                         .collect::<Vec<_>>()
                 });
@@ -512,12 +485,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 let args = args.map(|args| {
                     args.into_iter()
                         .map(|arg| {
-                            let (arg, wrnings, errs) = self.typecheck_expression(arg);
-
-                            warnings.extend(wrnings);
-                            errors.extend(errs);
-
-                            arg
+                            with_extend(&mut warnings, &mut errors, || {
+                                self.typecheck_expression(arg)
+                            })
                         })
                         .collect::<Vec<_>>()
                 });
@@ -620,24 +590,24 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 ty: Type::Colour,
             },
             Expr::Vector { x, y } => {
-                let (x, wrnings, errs) = self.typecheck_expression(x.map(|x| *x));
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
-
-                let (y, wrnings, errs) = self.typecheck_expression(y.map(|y| *y));
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let x = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(x.map(|x| *x))
+                });
 
                 let x_ty = self.engine.insert(type_to_typeinfo(Spanned(&x.0.ty, x.1)));
-                let y_ty = self.engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
 
                 self.engine
                     .expect(x_ty, &TypeInfo::Float)
                     .unwrap_or_else(|err| {
                         errors.push(*err);
                     });
+
+                let y = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(y.map(|y| *y))
+                });
+
+                let y_ty = self.engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
+
                 self.engine
                     .expect(y_ty, &TypeInfo::Float)
                     .unwrap_or_else(|err| {
@@ -653,19 +623,18 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 }
             }
             Expr::Binary(lhs, op, rhs) => {
-                let (lhs, wrnings, errs) = self.typecheck_expression(lhs.map(|l| *l));
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
-
-                let (rhs, wrnings, errs) = self.typecheck_expression(rhs.map(|r| *r));
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let lhs = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(lhs.map(|l| *l))
+                });
 
                 let lhs_ty = self
                     .engine
                     .insert(type_to_typeinfo(Spanned(&lhs.0.ty, lhs.1)));
+
+                let rhs = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(rhs.map(|r| *r))
+                });
+
                 let rhs_ty = self
                     .engine
                     .insert(type_to_typeinfo(Spanned(&rhs.0.ty, rhs.1)));
@@ -725,10 +694,9 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 }
             }
             Expr::Unary(op, expr) => {
-                let (expr, wrnings, errs) = self.typecheck_expression(expr.map(|e| *e));
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let expr = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(expr.map(|e| *e))
+                });
 
                 let ty = unary_op!(
                     expr.0.ty,
@@ -758,13 +726,13 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 }
             }
             Expr::Convert { ty, expr } => {
-                let (expr, wrnings, errs) = self.typecheck_expression(expr.map(|e| *e));
-
-                warnings.extend(wrnings);
-                errors.extend(errs);
+                let expr = with_extend(&mut warnings, &mut errors, || {
+                    self.typecheck_expression(expr.map(|e| *e))
+                });
 
                 match (expr.ty, ty.0) {
                     (from, to) if from == to => {}
+
                     (Type::Error, _)
                     | (_, Type::Error)
                     | (Type::Integer, Type::Float | Type::String)
@@ -800,6 +768,22 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
     fn pop_scope(&mut self) {
         self.variables.pop_scope();
     }
+}
+
+fn with_extend<'file, T, F>(
+    warnings: &mut Vec<Error<'file>>,
+    errors: &mut Vec<Error<'file>>,
+    f: F,
+) -> T
+where
+    F: FnOnce() -> (T, Vec<Error<'file>>, Vec<Error<'file>>),
+{
+    let (result, w, e) = f();
+
+    warnings.extend(w);
+    errors.extend(e);
+
+    result
 }
 
 struct Engine<'file> {
