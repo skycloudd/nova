@@ -210,8 +210,8 @@ impl<'src> IdMap<'src> for ProcIdMap<'src> {
     }
 }
 
-pub fn build<'src, 'file, 'ast>(
-    ast: &'ast [Spanned<'file, TypedTopLevel<'src, 'file>>],
+pub fn build<'file, 'ast>(
+    ast: &'ast [Spanned<'file, TypedTopLevel<'_, 'file>>],
 ) -> Vec<TopLevel<'ast>> {
     MirBuilder::new().build(ast)
 }

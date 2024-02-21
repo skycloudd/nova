@@ -7,7 +7,7 @@ edition = "2021"
 ariadne = "0.4.0"
 chumsky = "1.0.0-alpha.6"
 clap = { version = "4.5.1", features = ["derive"] }
-exolvl = { git = "https://github.com/skycloudd/exolvl/", version = "0.4.0" }
+exolvl = "0.6.0"
 flate2 = "1.0.28"
 heck = { version = "0.4.1", features = ["unicode"] }
 rustc-hash = "1.1.0"
