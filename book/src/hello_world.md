@@ -11,7 +11,7 @@ proc main() do
     end
 end
 
-# todo: add `run main;` here when it gets implemented
+run main;
 ```
 
 Output:
@@ -29,12 +29,12 @@ proc main() do
     // ...
 end
 
-// todo: add `run main;` here when it gets implemented
+run main;
 ```
 
 Every program starts with a `main` procedure. This is the entry point of the program. Inside the `main` procedure we write the code that we want to run when the program starts.
 
-<!-- todo: add an explanation for `run main;` here when it gets implemented -->
+`run main;` tells the game to start running the `main` procedure when the level starts.
 
 Throughout this book, the `main` procedure will usually not be shown for demonstration purposes, but when writing real programs it is always required.
 
