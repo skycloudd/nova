@@ -1,0 +1,118 @@
+// grammar for https://lezer.codemirror.net
+
+@top Program { toplevel* }
+
+@skip { space | Comment }
+
+// Top-levels
+
+toplevel { Procedure | Run }
+
+Procedure { keyword<"proc"> Ident "(" commaSep<Arg> ")" Block }
+
+Run { keyword<"run"> Ident ";" }
+
+Arg { Ident ":" Type }
+
+Type {
+    keyword<"int"> |
+    keyword<"float"> |
+    keyword<"bool">
+}
+
+// Statements
+
+statement {
+    ExprStmt |
+    Block |
+    Loop |
+    IfStmt |
+    ForStmt |
+    LetStmt |
+    AssignStmt |
+    BreakStmt |
+    ContinueStmt |
+    ReturnStmt |
+    ActionStmt |
+    CallStmt
+}
+
+ExprStmt { expr ";" }
+
+Block { keyword<"do"> statement* keyword<"end"> }
+
+Loop { keyword<"loop"> statement* keyword<"end"> }
+
+IfStmt { keyword<"if"> expr keyword<"then"> statement* keyword<"else"> statement* keyword<"end"> }
+
+ForStmt { keyword<"for"> Ident keyword<"in"> expr (".." | "..=") expr Block }
+
+LetStmt { keyword<"let"> Ident "=" expr ";" }
+
+AssignStmt { Ident "=" expr ";" }
+
+BreakStmt { keyword<"break"> ";" }
+
+ContinueStmt { keyword<"continue"> ";" }
+
+ReturnStmt { keyword<"return"> ";" }
+
+ActionStmt { keyword<"action"> Ident ":" commaSep<expr> ";" }
+
+CallStmt { Ident "(" commaSep<expr> ")" ";" }
+
+// Expressions
+
+expr { RelationalExpr ((Equal | NotEqual) RelationalExpr)* }
+
+RelationalExpr { (RelationalExpr(GreaterEqual | LessEqual | GreaterThan | LessThan) SumExpr) | SumExpr }
+
+SumExpr { (SumExpr (Plus | Minus) FactorExpr) | FactorExpr }
+
+FactorExpr { (FactorExpr (Star | Slash) UnaryExpr) | UnaryExpr }
+
+UnaryExpr { ((Not | Minus) UnaryExpr) | AtomExpr }
+
+AtomExpr { Ident | Integer | Float | Bool | "(" expr ")" }
+
+// Helpers
+
+commaSep<content> { "" | content ("," content)* ","? }
+
+keyword<name> { @specialize<Ident, name> }
+
+// Tokens
+
+@tokens {
+    Ident { (@asciiLetter | "_") (@asciiLetter | @digit | "_")* }
+
+    Bool { "true" | "false" }
+
+    Integer { ($[1-9] @digit*) | "0" }
+
+    Float { Integer "." @digit+ }
+
+    // Operators
+
+    Plus { "+" }
+    Minus { "-" }
+    Star { "*" }
+    Slash { "/" }
+    Equal { "==" }
+    NotEqual { "!=" }
+    GreaterEqual { ">=" }
+    LessEqual { "<=" }
+    GreaterThan { ">" }
+    LessThan { "<" }
+    Not { "!" }
+
+    // Skipped tokens
+
+    Comment { "//" ![\n]* }
+
+    space { @whitespace }
+
+    @precedence { Bool, Ident }
+    @precedence { Float, Integer }
+    @precedence { Comment, Slash }
+}
