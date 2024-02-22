@@ -57,10 +57,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     let args_tys = args
                         .0
                         .iter()
-                        .map(|(name, ty)| {
-                            self.engine
-                                .insert(type_to_typeinfo(Spanned(ty, name.1.union(ty.1))))
-                        })
+                        .map(|(name, ty)| self.engine.insert_type(Spanned(ty, name.1.union(ty.1))))
                         .collect();
 
                     self.procedures.insert(name.0, (name.1, (args.1, args_tys)));
@@ -265,7 +262,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
 
                 let condition_ty = self
                     .engine
-                    .insert(type_to_typeinfo(Spanned(&condition.0.ty, condition.1)));
+                    .insert_type(Spanned(&condition.0.ty, condition.1));
 
                 self.engine
                     .expect(condition_ty, &TypeInfo::Boolean)
@@ -313,17 +310,13 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     self.typecheck_expression(start)
                 });
 
-                let start_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&start.0.ty, start.1)));
+                let start_ty = self.engine.insert_type(Spanned(&start.0.ty, start.1));
 
                 let end = with_extend(&mut warnings, &mut errors, || {
                     self.typecheck_expression(end)
                 });
 
-                let end_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&end.0.ty, end.1)));
+                let end_ty = self.engine.insert_type(Spanned(&end.0.ty, end.1));
 
                 self.engine
                     .expect(start_ty, &TypeInfo::Integer)
@@ -346,9 +339,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     });
                 }
 
-                let name_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&Type::Integer, name.1)));
+                let name_ty = self.engine.insert_type(Spanned(&Type::Integer, name.1));
                 self.variables.insert(name.0, name_ty);
 
                 let body = with_extend(&mut warnings, &mut errors, || {
@@ -370,9 +361,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     self.typecheck_expression(value)
                 });
 
-                let value_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
+                let value_ty = self.engine.insert_type(Spanned(&value.0.ty, value.1));
 
                 if bad_name(name.0) {
                     warnings.push(Error::NameWarning {
@@ -390,9 +379,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     self.typecheck_expression(value)
                 });
 
-                let value_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&value.0.ty, value.1)));
+                let value_ty = self.engine.insert_type(Spanned(&value.0.ty, value.1));
 
                 let Some(name_ty) = self.variables.get(&name.0) else {
                     errors.push(Error::UndefinedVariable {
@@ -470,7 +457,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     .into_iter()
                     .zip(args.0.iter().map(|arg| Spanned(&arg.0.ty, arg.1)))
                 {
-                    let got = self.engine.insert(type_to_typeinfo(got));
+                    let got = self.engine.insert_type(got);
 
                     self.engine
                         .expect_one_of(got, &expected, Some(name.0))
@@ -513,7 +500,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                 }
 
                 for (ty, arg) in arg_types.1.iter().zip(args.0.iter().map(|arg| arg.0.ty)) {
-                    let arg_ty = self.engine.insert(type_to_typeinfo(Spanned(&arg, args.1)));
+                    let arg_ty = self.engine.insert_type(Spanned(&arg, args.1));
 
                     self.engine.unify(*ty, arg_ty).unwrap_or_else(|err| {
                         errors.push(*err);
@@ -594,7 +581,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     self.typecheck_expression(x.map(|x| *x))
                 });
 
-                let x_ty = self.engine.insert(type_to_typeinfo(Spanned(&x.0.ty, x.1)));
+                let x_ty = self.engine.insert_type(Spanned(&x.0.ty, x.1));
 
                 self.engine
                     .expect(x_ty, &TypeInfo::Float)
@@ -606,7 +593,7 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     self.typecheck_expression(y.map(|y| *y))
                 });
 
-                let y_ty = self.engine.insert(type_to_typeinfo(Spanned(&y.0.ty, y.1)));
+                let y_ty = self.engine.insert_type(Spanned(&y.0.ty, y.1));
 
                 self.engine
                     .expect(y_ty, &TypeInfo::Float)
@@ -627,17 +614,13 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     self.typecheck_expression(lhs.map(|l| *l))
                 });
 
-                let lhs_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&lhs.0.ty, lhs.1)));
+                let lhs_ty = self.engine.insert_type(Spanned(&lhs.0.ty, lhs.1));
 
                 let rhs = with_extend(&mut warnings, &mut errors, || {
                     self.typecheck_expression(rhs.map(|r| *r))
                 });
 
-                let rhs_ty = self
-                    .engine
-                    .insert(type_to_typeinfo(Spanned(&rhs.0.ty, rhs.1)));
+                let rhs_ty = self.engine.insert_type(Spanned(&rhs.0.ty, rhs.1));
 
                 let ty = bin_op!(
                     lhs.0.ty,
@@ -806,6 +789,10 @@ impl<'file> Engine<'file> {
         id
     }
 
+    fn insert_type(&mut self, ty: Spanned<'file, &Type>) -> TypeId {
+        self.insert(ty.map(type_to_typeinfo))
+    }
+
     fn unify(&mut self, a: TypeId, b: TypeId) -> Result<(), Box<Error<'file>>> {
         let var_a = &self.vars[&a];
         let var_b = &self.vars[&b];
@@ -924,8 +911,8 @@ impl std::fmt::Display for TypeInfo {
     }
 }
 
-fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo> {
-    ty.map(|ty| match ty {
+fn type_to_typeinfo<'file>(ty: &Type) -> TypeInfo {
+    match ty {
         Type::Error => TypeInfo::Error,
         Type::Boolean => TypeInfo::Boolean,
         Type::Integer => TypeInfo::Integer,
@@ -933,7 +920,7 @@ fn type_to_typeinfo<'file>(ty: Spanned<'file, &Type>) -> Spanned<'file, TypeInfo
         Type::String => TypeInfo::String,
         Type::Colour => TypeInfo::Colour,
         Type::Vector => TypeInfo::Vector,
-    })
+    }
 }
 
 macro_rules! bin_op {
