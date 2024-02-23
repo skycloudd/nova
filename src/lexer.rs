@@ -66,7 +66,6 @@ pub enum Op {
     LessThan,
 
     Not,
-    Addr,
 }
 
 impl std::fmt::Display for Token<'_> {
@@ -148,7 +147,6 @@ impl std::fmt::Display for Op {
             Self::LessThan => write!(f, "<"),
 
             Self::Not => write!(f, "!"),
-            Self::Addr => write!(f, "&"),
         }
     }
 }
@@ -330,7 +328,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just('>').to(Token::Op(Op::GreaterThan)),
         just('<').to(Token::Op(Op::LessThan)),
         just('!').to(Token::Op(Op::Not)),
-        just('&').to(Token::Op(Op::Addr)),
     ))
     .boxed();
 

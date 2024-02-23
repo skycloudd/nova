@@ -6,12 +6,7 @@ proc main() do
     let number = one + six;
 
     let val = 3.14;
-
-    let myptr = &val;
-
     action print: @str(val);
-    action print: @str(myptr);
-    action print: @str(*myptr);
 
     if number == 7 then
         action print: "number is 7";

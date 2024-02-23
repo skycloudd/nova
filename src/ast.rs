@@ -17,7 +17,7 @@ macro_rules! ast_procedure {
         #[derive(Debug)]
         pub struct $name<'src, 'file> {
             pub name: Spanned<'file, &'src str>,
-            pub args: Spanned<'file, Vec<(Spanned<'file, &'src str>, Spanned<'file, Type<'file>>)>>,
+            pub args: Spanned<'file, Vec<(Spanned<'file, &'src str>, Spanned<'file, Type>)>>,
             pub body: Spanned<'file, Vec<Spanned<'file, $stmt<'src, 'file>>>>,
         }
     };
@@ -97,7 +97,7 @@ macro_rules! ast_expr {
                 Spanned<'file, Box<$self_expr<'src, 'file>>>,
             ),
             Convert {
-                ty: Spanned<'file, Type<'file>>,
+                ty: Spanned<'file, Type>,
                 expr: Spanned<'file, Box<$self_expr<'src, 'file>>>,
             },
         }
@@ -147,8 +147,6 @@ impl std::fmt::Display for BinaryOp {
 pub enum UnaryOp {
     Negate,
     Not,
-    Addr,
-    Deref,
 }
 
 impl std::fmt::Display for UnaryOp {
@@ -156,16 +154,13 @@ impl std::fmt::Display for UnaryOp {
         match self {
             Self::Negate => write!(f, "-"),
             Self::Not => write!(f, "!"),
-            Self::Addr => write!(f, "&"),
-            Self::Deref => write!(f, "*"),
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Type<'file> {
+pub enum Type {
     Error,
-    Pointer(Spanned<'file, Box<Type<'file>>>),
     Boolean,
     Integer,
     Float,
@@ -198,14 +193,13 @@ pub mod typed {
     #[derive(Debug)]
     pub struct TypedExpr<'src, 'file> {
         pub expr: Expr<'src, 'file>,
-        pub ty: Type<'file>,
+        pub ty: Type,
     }
 
-    impl std::fmt::Display for Type<'_> {
+    impl std::fmt::Display for Type {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Self::Error => write!(f, "error"),
-                Self::Pointer(ty) => write!(f, "ptr<{}>", ty.0),
                 Self::Boolean => write!(f, "bool"),
                 Self::Integer => write!(f, "int"),
                 Self::Float => write!(f, "float"),

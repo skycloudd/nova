@@ -437,8 +437,6 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
         let unary_op = choice((
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
             just(Token::Op(Op::Not)).to(UnaryOp::Not),
-            just(Token::Op(Op::Addr)).to(UnaryOp::Addr),
-            just(Token::Op(Op::Star)).to(UnaryOp::Deref),
         ))
         .map_with(|t, e| Spanned(t, e.span()));
 
@@ -531,7 +529,7 @@ fn ident<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
 fn type_parser<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
     'tokens,
     ParserInput<'tokens, 'src, 'file>,
-    Spanned<'file, Type<'file>>,
+    Spanned<'file, Type>,
     ParserError<'tokens, 'src, 'file>,
 > {
     select! {

@@ -725,8 +725,6 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     (Type::Float, Type::Integer) => {}
                     (Type::Float, Type::String) => {}
 
-                    (Type::Pointer(_), Type::String) => {}
-
                     _ => {
                         errors.push(Error::InvalidConversion {
                             from: expr.0.ty.to_string(),
@@ -795,7 +793,7 @@ impl<'file> Engine<'file> {
         id
     }
 
-    fn insert_type(&mut self, ty: Spanned<'file, &Type<'file>>) -> TypeId {
+    fn insert_type(&mut self, ty: Spanned<'file, &Type>) -> TypeId {
         let ty_info = ty.map(|ty| self.type_to_typeinfo(ty));
 
         self.insert(ty_info)
@@ -868,14 +866,13 @@ impl<'file> Engine<'file> {
             })
     }
 
-    fn reconstruct(&self, id: TypeId) -> Result<Spanned<'file, Type<'file>>, Box<Error<'file>>> {
+    fn reconstruct(&self, id: TypeId) -> Result<Spanned<'file, Type>, Box<Error<'file>>> {
         let var = self.vars[&id];
 
         match var.0 {
             TypeInfo::Unknown => Err(Box::new(Error::UnknownType { span: var.1 })),
             TypeInfo::Ref(id) => Ok(self.reconstruct(id)?.0),
             TypeInfo::Error => Ok(Type::Error),
-            TypeInfo::Pointer(id) => Ok(Type::Pointer(self.reconstruct(id)?.map(Box::new))),
             TypeInfo::Boolean => Ok(Type::Boolean),
             TypeInfo::Integer => Ok(Type::Integer),
             TypeInfo::Float => Ok(Type::Float),
@@ -886,10 +883,9 @@ impl<'file> Engine<'file> {
         .map(|ty| Spanned(ty, var.1))
     }
 
-    fn type_to_typeinfo(&mut self, ty: &Type<'file>) -> TypeInfo {
+    fn type_to_typeinfo(&mut self, ty: &Type) -> TypeInfo {
         match ty {
             Type::Error => TypeInfo::Error,
-            Type::Pointer(ty) => TypeInfo::Pointer(self.insert_type(Spanned(ty.0.as_ref(), ty.1))),
             Type::Boolean => TypeInfo::Boolean,
             Type::Integer => TypeInfo::Integer,
             Type::Float => TypeInfo::Float,
@@ -909,7 +905,6 @@ enum TypeInfo {
     Unknown,
     Ref(TypeId),
     Error,
-    Pointer(TypeId),
     Boolean,
     Integer,
     Float,
@@ -924,7 +919,6 @@ impl std::fmt::Display for TypeInfo {
             Self::Unknown => write!(f, "unknown"),
             Self::Ref(id) => write!(f, "ref {}", id.0),
             Self::Error => write!(f, "error"),
-            Self::Pointer(id) => write!(f, "ptr<{}>", id.0),
             Self::Boolean => write!(f, "bool"),
             Self::Integer => write!(f, "int"),
             Self::Float => write!(f, "float"),
