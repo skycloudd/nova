@@ -71,9 +71,9 @@ pub fn run<'src: 'file, 'file>(
 
         let low_ir = low_ir::lower(&mir);
 
-        // for toplevel in &low_ir {
-        //     println!("{toplevel}");
-        // }
+        for toplevel in &low_ir {
+            println!("{toplevel}");
+        }
 
         let mut decoder = flate2::read::GzDecoder::new(level);
 

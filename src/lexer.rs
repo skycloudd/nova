@@ -57,8 +57,8 @@ pub enum Op {
 
     Plus,
     Minus,
-    Multiply,
-    Divide,
+    Star,
+    Slash,
 
     GreaterThanEquals,
     LessThanEquals,
@@ -139,8 +139,8 @@ impl std::fmt::Display for Op {
 
             Self::Plus => write!(f, "+"),
             Self::Minus => write!(f, "-"),
-            Self::Multiply => write!(f, "*"),
-            Self::Divide => write!(f, "/"),
+            Self::Star => write!(f, "*"),
+            Self::Slash => write!(f, "/"),
 
             Self::GreaterThanEquals => write!(f, ">="),
             Self::LessThanEquals => write!(f, "<="),
@@ -325,8 +325,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         just("<=").to(Token::Op(Op::LessThanEquals)),
         just('+').to(Token::Op(Op::Plus)),
         just('-').to(Token::Op(Op::Minus)),
-        just('*').to(Token::Op(Op::Multiply)),
-        just('/').to(Token::Op(Op::Divide)),
+        just('*').to(Token::Op(Op::Star)),
+        just('/').to(Token::Op(Op::Slash)),
         just('>').to(Token::Op(Op::GreaterThan)),
         just('<').to(Token::Op(Op::LessThan)),
         just('!').to(Token::Op(Op::Not)),

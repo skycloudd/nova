@@ -438,6 +438,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
             just(Token::Op(Op::Not)).to(UnaryOp::Not),
             just(Token::Op(Op::Addr)).to(UnaryOp::Addr),
+            just(Token::Op(Op::Star)).to(UnaryOp::Deref),
         ))
         .map_with(|t, e| Spanned(t, e.span()));
 
@@ -451,8 +452,8 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
             .boxed();
 
         let factor_op = choice((
-            just(Token::Op(Op::Multiply)).to(BinaryOp::Multiply),
-            just(Token::Op(Op::Divide)).to(BinaryOp::Divide),
+            just(Token::Op(Op::Star)).to(BinaryOp::Multiply),
+            just(Token::Op(Op::Slash)).to(BinaryOp::Divide),
         ))
         .map_with(|t, e| Spanned(t, e.span()));
 

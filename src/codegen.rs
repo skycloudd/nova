@@ -470,6 +470,21 @@ impl Codegen<'_> {
                         }
                         _ => unreachable!(),
                     },
+                    UnaryOp::Deref => match ty {
+                        Type::Pointer(inner) => {
+                            let dynamic_type = match inner.as_ref() {
+                                Type::Pointer(_) | Type::Integer => DynamicType::IntVariable,
+                                Type::Float => DynamicType::FloatVariable,
+                                Type::Boolean => DynamicType::BoolVariable,
+                                Type::String => DynamicType::StringVariable,
+                                Type::Colour => DynamicType::ColorVariable,
+                                Type::Vector => DynamicType::VectorVariable,
+                            };
+
+                            new_novavalue(dynamic_type, NewValue::Int(todo!()))
+                        }
+                        _ => unreachable!(),
+                    },
                 }
             }
             Expression::Binary { lhs, op, rhs } => {

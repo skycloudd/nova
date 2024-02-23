@@ -148,6 +148,7 @@ pub enum UnaryOp {
     Negate,
     Not,
     Addr,
+    Deref,
 }
 
 impl std::fmt::Display for UnaryOp {
@@ -156,6 +157,7 @@ impl std::fmt::Display for UnaryOp {
             Self::Negate => write!(f, "-"),
             Self::Not => write!(f, "!"),
             Self::Addr => write!(f, "&"),
+            Self::Deref => write!(f, "*"),
         }
     }
 }

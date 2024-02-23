@@ -687,12 +687,6 @@ impl<'src: 'file, 'file> Typechecker<'src, 'file> {
                     (Type::Integer, UnaryOp::Negate) => Ok(Type::Integer),
                     (Type::Float, UnaryOp::Negate) => Ok(Type::Float),
                     (Type::Boolean, UnaryOp::Not) => Ok(Type::Boolean),
-                    (any, UnaryOp::Addr) => match expr.0.expr {
-                        typed::Expr::Variable(_) => {
-                            Ok(Type::Pointer(Spanned(Box::new(any.clone()), expr.1)))
-                        }
-                        _ => Err(Error::CantCreatePointer { span: expr.1 }),
-                    },
                     _ => Err(Error::UnaryOp {
                         ty: expr.0.ty.to_string(),
                         ty_span: expr.1,
