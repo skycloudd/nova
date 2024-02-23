@@ -367,7 +367,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
                 just(Token::Ctrl(Ctrl::LeftCurly)),
                 just(Token::Ctrl(Ctrl::RightCurly)),
             )
-            .map_with(|(x, y): (Spanned<Expr>, _), e| {
+            .map_with(|(x, y): (Spanned<_>, _), e| {
                 Spanned(
                     Expr::Vector {
                         x: x.map(Box::new),
@@ -437,6 +437,7 @@ fn expr_parser<'tokens, 'src: 'tokens, 'file: 'src>() -> impl Parser<
         let unary_op = choice((
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
             just(Token::Op(Op::Not)).to(UnaryOp::Not),
+            just(Token::Op(Op::Addr)).to(UnaryOp::Addr),
         ))
         .map_with(|t, e| Spanned(t, e.span()));
 
@@ -529,7 +530,7 @@ fn ident<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
 fn type_parser<'tokens, 'src: 'tokens, 'file: 'tokens>() -> impl Parser<
     'tokens,
     ParserInput<'tokens, 'src, 'file>,
-    Spanned<'file, Type>,
+    Spanned<'file, Type<'file>>,
     ParserError<'tokens, 'src, 'file>,
 > {
     select! {

@@ -54,27 +54,11 @@ impl<'file> ariadne::Span for Span<'file> {
     }
 }
 
-impl<'file> std::ops::Deref for Span<'file> {
-    type Target = SimpleSpan<usize, &'file Path>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Spanned<'file, T>(pub T, pub Span<'file>);
 
 impl<'file, T> Spanned<'file, T> {
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<'file, U> {
         Spanned(f(self.0), self.1)
-    }
-}
-
-impl<'file, T> std::ops::Deref for Spanned<'file, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }

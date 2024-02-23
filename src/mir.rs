@@ -94,8 +94,9 @@ pub enum Expression<'ast> {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
+    Pointer(Box<Type>),
     Integer,
     Float,
     Boolean,
@@ -104,12 +105,13 @@ pub enum Type {
     Vector,
 }
 
-impl TryFrom<ast::Type> for Type {
+impl TryFrom<&ast::Type<'_>> for Type {
     type Error = ();
 
-    fn try_from(ty: ast::Type) -> Result<Self, Self::Error> {
+    fn try_from(ty: &ast::Type) -> Result<Self, Self::Error> {
         match ty {
             ast::Type::Error => Err(()),
+            ast::Type::Pointer(ty) => Ok(Self::Pointer(Box::new((&*ty.0).try_into()?))),
             ast::Type::Integer => Ok(Self::Integer),
             ast::Type::Float => Ok(Self::Float),
             ast::Type::Boolean => Ok(Self::Boolean),
@@ -123,6 +125,7 @@ impl TryFrom<ast::Type> for Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Pointer(ty) => write!(f, "ptr<{ty}>"),
             Self::Integer => write!(f, "int"),
             Self::Float => write!(f, "float"),
             Self::Boolean => write!(f, "bool"),
@@ -239,7 +242,7 @@ impl<'src> MirBuilder<'src> {
                     self.proc_id_map.insert(procedure.name.0);
 
                     for arg in &procedure.args.0 {
-                        self.var_id_map.insert(&arg.0);
+                        self.var_id_map.insert(arg.0 .0);
                     }
                 }
                 TypedTopLevel::Run(_) | TypedTopLevel::Error => {}
@@ -276,15 +279,16 @@ impl<'src> MirBuilder<'src> {
             name: *self.proc_id_map.get(procedure.name.0).unwrap(),
             args: procedure
                 .args
+                .0
                 .iter()
                 .map(|arg| {
                     (
-                        *self.var_id_map.get(&arg.0).unwrap(),
-                        arg.1 .0.try_into().unwrap(),
+                        *self.var_id_map.get(arg.0 .0).unwrap(),
+                        (&arg.1 .0).try_into().unwrap(),
                     )
                 })
                 .collect(),
-            body: self.build_statements(&procedure.body),
+            body: self.build_statements(&procedure.body.0),
         }
     }
 
@@ -306,19 +310,21 @@ impl<'src> MirBuilder<'src> {
             TypedStatement::Error => unreachable!(),
             TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(&expr.0)),
             TypedStatement::Block(statements) => {
-                Statement::Block(self.build_statements(statements))
+                Statement::Block(self.build_statements(&statements.0))
             }
-            TypedStatement::Loop(statements) => Statement::Loop(self.build_statements(statements)),
+            TypedStatement::Loop(statements) => {
+                Statement::Loop(self.build_statements(&statements.0))
+            }
             TypedStatement::If {
                 condition,
                 then_branch,
                 else_branch,
             } => Statement::If {
                 condition: self.build_mir_expr(&condition.0),
-                then_branch: self.build_statements(then_branch),
+                then_branch: self.build_statements(&then_branch.0),
                 else_branch: else_branch
                     .as_ref()
-                    .map(|stmts| self.build_statements(stmts)),
+                    .map(|stmts| self.build_statements(&stmts.0)),
             },
             TypedStatement::For {
                 name,
@@ -329,8 +335,8 @@ impl<'src> MirBuilder<'src> {
             } => {
                 let start = self.build_mir_expr(&start.0);
                 let end = self.build_mir_expr(&end.0);
-                let name = self.var_id_map.insert(name);
-                let body = self.build_statements(body);
+                let name = self.var_id_map.insert(name.0);
+                let body = self.build_statements(&body.0);
 
                 Statement::Block(vec![
                     Statement::Let { name, value: start },
@@ -379,12 +385,12 @@ impl<'src> MirBuilder<'src> {
             }
             TypedStatement::Let { name, value } => {
                 let value = self.build_mir_expr(&value.0);
-                let name = self.var_id_map.insert(name);
+                let name = self.var_id_map.insert(name.0);
 
                 Statement::Let { name, value }
             }
             TypedStatement::Assign { name, value } => Statement::Assign {
-                name: *self.var_id_map.get(name).unwrap(),
+                name: *self.var_id_map.get(name.0).unwrap(),
                 value: self.build_mir_expr(&value.0),
             },
             TypedStatement::Break => Statement::Break,
@@ -397,11 +403,19 @@ impl<'src> MirBuilder<'src> {
                     ast::Action::WaitFrames => Action::WaitFrames,
                     ast::Action::Print => Action::Print,
                 },
-                args: args.iter().map(|arg| self.build_mir_expr(&arg.0)).collect(),
+                args: args
+                    .0
+                    .iter()
+                    .map(|arg| self.build_mir_expr(&arg.0))
+                    .collect(),
             },
             TypedStatement::Call { proc, args } => Statement::Call {
                 proc: *self.proc_id_map.get(proc.0).unwrap(),
-                args: args.iter().map(|arg| self.build_mir_expr(&arg.0)).collect(),
+                args: args
+                    .0
+                    .iter()
+                    .map(|arg| self.build_mir_expr(&arg.0))
+                    .collect(),
             },
         }
     }
@@ -410,7 +424,7 @@ impl<'src> MirBuilder<'src> {
         TypedExpression {
             expr: match &expr.expr {
                 Expr::Error => unreachable!(),
-                Expr::Variable(name) => Expression::Variable(*self.var_id_map.get(name).unwrap()),
+                Expr::Variable(name) => Expression::Variable(*self.var_id_map.get(name.0).unwrap()),
                 Expr::Boolean(value) => Expression::Boolean(*value),
                 Expr::Integer(value) => Expression::Integer(*value),
                 Expr::Float(value) => Expression::Float(*value),
@@ -447,12 +461,12 @@ impl<'src> MirBuilder<'src> {
                     let expr = self.build_mir_expr(&expr.0);
 
                     Expression::Convert {
-                        ty: ty.0.try_into().unwrap(),
+                        ty: (&ty.0).try_into().unwrap(),
                         expr: Box::new(expr),
                     }
                 }
             },
-            ty: expr.ty.try_into().unwrap(),
+            ty: (&expr.ty).try_into().unwrap(),
         }
     }
 }

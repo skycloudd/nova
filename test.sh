@@ -2,6 +2,8 @@
 
 set -e
 
+cargo build
+
 for file in examples/*.nv; do
-    cargo run -- "$file" > /dev/null
+    ./target/debug/nova "$file" > /dev/null
 done

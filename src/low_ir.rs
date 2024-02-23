@@ -397,11 +397,11 @@ impl<'ast> LoweringContext<'ast> {
                     rhs: Box::new(Self::lower_expression(rhs)),
                 },
                 mir::Expression::Convert { ty, expr } => Expression::Convert {
-                    ty: *ty,
+                    ty: ty.clone(),
                     expr: Box::new(Self::lower_expression(expr)),
                 },
             },
-            ty: expression.ty,
+            ty: expression.ty.clone(),
         }
     }
 }

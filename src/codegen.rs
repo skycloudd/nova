@@ -66,7 +66,7 @@ impl Codegen<'_> {
                         name: format!("var_{}", arg.0 .0),
                         static_type: match arg.1 {
                             Type::Boolean => StaticType::Bool,
-                            Type::Integer => StaticType::Int,
+                            Type::Pointer(_) | Type::Integer => StaticType::Int,
                             Type::Float => StaticType::Float,
                             Type::String => StaticType::String,
                             Type::Colour => StaticType::Color,
@@ -74,7 +74,7 @@ impl Codegen<'_> {
                         },
                         initial_value: default_novavalue(match arg.1 {
                             Type::Boolean => DynamicType::BoolConstant,
-                            Type::Integer => DynamicType::IntConstant,
+                            Type::Pointer(_) | Type::Integer => DynamicType::IntConstant,
                             Type::Float => DynamicType::FloatConstant,
                             Type::String => DynamicType::StringConstant,
                             Type::Colour => DynamicType::ColorConstant,
@@ -145,7 +145,7 @@ impl Codegen<'_> {
                     value: Some(new_novavalue(
                         match ty {
                             Type::Boolean => DynamicType::BoolParameter,
-                            Type::Integer => DynamicType::IntParameter,
+                            Type::Pointer(_) | Type::Integer => DynamicType::IntParameter,
                             Type::Float => DynamicType::FloatParameter,
                             Type::String => DynamicType::StringParameter,
                             Type::Colour => DynamicType::ColorParameter,
@@ -187,7 +187,9 @@ impl Codegen<'_> {
                         StaticType::Bool,
                         default_novavalue(DynamicType::BoolConstant),
                     ),
-                    Type::Integer => (StaticType::Int, default_novavalue(DynamicType::IntConstant)),
+                    Type::Pointer(_) | Type::Integer => {
+                        (StaticType::Int, default_novavalue(DynamicType::IntConstant))
+                    }
                     Type::Float => (
                         StaticType::Float,
                         default_novavalue(DynamicType::FloatConstant),
@@ -252,7 +254,7 @@ impl Codegen<'_> {
             Instruction::Let { name, value } => {
                 let static_type = match value.ty {
                     Type::Boolean => StaticType::Bool,
-                    Type::Integer => StaticType::Int,
+                    Type::Pointer(_) | Type::Integer => StaticType::Int,
                     Type::Float => StaticType::Float,
                     Type::String => StaticType::String,
                     Type::Colour => StaticType::Color,
@@ -261,7 +263,7 @@ impl Codegen<'_> {
 
                 let initial_value = default_novavalue(match value.ty {
                     Type::Boolean => DynamicType::BoolConstant,
-                    Type::Integer => DynamicType::IntConstant,
+                    Type::Pointer(_) | Type::Integer => DynamicType::IntConstant,
                     Type::Float => DynamicType::FloatConstant,
                     Type::String => DynamicType::StringConstant,
                     Type::Colour => DynamicType::ColorConstant,
@@ -383,7 +385,7 @@ impl Codegen<'_> {
             Expression::Variable(var) => {
                 let dynamic_type = match expr.ty {
                     Type::Boolean => DynamicType::BoolVariable,
-                    Type::Integer => DynamicType::IntVariable,
+                    Type::Pointer(_) | Type::Integer => DynamicType::IntVariable,
                     Type::Float => DynamicType::FloatVariable,
                     Type::String => DynamicType::StringVariable,
                     Type::Colour => DynamicType::ColorVariable,
@@ -419,7 +421,7 @@ impl Codegen<'_> {
                 NewValue::SubValues(vec![self.codegen_expression(x), self.codegen_expression(y)]),
             ),
             Expression::Unary { op, value } => {
-                let ty = value.ty;
+                let ty = &value.ty;
                 let value = self.codegen_expression(value);
 
                 match op {
@@ -438,7 +440,11 @@ impl Codegen<'_> {
                                 new_novavalue(DynamicType::FloatConstant, NewValue::Float(-1.0)),
                             ]),
                         ),
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
@@ -446,18 +452,30 @@ impl Codegen<'_> {
                         Type::Boolean => {
                             new_novavalue(DynamicType::BoolNot, NewValue::SubValues(vec![value]))
                         }
-                        Type::Integer
+                        Type::Pointer(_)
+                        | Type::Integer
                         | Type::Float
                         | Type::String
                         | Type::Colour
                         | Type::Vector => unreachable!(),
+                    },
+                    UnaryOp::Addr => match value.dynamic_type {
+                        DynamicType::IntVariable
+                        | DynamicType::FloatVariable
+                        | DynamicType::BoolVariable
+                        | DynamicType::StringVariable
+                        | DynamicType::ColorVariable
+                        | DynamicType::VectorVariable => {
+                            new_novavalue(DynamicType::IntConstant, NewValue::Int(value.int_value))
+                        }
+                        _ => unreachable!(),
                     },
                 }
             }
             Expression::Binary { lhs, op, rhs } => {
                 assert_eq!(lhs.ty, rhs.ty);
 
-                let ty = lhs.ty;
+                let ty = &lhs.ty;
 
                 let lhs = self.codegen_expression(lhs);
                 let rhs = self.codegen_expression(rhs);
@@ -465,13 +483,17 @@ impl Codegen<'_> {
                 let dyn_ty = match op {
                     BinaryOp::Equals => match ty {
                         Type::Boolean => DynamicType::BoolEqualBool,
-                        Type::Integer | Type::Float => DynamicType::BoolEqualNumber,
+                        Type::Pointer(_) | Type::Integer | Type::Float => {
+                            DynamicType::BoolEqualNumber
+                        }
                         Type::String => DynamicType::BoolEqualString,
                         Type::Colour | Type::Vector => unreachable!(),
                     },
                     BinaryOp::NotEquals => match ty {
                         Type::Boolean => DynamicType::BoolNotEqualBool,
-                        Type::Integer | Type::Float => DynamicType::BoolNotEqualNumber,
+                        Type::Pointer(_) | Type::Integer | Type::Float => {
+                            DynamicType::BoolNotEqualNumber
+                        }
                         Type::String => DynamicType::BoolNotEqualString,
                         Type::Colour | Type::Vector => unreachable!(),
                     },
@@ -479,50 +501,80 @@ impl Codegen<'_> {
                         Type::Integer => DynamicType::IntAdd,
                         Type::Float => DynamicType::FloatAdd,
                         Type::String => DynamicType::StringConcat,
-                        Type::Boolean | Type::Colour | Type::Vector => unreachable!(),
+                        Type::Pointer(_) | Type::Boolean | Type::Colour | Type::Vector => {
+                            unreachable!()
+                        }
                     },
                     BinaryOp::Minus => match ty {
                         Type::Integer => DynamicType::IntSubtract,
                         Type::Float => DynamicType::FloatSubtract,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
                     BinaryOp::Multiply => match ty {
                         Type::Integer => DynamicType::IntMultiply,
                         Type::Float => DynamicType::FloatMultiply,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
                     BinaryOp::Divide => match ty {
                         Type::Integer => DynamicType::IntDivide,
                         Type::Float => DynamicType::FloatDivide,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
                     BinaryOp::GreaterThanEquals => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolGreaterOrEqual,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
                     BinaryOp::LessThanEquals => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolLessOrEqual,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
                     BinaryOp::GreaterThan => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolGreater,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
                     BinaryOp::LessThan => match ty {
                         Type::Integer | Type::Float => DynamicType::BoolLess,
-                        Type::Boolean | Type::String | Type::Colour | Type::Vector => {
+                        Type::Pointer(_)
+                        | Type::Boolean
+                        | Type::String
+                        | Type::Colour
+                        | Type::Vector => {
                             unreachable!()
                         }
                     },
@@ -531,12 +583,18 @@ impl Codegen<'_> {
                 new_novavalue(dyn_ty, NewValue::SubValues(vec![lhs, rhs]))
             }
             Expression::Convert { ty: to_ty, expr } => {
+                #[allow(clippy::match_same_arms)] // more readable
                 let dynamic_type = match (&expr.ty, to_ty) {
                     (from, to) if from == to => None,
+
                     (Type::Integer, Type::Float) => Some(DynamicType::FloatRound),
-                    (Type::Float, Type::Integer) => Some(DynamicType::IntRound),
                     (Type::Integer, Type::String) => Some(DynamicType::StringFromInt),
+
+                    (Type::Float, Type::Integer) => Some(DynamicType::IntRound),
                     (Type::Float, Type::String) => Some(DynamicType::StringFromFloat),
+
+                    (Type::Pointer(_), Type::String) => Some(DynamicType::StringFromInt),
+
                     _ => unreachable!(),
                 };
 
