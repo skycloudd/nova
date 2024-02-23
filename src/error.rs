@@ -93,6 +93,9 @@ pub enum Error<'file> {
         expected_span: Span<'file>,
         action: Option<Action>,
     },
+    CantCreatePointer {
+        span: Span<'file>,
+    },
 }
 
 impl Error<'_> {
@@ -249,6 +252,9 @@ impl Error<'_> {
                 )
             }
             .into(),
+            Error::CantCreatePointer { span: _ } => {
+                format!("cannot create a pointer to this expression").into()
+            }
         }
     }
 
@@ -418,6 +424,7 @@ impl Error<'_> {
                     *expected_span,
                 ),
             ],
+            Error::CantCreatePointer { span } => vec![Spanned(None, *span)],
         }
     }
 
@@ -467,6 +474,7 @@ impl Error<'_> {
                     None
                 }
             }
+            Error::CantCreatePointer { .. } => Some("Pointers can only point to variables".into()),
         }
     }
 }
