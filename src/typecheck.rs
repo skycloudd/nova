@@ -794,9 +794,7 @@ impl<'file> Engine<'file> {
     }
 
     fn insert_type(&mut self, ty: Spanned<'file, &Type>) -> TypeId {
-        let ty_info = ty.map(|ty| self.type_to_typeinfo(ty));
-
-        self.insert(ty_info)
+        self.insert(ty.map(Into::into))
     }
 
     fn unify(&mut self, a: TypeId, b: TypeId) -> Result<(), Box<Error<'file>>> {
@@ -882,18 +880,6 @@ impl<'file> Engine<'file> {
         }
         .map(|ty| Spanned(ty, var.1))
     }
-
-    fn type_to_typeinfo(&mut self, ty: &Type) -> TypeInfo {
-        match ty {
-            Type::Error => TypeInfo::Error,
-            Type::Boolean => TypeInfo::Boolean,
-            Type::Integer => TypeInfo::Integer,
-            Type::Float => TypeInfo::Float,
-            Type::String => TypeInfo::String,
-            Type::Colour => TypeInfo::Colour,
-            Type::Vector => TypeInfo::Vector,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -925,6 +911,20 @@ impl std::fmt::Display for TypeInfo {
             Self::String => write!(f, "str"),
             Self::Colour => write!(f, "colour"),
             Self::Vector => write!(f, "vector"),
+        }
+    }
+}
+
+impl From<&Type> for TypeInfo {
+    fn from(ty: &Type) -> Self {
+        match ty {
+            Type::Error => Self::Error,
+            Type::Boolean => Self::Boolean,
+            Type::Integer => Self::Integer,
+            Type::Float => Self::Float,
+            Type::String => Self::String,
+            Type::Colour => Self::Colour,
+            Type::Vector => Self::Vector,
         }
     }
 }
