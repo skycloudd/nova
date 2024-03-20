@@ -1,0 +1,9 @@
+func main(): str do
+    loop do
+        # return "hello world";
+        continue;
+        break;
+    end
+
+    # return "goodbye world";
+end

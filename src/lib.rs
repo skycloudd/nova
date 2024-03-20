@@ -1,20 +1,12 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::too_many_lines)]
 #![warn(clippy::nursery)]
 
 use ariadne::{ColorGenerator, FileCache, Label, Report};
 use chumsky::prelude::*;
-use error::{convert, Error};
-use exolvl::{Exolvl, Read as _, Write as _};
-use flate2::write::GzEncoder;
+use error::{convert, Diagnostic, Error, Warning};
 use span::{Span, Spanned};
-use std::{
-    fmt::Display,
-    io::{Read, Write},
-    path::Path,
-};
+use std::{fmt::Display, path::Path};
 
 mod ast;
 mod codegen;
@@ -30,12 +22,17 @@ mod typecheck;
 type IntTy = i32;
 type FloatTy = f32;
 
-pub fn run<'src: 'file, 'file>(
-    input: &'src str,
-    filename: &'file Path,
-    level: impl Read,
-    out: impl Write,
-) -> (bool, Vec<Error<'file>>, Vec<Error<'file>>) {
+pub enum CompileResult<'file> {
+    Success {
+        warnings: Vec<Warning<'file>>,
+    },
+    Failure {
+        warnings: Vec<Warning<'file>>,
+        errors: Vec<Error<'file>>,
+    },
+}
+
+pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
     let mut warnings = vec![];
     let mut errors = vec![];
 
@@ -68,33 +65,22 @@ pub fn run<'src: 'file, 'file>(
     if errors.is_empty() {
         let mir = mir::build(&typed_ast);
 
-        let low_ir = low_ir::lower(&mir);
+        let low_ir = low_ir::lower(mir);
 
-        for toplevel in &low_ir {
-            println!("{toplevel}");
-        }
+        codegen::codegen(&low_ir);
 
-        let mut decoder = flate2::read::GzDecoder::new(level);
-
-        let mut exolvl = Exolvl::read(&mut decoder).unwrap();
-
-        codegen::codegen(&low_ir, &mut exolvl);
-
-        // println!("{exolvl:#?}");
-
-        let mut encoder = GzEncoder::new(out, flate2::Compression::default());
-
-        exolvl.write(&mut encoder).unwrap();
-
-        encoder.finish().unwrap();
-
-        (true, warnings, errors)
+        CompileResult::Success { warnings }
     } else {
-        (false, warnings, errors)
+        CompileResult::Failure { warnings, errors }
     }
 }
 
-pub fn report_warnings_errors<'file, Id>(filename: Id, warnings: &[Error], errors: &[Error])
+#[allow(clippy::missing_errors_doc)]
+pub fn report_warnings_errors<'file, Id, T: Diagnostic<'file>>(
+    filename: Id,
+    warnings: &'file [T],
+    errors: &'file [T],
+) -> std::io::Result<()>
 where
     Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned> + Copy,
 {
@@ -107,15 +93,15 @@ where
                 .map(|error| (error, ariadne::ReportKind::Error)),
         )
     {
-        report(filename, error, kind)
-            .eprint(FileCache::default())
-            .unwrap();
+        report(filename, error, kind).eprint(FileCache::default())?;
     }
+
+    Ok(())
 }
 
 pub fn report<'a: 'file, 'file, Id>(
     filename: Id,
-    error: &'file Error<'file>,
+    diagnostic: &'file impl Diagnostic<'file>,
     kind: ariadne::ReportKind<'a>,
 ) -> Report<'file, Span<'file>>
 where
@@ -123,9 +109,9 @@ where
 {
     let mut color_generator = ColorGenerator::new();
 
-    let message = error.message();
-    let spans = error.spans();
-    let note = error.note();
+    let message = diagnostic.message();
+    let spans = diagnostic.spans();
+    let note = diagnostic.note();
 
     let offset = spans.iter().map(|s| s.1.start()).min().unwrap_or(0);
 
@@ -160,19 +146,19 @@ fn map_errors<'file, T: Clone + Display>(
         .collect()
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct IdGen {
     next_id: usize,
 }
 
 impl IdGen {
+    const fn new() -> Self {
+        Self { next_id: 0 }
+    }
+
     fn next(&mut self) -> usize {
         let id = self.next_id;
         self.next_id += 1;
         id
-    }
-
-    fn next_i32(&mut self) -> i32 {
-        i32::try_from(self.next()).unwrap()
     }
 }

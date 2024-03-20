@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         self,
-        typed::{Expr, TypedExpr, TypedProcedure, TypedStatement, TypedTopLevel},
+        typed::{Expr, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
         BinaryOp, UnaryOp,
     },
     scopes::Scopes,
@@ -11,19 +11,19 @@ use crate::{
 
 #[derive(Debug)]
 pub enum TopLevel<'ast> {
-    Procedure(Procedure<'ast>),
-    Run(ProcId),
+    Function(Function<'ast>),
 }
 
 #[derive(Debug)]
-pub struct Procedure<'ast> {
-    pub name: ProcId,
+pub struct Function<'ast> {
+    pub name: FuncId,
     pub args: Vec<(VarId, Type)>,
+    pub return_ty: Type,
     pub body: Vec<Statement<'ast>>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct ProcId(pub usize);
+pub struct FuncId(pub usize);
 
 #[derive(Debug)]
 pub enum Statement<'ast> {
@@ -45,15 +45,7 @@ pub enum Statement<'ast> {
     },
     Break,
     Continue,
-    Return,
-    Action {
-        action: Action,
-        args: Vec<TypedExpression<'ast>>,
-    },
-    Call {
-        proc: ProcId,
-        args: Vec<TypedExpression<'ast>>,
-    },
+    Return(TypedExpression<'ast>),
 }
 
 #[derive(Debug)]
@@ -69,16 +61,6 @@ pub enum Expression<'ast> {
     Integer(IntTy),
     Float(FloatTy),
     String(&'ast str),
-    Colour {
-        r: u8,
-        g: u8,
-        b: u8,
-        a: u8,
-    },
-    Vector {
-        x: Box<TypedExpression<'ast>>,
-        y: Box<TypedExpression<'ast>>,
-    },
     Unary {
         op: UnaryOp,
         rhs: Box<TypedExpression<'ast>>,
@@ -92,16 +74,18 @@ pub enum Expression<'ast> {
         ty: Type,
         expr: Box<TypedExpression<'ast>>,
     },
+    Call {
+        func: FuncId,
+        args: Vec<TypedExpression<'ast>>,
+    },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
     Integer,
     Float,
     Boolean,
     String,
-    Colour,
-    Vector,
 }
 
 impl TryFrom<&ast::Type> for Type {
@@ -114,8 +98,6 @@ impl TryFrom<&ast::Type> for Type {
             ast::Type::Float => Ok(Self::Float),
             ast::Type::Boolean => Ok(Self::Boolean),
             ast::Type::String => Ok(Self::String),
-            ast::Type::Colour => Ok(Self::Colour),
-            ast::Type::Vector => Ok(Self::Vector),
         }
     }
 }
@@ -127,20 +109,8 @@ impl std::fmt::Display for Type {
             Self::Float => write!(f, "float"),
             Self::Boolean => write!(f, "bool"),
             Self::String => write!(f, "str"),
-            Self::Colour => write!(f, "colour"),
-            Self::Vector => write!(f, "vector"),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Action {
-    /// `wait <float>`
-    Wait,
-    /// `waitframes <integer>`
-    WaitFrames,
-    /// `print <int/float/bool>`
-    Print,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -150,7 +120,6 @@ trait IdMap<'src> {
     type Id;
 
     fn get<'a>(&'a self, name: &'a str) -> Option<&Self::Id>;
-
     fn insert(&mut self, name: &'src str) -> Self::Id;
 }
 
@@ -159,11 +128,11 @@ struct VarIdMap<'src> {
     id_gen: IdGen,
 }
 
-impl<'src> VarIdMap<'src> {
+impl VarIdMap<'_> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
-            id_gen: IdGen::default(),
+            id_gen: IdGen::new(),
         }
     }
 }
@@ -182,29 +151,29 @@ impl<'src> IdMap<'src> for VarIdMap<'src> {
     }
 }
 
-struct ProcIdMap<'src> {
-    map: Scopes<&'src str, ProcId>,
+struct FuncIdMap<'src> {
+    map: Scopes<&'src str, FuncId>,
     id_gen: IdGen,
 }
 
-impl ProcIdMap<'_> {
+impl FuncIdMap<'_> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
-            id_gen: IdGen::default(),
+            id_gen: IdGen::new(),
         }
     }
 }
 
-impl<'src> IdMap<'src> for ProcIdMap<'src> {
-    type Id = ProcId;
+impl<'src> IdMap<'src> for FuncIdMap<'src> {
+    type Id = FuncId;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&ProcId> {
+    fn get<'a>(&'a self, name: &'a str) -> Option<&FuncId> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: &'src str) -> ProcId {
-        let id = ProcId(self.id_gen.next());
+    fn insert(&mut self, name: &'src str) -> FuncId {
+        let id = FuncId(self.id_gen.next());
         self.map.insert(name, id);
         id
     }
@@ -218,14 +187,14 @@ pub fn build<'file, 'ast>(
 
 struct MirBuilder<'src> {
     var_id_map: VarIdMap<'src>,
-    proc_id_map: ProcIdMap<'src>,
+    func_id_map: FuncIdMap<'src>,
 }
 
 impl<'src> MirBuilder<'src> {
     fn new() -> Self {
         Self {
             var_id_map: VarIdMap::new(),
-            proc_id_map: ProcIdMap::new(),
+            func_id_map: FuncIdMap::new(),
         }
     }
 
@@ -235,14 +204,13 @@ impl<'src> MirBuilder<'src> {
     ) -> Vec<TopLevel<'ast>> {
         for top_level in ast {
             match &top_level.0 {
-                TypedTopLevel::Procedure(procedure) => {
-                    self.proc_id_map.insert(procedure.name.0);
+                TypedTopLevel::Function(function) => {
+                    self.func_id_map.insert(function.name.0);
 
-                    for arg in &procedure.args.0 {
+                    for arg in &function.args.0 {
                         self.var_id_map.insert(arg.0 .0);
                     }
                 }
-                TypedTopLevel::Run(_) | TypedTopLevel::Error => {}
             }
         }
 
@@ -256,25 +224,19 @@ impl<'src> MirBuilder<'src> {
         top_level: &'ast TypedTopLevel<'src, 'file>,
     ) -> TopLevel<'ast> {
         match top_level {
-            TypedTopLevel::Procedure(procedure) => {
-                TopLevel::Procedure(self.build_mir_procedure(procedure))
+            TypedTopLevel::Function(function) => {
+                TopLevel::Function(self.build_mir_function(function))
             }
-            TypedTopLevel::Run(name) => self.build_mir_run(name.0),
-            TypedTopLevel::Error => unreachable!(),
         }
     }
 
-    fn build_mir_run<'ast>(&mut self, name: &'src str) -> TopLevel<'ast> {
-        TopLevel::Run(*self.proc_id_map.get(name).unwrap())
-    }
-
-    fn build_mir_procedure<'file: 'src, 'ast>(
+    fn build_mir_function<'file: 'src, 'ast>(
         &mut self,
-        procedure: &'ast TypedProcedure<'src, 'file>,
-    ) -> Procedure<'ast> {
-        Procedure {
-            name: *self.proc_id_map.get(procedure.name.0).unwrap(),
-            args: procedure
+        function: &'ast TypedFunction<'src, 'file>,
+    ) -> Function<'ast> {
+        Function {
+            name: *self.func_id_map.get(function.name.0).unwrap(),
+            args: function
                 .args
                 .0
                 .iter()
@@ -285,7 +247,8 @@ impl<'src> MirBuilder<'src> {
                     )
                 })
                 .collect(),
-            body: self.build_statements(&procedure.body.0),
+            return_ty: (&function.return_ty.0).try_into().unwrap(),
+            body: self.build_statements(&function.body.0),
         }
     }
 
@@ -304,7 +267,6 @@ impl<'src> MirBuilder<'src> {
         statement: &'ast TypedStatement<'src, 'file>,
     ) -> Statement<'ast> {
         match statement {
-            TypedStatement::Error => unreachable!(),
             TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(&expr.0)),
             TypedStatement::Block(statements) => {
                 Statement::Block(self.build_statements(&statements.0))
@@ -392,28 +354,7 @@ impl<'src> MirBuilder<'src> {
             },
             TypedStatement::Break => Statement::Break,
             TypedStatement::Continue => Statement::Continue,
-            TypedStatement::Return => Statement::Return,
-            TypedStatement::Action { name, args } => Statement::Action {
-                action: match name.0 {
-                    ast::Action::Error => unreachable!(),
-                    ast::Action::Wait => Action::Wait,
-                    ast::Action::WaitFrames => Action::WaitFrames,
-                    ast::Action::Print => Action::Print,
-                },
-                args: args
-                    .0
-                    .iter()
-                    .map(|arg| self.build_mir_expr(&arg.0))
-                    .collect(),
-            },
-            TypedStatement::Call { proc, args } => Statement::Call {
-                proc: *self.proc_id_map.get(proc.0).unwrap(),
-                args: args
-                    .0
-                    .iter()
-                    .map(|arg| self.build_mir_expr(&arg.0))
-                    .collect(),
-            },
+            TypedStatement::Return(expr) => Statement::Return(self.build_mir_expr(&expr.0)),
         }
     }
 
@@ -426,16 +367,6 @@ impl<'src> MirBuilder<'src> {
                 Expr::Integer(value) => Expression::Integer(*value),
                 Expr::Float(value) => Expression::Float(*value),
                 Expr::String(value) => Expression::String(value),
-                Expr::Colour { r, g, b, a } => Expression::Colour {
-                    r: *r,
-                    g: *g,
-                    b: *b,
-                    a: *a,
-                },
-                Expr::Vector { x, y } => Expression::Vector {
-                    x: Box::new(self.build_mir_expr(&x.0)),
-                    y: Box::new(self.build_mir_expr(&y.0)),
-                },
                 Expr::Unary(op, rhs) => {
                     let rhs = self.build_mir_expr(&rhs.0);
 
@@ -462,6 +393,14 @@ impl<'src> MirBuilder<'src> {
                         expr: Box::new(expr),
                     }
                 }
+                Expr::Call { func, args } => Expression::Call {
+                    func: *self.func_id_map.get(func.0).unwrap(),
+                    args: args
+                        .0
+                        .iter()
+                        .map(|arg| self.build_mir_expr(&arg.0))
+                        .collect(),
+                },
             },
             ty: (&expr.ty).try_into().unwrap(),
         }

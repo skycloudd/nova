@@ -1,16 +1,14 @@
 use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
-use std::num::ParseIntError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token<'src> {
-    Error,
+    // Error,
     Variable(&'src str),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
     String(String),
-    Colour(u8, u8, u8, Option<u8>),
     Kw(Kw),
     Ctrl(Ctrl),
     Op(Op),
@@ -29,10 +27,8 @@ pub enum Kw {
     For,
     Do,
     In,
-    Action,
-    Proc,
+    Func,
     Return,
-    Run,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,20 +65,14 @@ pub enum Op {
 }
 
 impl std::fmt::Display for Token<'_> {
-    #[allow(clippy::many_single_char_names)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Error => write!(f, "error"),
+            // Token::Error => write!(f, "error"),
             Token::Variable(v) => write!(f, "{v}"),
             Token::Boolean(b) => write!(f, "{b}"),
             Token::Integer(n) => write!(f, "{n}"),
             Token::Float(n) => write!(f, "{n}"),
             Token::String(s) => write!(f, "\"{s}\""),
-            Token::Colour(r, g, b, a) => write!(
-                f,
-                "#{r:02x}{g:02x}{b:02x}{}",
-                a.as_ref().map_or_else(String::new, |a| format!("{a:02x}")),
-            ),
             Token::Kw(k) => write!(f, "{k}"),
             Token::Ctrl(c) => write!(f, "{c}"),
             Token::Op(o) => write!(f, "{o}"),
@@ -104,10 +94,8 @@ impl std::fmt::Display for Kw {
             Self::For => write!(f, "for"),
             Self::Do => write!(f, "do"),
             Self::In => write!(f, "in"),
-            Self::Action => write!(f, "action"),
-            Self::Proc => write!(f, "proc"),
+            Self::Func => write!(f, "func"),
             Self::Return => write!(f, "return"),
-            Self::Run => write!(f, "run"),
         }
     }
 }
@@ -157,13 +145,14 @@ type LexerOutput<'tokens, 'src, 'file> = Vec<(Token<'src>, Span<'file>)>;
 
 type LexerError<'tokens, 'src, 'file> = extra::Err<Rich<'src, char, Span<'file>>>;
 
+#[allow(clippy::too_many_lines)]
 pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     'src,
     LexerInput<'src, 'src, 'file>,
     LexerOutput<'src, 'src, 'file>,
     LexerError<'src, 'src, 'file>,
 > {
-    let variable = text::ascii::ident().map(Token::Variable);
+    let variable = text::ascii::ident().map(Token::Variable).boxed();
 
     let bool = choice((
         text::keyword("true").to(Token::Boolean(true)),
@@ -225,63 +214,6 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         .map(Token::String)
         .boxed();
 
-    let hex_byte = choice((
-        just('0'),
-        just('1'),
-        just('2'),
-        just('3'),
-        just('4'),
-        just('5'),
-        just('6'),
-        just('7'),
-        just('8'),
-        just('9'),
-        just('a'),
-        just('b'),
-        just('c'),
-        just('d'),
-        just('e'),
-        just('f'),
-        just('A'),
-        just('B'),
-        just('C'),
-        just('D'),
-        just('E'),
-        just('F'),
-    ))
-    .repeated()
-    .exactly(2)
-    .collect::<String>()
-    .boxed();
-
-    let colour = just('#')
-        .ignore_then(hex_byte.clone())
-        .then(hex_byte.clone())
-        .then(hex_byte.clone())
-        .then(hex_byte.or_not())
-        .map(|(((r, g), b), a)| {
-            let r = u8::from_str_radix(&r, 16)?;
-            let g = u8::from_str_radix(&g, 16)?;
-            let b = u8::from_str_radix(&b, 16)?;
-            let a = match a {
-                Some(a) => Some(u8::from_str_radix(&a, 16)?),
-                None => None,
-            };
-
-            Ok(Token::Colour(r, g, b, a))
-        })
-        .validate(|res: Result<_, ParseIntError>, e, emitter| {
-            res.unwrap_or_else(|err| {
-                emitter.emit(Rich::custom(
-                    e.span(),
-                    format!("ICE: parsed invalid hex code: {err}"),
-                ));
-
-                Token::Error
-            })
-        })
-        .boxed();
-
     let keyword = choice((
         text::keyword("end").to(Token::Kw(Kw::End)),
         text::keyword("loop").to(Token::Kw(Kw::Loop)),
@@ -294,10 +226,8 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
         text::keyword("for").to(Token::Kw(Kw::For)),
         text::keyword("do").to(Token::Kw(Kw::Do)),
         text::keyword("in").to(Token::Kw(Kw::In)),
-        text::keyword("action").to(Token::Kw(Kw::Action)),
-        text::keyword("proc").to(Token::Kw(Kw::Proc)),
+        text::keyword("func").to(Token::Kw(Kw::Func)),
         text::keyword("return").to(Token::Kw(Kw::Return)),
-        text::keyword("run").to(Token::Kw(Kw::Run)),
     ))
     .boxed();
 
@@ -332,11 +262,11 @@ pub fn lexer<'src, 'file: 'src>() -> impl Parser<
     .boxed();
 
     let token = choice((
-        keyword, bool, variable, float, integer, string, colour, operator, ctrl,
+        keyword, bool, variable, float, integer, string, operator, ctrl,
     ))
     .boxed();
 
-    let comment = just("//")
+    let comment = just("#")
         .then(any().and_is(just('\n').not()).repeated())
         .padded()
         .boxed();

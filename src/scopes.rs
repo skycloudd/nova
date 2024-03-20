@@ -7,7 +7,7 @@ pub struct Scopes<K, V> {
     scopes: Vec<FxHashMap<K, V>>,
 }
 
-impl<K: Eq + Hash, V> Scopes<K, V> {
+impl<K: Eq + Hash, V: Eq + Hash> Scopes<K, V> {
     pub fn new() -> Self {
         Self {
             base: FxHashMap::default(),
