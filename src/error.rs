@@ -50,7 +50,7 @@ impl Diagnostic<'_> for Error<'_> {
                 span: _,
             } => format!(
                 "expected {}, found `{}`",
-                if expected.len() == 0 {
+                if expected.is_empty() {
                     "something else".to_string()
                 } else if expected.len() == 1 {
                     format!("`{}`", (&expected[0]).fg(Color::Yellow))
@@ -105,7 +105,7 @@ impl Diagnostic<'_> for Error<'_> {
                 Some(
                     format!(
                         "expected {}, found `{}`",
-                        if expected.len() == 0 {
+                        if expected.is_empty() {
                             "something else".to_string()
                         } else if expected.len() <= 1 {
                             format!("`{}`", (&expected[0]).fg(Color::Yellow))

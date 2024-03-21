@@ -1,110 +1,104 @@
 use crate::{
     ast::{BinaryOp, UnaryOp},
-    mir::{self, FuncId, Type, VarId},
-    FloatTy, IntTy,
+    mir::{FuncId, Type, VarId},
+    mir_no_span, FloatTy, IntTy,
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'ast> {
-    Function(Function<'ast>),
+pub enum TopLevel {
+    Function(Function),
 }
 
 #[derive(Debug)]
-pub struct Function<'ast> {
+pub struct Function {
     pub name: FuncId,
     pub params: Vec<(VarId, Type)>,
     pub return_ty: Type,
-    pub body: Vec<BasicBlock<'ast>>,
+    pub body: Vec<BasicBlock>,
 }
 
 #[derive(Debug)]
-pub struct BasicBlock<'ast> {
+pub struct BasicBlock {
     pub id: BasicBlockId,
-    pub instructions: Vec<Instruction<'ast>>,
-    pub terminator: Terminator<'ast>,
+    pub instructions: Vec<Instruction>,
+    pub terminator: Terminator,
 }
 
 #[derive(Clone, Debug)]
-pub enum Terminator<'ast> {
-    Goto(Goto<'ast>),
+pub enum Terminator {
+    Goto(Goto),
     If {
-        condition: TypedExpression<'ast>,
-        then_block: Goto<'ast>,
-        else_block: Goto<'ast>,
+        condition: TypedExpression,
+        then_block: Goto,
+        else_block: Goto,
     },
 }
 
 #[derive(Clone, Debug)]
-pub enum Goto<'ast> {
+pub enum Goto {
     Block(BasicBlockId),
-    Return(TypedExpression<'ast>),
+    Return(TypedExpression),
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BasicBlockId(usize);
 
 #[derive(Clone, Debug)]
-pub enum Instruction<'ast> {
-    Expr(TypedExpression<'ast>),
-    Let {
-        name: VarId,
-        value: TypedExpression<'ast>,
-    },
-    Assign {
-        name: VarId,
-        value: TypedExpression<'ast>,
-    },
+pub enum Instruction {
+    Expr(TypedExpression),
+    Let { name: VarId, value: TypedExpression },
+    Assign { name: VarId, value: TypedExpression },
 }
 
 #[derive(Clone, Debug)]
-pub struct TypedExpression<'ast> {
-    pub expr: Expression<'ast>,
+pub struct TypedExpression {
+    pub expr: Expression,
     pub ty: Type,
 }
 
 #[derive(Clone, Debug)]
-pub enum Expression<'ast> {
+pub enum Expression {
     Variable(VarId),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(&'ast str),
+    String(String),
     Unary {
         op: UnaryOp,
-        value: Box<TypedExpression<'ast>>,
+        value: Box<TypedExpression>,
     },
     Binary {
-        lhs: Box<TypedExpression<'ast>>,
+        lhs: Box<TypedExpression>,
         op: BinaryOp,
-        rhs: Box<TypedExpression<'ast>>,
+        rhs: Box<TypedExpression>,
     },
     Convert {
         ty: Type,
-        expr: Box<TypedExpression<'ast>>,
+        expr: Box<TypedExpression>,
     },
     Call {
         func: FuncId,
-        args: Vec<TypedExpression<'ast>>,
+        args: Vec<TypedExpression>,
     },
 }
 
-pub fn lower(ast: Vec<mir::TopLevel>) -> Vec<TopLevel> {
+pub fn lower(ast: Vec<mir_no_span::TopLevel>) -> Vec<TopLevel> {
     LoweringContext::default().lower(ast)
 }
 
 #[derive(Debug, Default)]
-struct LoweringContext<'ast> {
-    blocks: Vec<UnfinishedBasicBlock<'ast>>,
+struct LoweringContext {
+    blocks: Vec<UnfinishedBasicBlock>,
     current_block: Option<BasicBlockId>,
     loop_stack: Vec<LoopInfo>,
 }
 
-impl<'ast> LoweringContext<'ast> {
-    fn finish_block(&mut self, terminator: Terminator<'ast>) {
+impl LoweringContext {
+    fn finish_block(&mut self, terminator: Terminator) {
         self.current_block_mut().finish(terminator);
     }
 
-    fn current_block_mut(&mut self) -> &mut UnfinishedBasicBlock<'ast> {
+    fn current_block_mut(&mut self) -> &mut UnfinishedBasicBlock {
         self.current_block
             .map(|id| self.blocks.get_mut(id.0).unwrap())
             .unwrap()
@@ -121,18 +115,18 @@ impl<'ast> LoweringContext<'ast> {
     }
 }
 
-impl<'ast> LoweringContext<'ast> {
-    fn lower(&mut self, ast: Vec<mir::TopLevel<'ast>>) -> Vec<TopLevel<'ast>> {
+impl LoweringContext {
+    fn lower(&mut self, ast: Vec<mir_no_span::TopLevel>) -> Vec<TopLevel> {
         ast.into_iter().map(|tl| self.lower_top_level(tl)).collect()
     }
 
-    fn lower_top_level(&mut self, top_level: mir::TopLevel<'ast>) -> TopLevel<'ast> {
+    fn lower_top_level(&mut self, top_level: mir_no_span::TopLevel) -> TopLevel {
         match top_level {
-            mir::TopLevel::Function(f) => TopLevel::Function(self.lower_function(f)),
+            mir_no_span::TopLevel::Function(f) => TopLevel::Function(self.lower_function(f)),
         }
     }
 
-    fn lower_function(&mut self, function: mir::Function<'ast>) -> Function<'ast> {
+    fn lower_function(&mut self, function: mir_no_span::Function) -> Function {
         let main_block = self.new_block();
         self.switch_to_block(main_block);
 
@@ -157,9 +151,10 @@ impl<'ast> LoweringContext<'ast> {
         }
     }
 
-    fn lower_statement(&mut self, stmt: mir::Statement<'ast>) -> bool {
+    #[allow(clippy::too_many_lines)]
+    fn lower_statement(&mut self, stmt: mir_no_span::Statement) -> bool {
         match stmt {
-            mir::Statement::Expr(expr) => {
+            mir_no_span::Statement::Expr(expr) => {
                 let expr = Self::lower_expression(expr);
 
                 self.current_block_mut()
@@ -168,7 +163,7 @@ impl<'ast> LoweringContext<'ast> {
 
                 false
             }
-            mir::Statement::Block(statements) => {
+            mir_no_span::Statement::Block(statements) => {
                 for stmt in statements {
                     if self.lower_statement(stmt) {
                         return true;
@@ -177,7 +172,7 @@ impl<'ast> LoweringContext<'ast> {
 
                 false
             }
-            mir::Statement::Loop(statements) => {
+            mir_no_span::Statement::Loop(statements) => {
                 let loop_block = self.new_block();
                 let exit_block = self.new_block();
 
@@ -213,7 +208,7 @@ impl<'ast> LoweringContext<'ast> {
 
                 false
             }
-            mir::Statement::If {
+            mir_no_span::Statement::If {
                 condition,
                 then_branch,
                 else_branch,
@@ -266,7 +261,7 @@ impl<'ast> LoweringContext<'ast> {
 
                 false
             }
-            mir::Statement::Let { name, value } => {
+            mir_no_span::Statement::Let { name, value } => {
                 let value = Self::lower_expression(value);
 
                 self.current_block_mut()
@@ -275,7 +270,7 @@ impl<'ast> LoweringContext<'ast> {
 
                 false
             }
-            mir::Statement::Assign { name, value } => {
+            mir_no_span::Statement::Assign { name, value } => {
                 let value = Self::lower_expression(value);
 
                 self.current_block_mut()
@@ -284,21 +279,21 @@ impl<'ast> LoweringContext<'ast> {
 
                 false
             }
-            mir::Statement::Break => {
+            mir_no_span::Statement::Break => {
                 let loop_info = self.loop_stack.last().unwrap();
 
                 self.finish_block(Terminator::Goto(Goto::Block(loop_info.exit_block)));
 
                 true
             }
-            mir::Statement::Continue => {
+            mir_no_span::Statement::Continue => {
                 let loop_info = self.loop_stack.last().unwrap();
 
                 self.finish_block(Terminator::Goto(Goto::Block(loop_info.start_block)));
 
                 true
             }
-            mir::Statement::Return(expr) => {
+            mir_no_span::Statement::Return(expr) => {
                 let expr = Self::lower_expression(expr);
 
                 let terminator = Terminator::Goto(Goto::Return(expr));
@@ -310,28 +305,28 @@ impl<'ast> LoweringContext<'ast> {
         }
     }
 
-    fn lower_expression(expr: mir::TypedExpression<'ast>) -> TypedExpression<'ast> {
+    fn lower_expression(expr: mir_no_span::TypedExpression) -> TypedExpression {
         TypedExpression {
             expr: match expr.expr {
-                mir::Expression::Variable(var) => Expression::Variable(var),
-                mir::Expression::Boolean(bool) => Expression::Boolean(bool),
-                mir::Expression::Integer(int) => Expression::Integer(int),
-                mir::Expression::Float(float) => Expression::Float(float),
-                mir::Expression::String(string) => Expression::String(string),
-                mir::Expression::Unary { op, rhs } => Expression::Unary {
+                mir_no_span::Expression::Variable(var) => Expression::Variable(var),
+                mir_no_span::Expression::Boolean(bool) => Expression::Boolean(bool),
+                mir_no_span::Expression::Integer(int) => Expression::Integer(int),
+                mir_no_span::Expression::Float(float) => Expression::Float(float),
+                mir_no_span::Expression::String(string) => Expression::String(string),
+                mir_no_span::Expression::Unary { op, rhs } => Expression::Unary {
                     op,
                     value: Box::new(Self::lower_expression(*rhs)),
                 },
-                mir::Expression::Binary { lhs, op, rhs } => Expression::Binary {
+                mir_no_span::Expression::Binary { lhs, op, rhs } => Expression::Binary {
                     lhs: Box::new(Self::lower_expression(*lhs)),
                     op,
                     rhs: Box::new(Self::lower_expression(*rhs)),
                 },
-                mir::Expression::Convert { ty, expr } => Expression::Convert {
+                mir_no_span::Expression::Convert { ty, expr } => Expression::Convert {
                     ty,
                     expr: Box::new(Self::lower_expression(*expr)),
                 },
-                mir::Expression::Call { func, args } => Expression::Call {
+                mir_no_span::Expression::Call { func, args } => Expression::Call {
                     func,
                     args: args.into_iter().map(Self::lower_expression).collect(),
                 },
@@ -348,13 +343,13 @@ struct LoopInfo {
 }
 
 #[derive(Clone, Debug)]
-struct UnfinishedBasicBlock<'ast> {
+struct UnfinishedBasicBlock {
     pub id: BasicBlockId,
-    pub instructions: Vec<Instruction<'ast>>,
-    pub terminator: Option<Terminator<'ast>>,
+    pub instructions: Vec<Instruction>,
+    pub terminator: Option<Terminator>,
 }
 
-impl<'ast> UnfinishedBasicBlock<'ast> {
+impl UnfinishedBasicBlock {
     const fn new(id: usize) -> Self {
         Self {
             id: BasicBlockId(id),
@@ -363,15 +358,15 @@ impl<'ast> UnfinishedBasicBlock<'ast> {
         }
     }
 
-    fn finish(&mut self, terminator: Terminator<'ast>) {
+    fn finish(&mut self, terminator: Terminator) {
         self.terminator = Some(terminator);
     }
 }
 
-impl<'ast> TryInto<BasicBlock<'ast>> for UnfinishedBasicBlock<'ast> {
+impl TryInto<BasicBlock> for UnfinishedBasicBlock {
     type Error = ();
 
-    fn try_into(self) -> Result<BasicBlock<'ast>, Self::Error> {
+    fn try_into(self) -> Result<BasicBlock, Self::Error> {
         if let Some(terminator) = self.terminator {
             Ok(BasicBlock {
                 id: self.id,

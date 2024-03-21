@@ -10,73 +10,80 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'ast> {
-    Function(Function<'ast>),
+pub enum TopLevel<'file> {
+    Function(Function<'file>),
 }
 
 #[derive(Debug)]
-pub struct Function<'ast> {
-    pub name: FuncId,
-    pub args: Vec<(VarId, Type)>,
-    pub return_ty: Type,
-    pub body: Vec<Statement<'ast>>,
+pub struct Function<'file> {
+    pub name: Spanned<'file, FuncId>,
+    pub args: Spanned<'file, Vec<(Spanned<'file, VarId>, Spanned<'file, Type>)>>,
+    pub return_ty: Spanned<'file, Type>,
+    pub body: Spanned<'file, Vec<Spanned<'file, Statement<'file>>>>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FuncId(pub usize);
 
 #[derive(Debug)]
-pub enum Statement<'ast> {
-    Expr(TypedExpression<'ast>),
-    Block(Vec<Self>),
-    Loop(Vec<Self>),
+pub enum Statement<'file> {
+    Expr(Spanned<'file, TypedExpression<'file>>),
+    Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
+    Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
     If {
-        condition: TypedExpression<'ast>,
-        then_branch: Vec<Self>,
-        else_branch: Option<Vec<Self>>,
+        condition: Spanned<'file, TypedExpression<'file>>,
+        then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
+        else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
+    },
+    For {
+        name: Spanned<'file, VarId>,
+        start: Spanned<'file, TypedExpression<'file>>,
+        end: Spanned<'file, TypedExpression<'file>>,
+        inclusive: bool,
+        body: Spanned<'file, Vec<Spanned<'file, Self>>>,
     },
     Let {
-        name: VarId,
-        value: TypedExpression<'ast>,
+        name: Spanned<'file, VarId>,
+        value: Spanned<'file, TypedExpression<'file>>,
     },
     Assign {
-        name: VarId,
-        value: TypedExpression<'ast>,
+        name: Spanned<'file, VarId>,
+        value: Spanned<'file, TypedExpression<'file>>,
     },
     Break,
     Continue,
-    Return(TypedExpression<'ast>),
+    Return(Spanned<'file, TypedExpression<'file>>),
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<'ast> {
-    pub expr: Expression<'ast>,
+pub struct TypedExpression<'file> {
+    pub expr: Expression<'file>,
     pub ty: Type,
 }
 
 #[derive(Debug)]
-pub enum Expression<'ast> {
-    Variable(VarId),
+pub enum Expression<'file> {
+    Variable(Spanned<'file, VarId>),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(&'ast str),
+    String(String),
     Unary {
-        op: UnaryOp,
-        rhs: Box<TypedExpression<'ast>>,
+        op: Spanned<'file, UnaryOp>,
+        rhs: Spanned<'file, Box<TypedExpression<'file>>>,
     },
     Binary {
-        lhs: Box<TypedExpression<'ast>>,
-        op: BinaryOp,
-        rhs: Box<TypedExpression<'ast>>,
+        lhs: Spanned<'file, Box<TypedExpression<'file>>>,
+        op: Spanned<'file, BinaryOp>,
+        rhs: Spanned<'file, Box<TypedExpression<'file>>>,
     },
     Convert {
-        ty: Type,
-        expr: Box<TypedExpression<'ast>>,
+        ty: Spanned<'file, Type>,
+        expr: Spanned<'file, Box<TypedExpression<'file>>>,
     },
     Call {
-        func: FuncId,
-        args: Vec<TypedExpression<'ast>>,
+        func: Spanned<'file, FuncId>,
+        args: Spanned<'file, Vec<Spanned<'file, TypedExpression<'file>>>>,
     },
 }
 
@@ -116,19 +123,19 @@ impl std::fmt::Display for Type {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct VarId(pub usize);
 
-trait IdMap<'src> {
+trait IdMap<'src, 'file> {
     type Id;
 
     fn get<'a>(&'a self, name: &'a str) -> Option<&Self::Id>;
-    fn insert(&mut self, name: &'src str) -> Self::Id;
+    fn insert(&mut self, name: Spanned<'file, &'src str>) -> Self::Id;
 }
 
-struct VarIdMap<'src> {
-    map: Scopes<&'src str, VarId>,
+struct VarIdMap<'src, 'file> {
+    map: Scopes<&'src str, Spanned<'file, VarId>>,
     id_gen: IdGen,
 }
 
-impl VarIdMap<'_> {
+impl VarIdMap<'_, '_> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
@@ -137,26 +144,26 @@ impl VarIdMap<'_> {
     }
 }
 
-impl<'src> IdMap<'src> for VarIdMap<'src> {
-    type Id = VarId;
+impl<'src, 'file> IdMap<'src, 'file> for VarIdMap<'src, 'file> {
+    type Id = Spanned<'file, VarId>;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&VarId> {
+    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<'file, VarId>> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: &'src str) -> VarId {
-        let id = VarId(self.id_gen.next());
-        self.map.insert(name, id);
+    fn insert(&mut self, name: Spanned<'file, &'src str>) -> Spanned<'file, VarId> {
+        let id = Spanned(VarId(self.id_gen.next()), name.1);
+        self.map.insert(name.0, id);
         id
     }
 }
 
-struct FuncIdMap<'src> {
-    map: Scopes<&'src str, FuncId>,
+struct FuncIdMap<'src, 'file> {
+    map: Scopes<&'src str, Spanned<'file, FuncId>>,
     id_gen: IdGen,
 }
 
-impl FuncIdMap<'_> {
+impl FuncIdMap<'_, '_> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
@@ -165,32 +172,32 @@ impl FuncIdMap<'_> {
     }
 }
 
-impl<'src> IdMap<'src> for FuncIdMap<'src> {
-    type Id = FuncId;
+impl<'src, 'file> IdMap<'src, 'file> for FuncIdMap<'src, 'file> {
+    type Id = Spanned<'file, FuncId>;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&FuncId> {
+    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<'file, FuncId>> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: &'src str) -> FuncId {
-        let id = FuncId(self.id_gen.next());
-        self.map.insert(name, id);
+    fn insert(&mut self, name: Spanned<'file, &'src str>) -> Spanned<'file, FuncId> {
+        let id = Spanned(FuncId(self.id_gen.next()), name.1);
+        self.map.insert(name.0, id);
         id
     }
 }
 
-pub fn build<'file, 'ast>(
-    ast: &'ast [Spanned<'file, TypedTopLevel<'_, 'file>>],
-) -> Vec<TopLevel<'ast>> {
+pub fn build<'src: 'file, 'file>(
+    ast: Vec<Spanned<'file, TypedTopLevel<'src, 'file>>>,
+) -> Vec<Spanned<'file, TopLevel<'file>>> {
     MirBuilder::new().build(ast)
 }
 
-struct MirBuilder<'src> {
-    var_id_map: VarIdMap<'src>,
-    func_id_map: FuncIdMap<'src>,
+struct MirBuilder<'src, 'file> {
+    var_id_map: VarIdMap<'src, 'file>,
+    func_id_map: FuncIdMap<'src, 'file>,
 }
 
-impl<'src> MirBuilder<'src> {
+impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
     fn new() -> Self {
         Self {
             var_id_map: VarIdMap::new(),
@@ -198,211 +205,198 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build<'file: 'src, 'ast>(
+    fn build(
         &mut self,
-        ast: &'ast [Spanned<'file, TypedTopLevel<'src, 'file>>],
-    ) -> Vec<TopLevel<'ast>> {
-        for top_level in ast {
+        ast: Vec<Spanned<'file, TypedTopLevel<'src, 'file>>>,
+    ) -> Vec<Spanned<'file, TopLevel<'file>>> {
+        for top_level in &ast {
             match &top_level.0 {
                 TypedTopLevel::Function(function) => {
-                    self.func_id_map.insert(function.name.0);
+                    self.func_id_map.insert(function.name);
 
                     for arg in &function.args.0 {
-                        self.var_id_map.insert(arg.0 .0);
+                        self.var_id_map.insert(arg.0);
                     }
                 }
             }
         }
 
-        ast.iter()
-            .map(|top_level| self.build_mir_top_level(&top_level.0))
+        ast.into_iter()
+            .map(|top_level| self.build_mir_top_level(top_level))
             .collect()
     }
 
-    fn build_mir_top_level<'file: 'src, 'ast>(
+    fn build_mir_top_level(
         &mut self,
-        top_level: &'ast TypedTopLevel<'src, 'file>,
-    ) -> TopLevel<'ast> {
-        match top_level {
-            TypedTopLevel::Function(function) => {
-                TopLevel::Function(self.build_mir_function(function))
-            }
-        }
+        top_level: Spanned<'file, TypedTopLevel<'src, 'file>>,
+    ) -> Spanned<'file, TopLevel<'file>> {
+        Spanned(
+            match top_level.0 {
+                TypedTopLevel::Function(function) => {
+                    TopLevel::Function(self.build_mir_function(function))
+                }
+            },
+            top_level.1,
+        )
     }
 
-    fn build_mir_function<'file: 'src, 'ast>(
-        &mut self,
-        function: &'ast TypedFunction<'src, 'file>,
-    ) -> Function<'ast> {
+    fn build_mir_function(&mut self, function: TypedFunction<'src, 'file>) -> Function<'file> {
         Function {
             name: *self.func_id_map.get(function.name.0).unwrap(),
-            args: function
-                .args
+            args: Spanned(
+                function
+                    .args
+                    .0
+                    .iter()
+                    .map(|arg| {
+                        let name = arg.0;
+                        let ty = arg.1;
+
+                        (
+                            *self.var_id_map.get(name.0).unwrap(),
+                            Spanned((&ty.0).try_into().unwrap(), ty.1),
+                        )
+                    })
+                    .collect(),
+                function.args.1,
+            ),
+            return_ty: Spanned(
+                (&function.return_ty.0).try_into().unwrap(),
+                function.return_ty.1,
+            ),
+            body: self.build_statements(function.body),
+        }
+    }
+
+    fn build_statements(
+        &mut self,
+        statements: Spanned<'file, Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
+    ) -> Spanned<'file, Vec<Spanned<'file, Statement<'file>>>> {
+        Spanned(
+            statements
                 .0
-                .iter()
-                .map(|arg| {
-                    (
-                        *self.var_id_map.get(arg.0 .0).unwrap(),
-                        (&arg.1 .0).try_into().unwrap(),
-                    )
-                })
+                .into_iter()
+                .map(|stmt| self.build_mir_statement(stmt))
                 .collect(),
-            return_ty: (&function.return_ty.0).try_into().unwrap(),
-            body: self.build_statements(&function.body.0),
-        }
+            statements.1,
+        )
     }
 
-    fn build_statements<'file: 'src, 'ast>(
+    fn build_mir_statement(
         &mut self,
-        statements: &'ast [Spanned<'src, TypedStatement<'src, 'file>>],
-    ) -> Vec<Statement<'ast>> {
-        statements
-            .iter()
-            .map(|stmt| self.build_mir_statement(&stmt.0))
-            .collect()
-    }
-
-    fn build_mir_statement<'file: 'src, 'ast>(
-        &mut self,
-        statement: &'ast TypedStatement<'src, 'file>,
-    ) -> Statement<'ast> {
-        match statement {
-            TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(&expr.0)),
-            TypedStatement::Block(statements) => {
-                Statement::Block(self.build_statements(&statements.0))
-            }
-            TypedStatement::Loop(statements) => {
-                Statement::Loop(self.build_statements(&statements.0))
-            }
-            TypedStatement::If {
-                condition,
-                then_branch,
-                else_branch,
-            } => Statement::If {
-                condition: self.build_mir_expr(&condition.0),
-                then_branch: self.build_statements(&then_branch.0),
-                else_branch: else_branch
-                    .as_ref()
-                    .map(|stmts| self.build_statements(&stmts.0)),
-            },
-            TypedStatement::For {
-                name,
-                start,
-                end,
-                inclusive,
-                body,
-            } => {
-                let start = self.build_mir_expr(&start.0);
-                let end = self.build_mir_expr(&end.0);
-                let name = self.var_id_map.insert(name.0);
-                let body = self.build_statements(&body.0);
-
-                Statement::Block(vec![
-                    Statement::Let { name, value: start },
-                    Statement::Loop(vec![Statement::If {
-                        condition: TypedExpression {
-                            expr: Expression::Binary {
-                                lhs: Box::new(TypedExpression {
-                                    expr: Expression::Variable(name),
-                                    ty: Type::Integer,
-                                }),
-                                op: if *inclusive {
-                                    BinaryOp::LessThanEquals
-                                } else {
-                                    BinaryOp::LessThan
-                                },
-                                rhs: Box::new(end),
-                            },
-                            ty: Type::Boolean,
-                        },
-                        then_branch: {
-                            let mut stmts = body;
-
-                            stmts.push(Statement::Assign {
-                                name,
-                                value: TypedExpression {
-                                    expr: Expression::Binary {
-                                        lhs: Box::new(TypedExpression {
-                                            expr: Expression::Variable(name),
-                                            ty: Type::Integer,
-                                        }),
-                                        op: BinaryOp::Plus,
-                                        rhs: Box::new(TypedExpression {
-                                            expr: Expression::Integer(1),
-                                            ty: Type::Integer,
-                                        }),
-                                    },
-                                    ty: Type::Integer,
-                                },
-                            });
-
-                            stmts
-                        },
-                        else_branch: Some(vec![Statement::Break]),
-                    }]),
-                ])
-            }
-            TypedStatement::Let { name, value } => {
-                let value = self.build_mir_expr(&value.0);
-                let name = self.var_id_map.insert(name.0);
-
-                Statement::Let { name, value }
-            }
-            TypedStatement::Assign { name, value } => Statement::Assign {
-                name: *self.var_id_map.get(name.0).unwrap(),
-                value: self.build_mir_expr(&value.0),
-            },
-            TypedStatement::Break => Statement::Break,
-            TypedStatement::Continue => Statement::Continue,
-            TypedStatement::Return(expr) => Statement::Return(self.build_mir_expr(&expr.0)),
-        }
-    }
-
-    fn build_mir_expr<'ast>(&mut self, expr: &'ast TypedExpr<'src, '_>) -> TypedExpression<'ast> {
-        TypedExpression {
-            expr: match &expr.expr {
-                Expr::Error => unreachable!(),
-                Expr::Variable(name) => Expression::Variable(*self.var_id_map.get(name.0).unwrap()),
-                Expr::Boolean(value) => Expression::Boolean(*value),
-                Expr::Integer(value) => Expression::Integer(*value),
-                Expr::Float(value) => Expression::Float(*value),
-                Expr::String(value) => Expression::String(value),
-                Expr::Unary(op, rhs) => {
-                    let rhs = self.build_mir_expr(&rhs.0);
-
-                    Expression::Unary {
-                        op: op.0,
-                        rhs: Box::new(rhs),
-                    }
+        statement: Spanned<'file, TypedStatement<'src, 'file>>,
+    ) -> Spanned<'file, Statement<'file>> {
+        Spanned(
+            match statement.0 {
+                TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(expr)),
+                TypedStatement::Block(statements) => {
+                    Statement::Block(self.build_statements(statements))
                 }
-                Expr::Binary(lhs, op, rhs) => {
-                    let lhs = self.build_mir_expr(&lhs.0);
-                    let rhs = self.build_mir_expr(&rhs.0);
-
-                    Expression::Binary {
-                        lhs: Box::new(lhs),
-                        op: op.0,
-                        rhs: Box::new(rhs),
-                    }
+                TypedStatement::Loop(statements) => {
+                    Statement::Loop(self.build_statements(statements))
                 }
-                Expr::Convert { ty, expr } => {
-                    let expr = self.build_mir_expr(&expr.0);
-
-                    Expression::Convert {
-                        ty: (&ty.0).try_into().unwrap(),
-                        expr: Box::new(expr),
-                    }
-                }
-                Expr::Call { func, args } => Expression::Call {
-                    func: *self.func_id_map.get(func.0).unwrap(),
-                    args: args
-                        .0
-                        .iter()
-                        .map(|arg| self.build_mir_expr(&arg.0))
-                        .collect(),
+                TypedStatement::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                } => Statement::If {
+                    condition: self.build_mir_expr(condition),
+                    then_branch: self.build_statements(then_branch),
+                    else_branch: else_branch.map(|stmts| self.build_statements(stmts)),
                 },
+                TypedStatement::For {
+                    name,
+                    start,
+                    end,
+                    inclusive,
+                    body,
+                } => {
+                    let start = self.build_mir_expr(start);
+                    let end = self.build_mir_expr(end);
+                    let name = self.var_id_map.insert(name);
+                    let body = self.build_statements(body);
+
+                    Statement::For {
+                        name,
+                        start,
+                        end,
+                        inclusive,
+                        body,
+                    }
+                }
+                TypedStatement::Let { name, value } => {
+                    let value = self.build_mir_expr(value);
+                    let name = self.var_id_map.insert(name);
+
+                    Statement::Let { name, value }
+                }
+                TypedStatement::Assign { name, value } => Statement::Assign {
+                    name: *self.var_id_map.get(name.0).unwrap(),
+                    value: self.build_mir_expr(value),
+                },
+                TypedStatement::Break => Statement::Break,
+                TypedStatement::Continue => Statement::Continue,
+                TypedStatement::Return(expr) => Statement::Return(self.build_mir_expr(expr)),
             },
-            ty: (&expr.ty).try_into().unwrap(),
-        }
+            statement.1,
+        )
+    }
+
+    fn build_mir_expr(
+        &mut self,
+        expr: Spanned<'file, TypedExpr<'src, 'file>>,
+    ) -> Spanned<'file, TypedExpression<'file>> {
+        Spanned(
+            TypedExpression {
+                expr: match expr.0.expr {
+                    Expr::Error => unreachable!(),
+                    Expr::Variable(name) => {
+                        Expression::Variable(*self.var_id_map.get(name.0).unwrap())
+                    }
+                    Expr::Boolean(value) => Expression::Boolean(value),
+                    Expr::Integer(value) => Expression::Integer(value),
+                    Expr::Float(value) => Expression::Float(value),
+                    Expr::String(value) => Expression::String(value),
+                    Expr::Unary(op, rhs) => {
+                        let rhs = self.build_mir_expr(Spanned(*rhs.0, rhs.1));
+
+                        Expression::Unary {
+                            op,
+                            rhs: Spanned(Box::new(rhs.0), expr.1),
+                        }
+                    }
+                    Expr::Binary(lhs, op, rhs) => {
+                        let lhs = self.build_mir_expr(Spanned(*lhs.0, lhs.1));
+                        let rhs = self.build_mir_expr(Spanned(*rhs.0, rhs.1));
+
+                        Expression::Binary {
+                            lhs: Spanned(Box::new(lhs.0), expr.1),
+                            op,
+                            rhs: Spanned(Box::new(rhs.0), expr.1),
+                        }
+                    }
+                    Expr::Convert { ty, expr } => {
+                        let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
+
+                        Expression::Convert {
+                            ty: Spanned((&ty.0).try_into().unwrap(), ty.1),
+                            expr: Spanned(Box::new(expr.0), expr.1),
+                        }
+                    }
+                    Expr::Call { func, args } => Expression::Call {
+                        func: *self.func_id_map.get(func.0).unwrap(),
+                        args: Spanned(
+                            args.0
+                                .into_iter()
+                                .map(|arg| self.build_mir_expr(arg))
+                                .collect(),
+                            args.1,
+                        ),
+                    },
+                },
+                ty: (&expr.0.ty).try_into().unwrap(),
+            },
+            expr.1,
+        )
     }
 }
