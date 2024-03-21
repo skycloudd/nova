@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![warn(clippy::arithmetic_side_effects)]
 
 use ariadne::{ColorGenerator, Label, Report};
 use chumsky::prelude::*;
