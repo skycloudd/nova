@@ -2,7 +2,7 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-use ariadne::{ColorGenerator, FileCache, Label, Report};
+use ariadne::{ColorGenerator, Label, Report};
 use chumsky::prelude::*;
 use error::{convert, Diagnostic, Error, Warning};
 use span::{Span, Spanned};
@@ -10,10 +10,12 @@ use std::{fmt::Display, path::Path};
 
 mod ast;
 mod codegen;
+mod control_flow;
 mod error;
 mod lexer;
 mod low_ir;
 mod mir;
+mod mir_no_span;
 mod parser;
 mod scopes;
 mod span;
@@ -45,7 +47,7 @@ pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
     let (ast, parse_errors) = tokens.as_ref().map_or_else(
         || (None, vec![]),
         |tokens| {
-            let eof = input.chars().count() - 1;
+            let eof = input.chars().count().saturating_sub(1);
             let end_of_input = Span::new(filename, eof..eof);
 
             parser::parser()
@@ -62,8 +64,12 @@ pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
     warnings.extend(typecheck_warnings);
     errors.extend(typecheck_errs);
 
+    let mir = mir::build(typed_ast);
+
+    // let (cf_warnings, cf_errors) = control_flow::check(&mir);
+
     if errors.is_empty() {
-        let mir = mir::build(&typed_ast);
+        let mir = mir_no_span::build(mir);
 
         let low_ir = low_ir::lower(mir);
 
@@ -75,33 +81,9 @@ pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
     }
 }
 
-#[allow(clippy::missing_errors_doc)]
-pub fn report_warnings_errors<'file, Id, T: Diagnostic<'file>>(
-    filename: Id,
-    warnings: &'file [T],
-    errors: &'file [T],
-) -> std::io::Result<()>
-where
-    Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned> + Copy,
-{
-    for (error, kind) in warnings
-        .iter()
-        .map(|warning| (warning, ariadne::ReportKind::Warning))
-        .chain(
-            errors
-                .iter()
-                .map(|error| (error, ariadne::ReportKind::Error)),
-        )
-    {
-        report(filename, error, kind).eprint(FileCache::default())?;
-    }
-
-    Ok(())
-}
-
 pub fn report<'a: 'file, 'file, Id>(
     filename: Id,
-    diagnostic: &'file impl Diagnostic<'file>,
+    diagnostic: &'file (impl Diagnostic<'file> + ?Sized),
     kind: ariadne::ReportKind<'a>,
 ) -> Report<'file, Span<'file>>
 where

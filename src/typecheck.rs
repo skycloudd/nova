@@ -31,19 +31,22 @@ struct FunctionSignature<'file> {
     return_ty: Spanned<'file, TypeId>,
 }
 
-struct Typechecker<'src, 'file, 'w, 'e> {
+struct Typechecker<'src, 'file, 'warning, 'error> {
     engine: Engine<'file>,
     functions: FxHashMap<&'src str, FunctionSignature<'file>>,
     variables: Scopes<&'src str, TypeId>,
 
     current_function: Option<&'src str>,
 
-    warnings: &'w mut Vec<Warning<'file>>,
-    errors: &'e mut Vec<Error<'file>>,
+    warnings: &'warning mut Vec<Warning<'file>>,
+    errors: &'error mut Vec<Error<'file>>,
 }
 
-impl<'src, 'file, 'w, 'e> Typechecker<'src, 'file, 'w, 'e> {
-    fn new(warnings: &'w mut Vec<Warning<'file>>, errors: &'e mut Vec<Error<'file>>) -> Self {
+impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
+    fn new(
+        warnings: &'warning mut Vec<Warning<'file>>,
+        errors: &'error mut Vec<Error<'file>>,
+    ) -> Self {
         Self {
             engine: Engine::new(),
             functions: FxHashMap::default(),
@@ -107,7 +110,7 @@ impl<'src, 'file, 'w, 'e> Typechecker<'src, 'file, 'w, 'e> {
         &mut self,
         function: Function<'src, 'file>,
     ) -> TypedTopLevel<'src, 'file> {
-        self.current_function = Some(&function.name.0);
+        self.current_function = Some(function.name.0);
 
         if !is_snake_case(function.name.0) {
             self.warnings.push(Warning::BadName {
@@ -617,8 +620,8 @@ impl<'file> Engine<'file> {
             (a, b) if a == b => Ok(()),
 
             (&a, &b) => Err(Box::new(Error::TypeMismatch {
-                expected: a.into(),
-                found: b.into(),
+                expected: a,
+                found: b,
                 span: var_b.1,
             })),
         }

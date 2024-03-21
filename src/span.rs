@@ -1,7 +1,7 @@
 use chumsky::prelude::*;
 use std::path::Path;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
 
 impl<'file> Span<'file> {
@@ -54,22 +54,8 @@ impl<'file> ariadne::Span for Span<'file> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Spanned<'file, T>(pub T, pub Span<'file>);
-
-impl<'file, T> Spanned<'file, T> {
-    // pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<'file, U> {
-    //     Spanned(f(self.0), self.1)
-    // }
-
-    // pub fn map_with_span<U>(self, f: impl FnOnce(T, Span) -> U) -> Spanned<'file, U> {
-    //     Spanned(f(self.0, self.1), self.1)
-    // }
-
-    // pub fn map_self<U>(self, f: impl FnOnce(Spanned<T>) -> U) -> Spanned<'file, U> {
-    //     Spanned(f(self), self.1)
-    // }
-}
 
 impl<T> AsRef<T> for Spanned<'_, T> {
     fn as_ref(&self) -> &T {
@@ -80,13 +66,5 @@ impl<T> AsRef<T> for Spanned<'_, T> {
 impl<T> AsMut<T> for Spanned<'_, T> {
     fn as_mut(&mut self) -> &mut T {
         &mut self.0
-    }
-}
-
-impl<T> std::ops::Deref for Spanned<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
