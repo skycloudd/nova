@@ -33,6 +33,7 @@ pub enum Terminator {
         then_block: Goto,
         else_block: Goto,
     },
+    Unreachable,
 }
 
 #[derive(Clone, Debug)]
@@ -141,7 +142,7 @@ impl LoweringContext {
         }
 
         if !finished_block {
-            self.finish_block(Terminator::Goto(Goto::Block(BasicBlockId(0))));
+            self.finish_block(Terminator::Unreachable);
         }
 
         let body = self
