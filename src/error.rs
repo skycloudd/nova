@@ -2,149 +2,104 @@ use crate::{
     span::{Span, Spanned},
     typecheck::TypeInfo,
 };
-use ariadne::{Color, Fmt};
 use chumsky::error::{Rich, RichReason};
+use codespan_reporting::diagnostic::Severity;
 use heck::ToSnakeCase;
 use std::borrow::Cow;
 
-pub trait Diagnostic<'file> {
+pub trait Diag {
     fn message(&self) -> Cow<'_, str>;
     fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>>;
-    fn note(&self) -> Option<String>;
+    fn notes(&self) -> Vec<String>;
+    fn kind(&self) -> Severity;
 }
 
 #[derive(Debug)]
-pub enum Error<'file> {
+pub enum Error {
     ExpectedFound {
         expected: Vec<String>,
         found: Option<String>,
-        span: Span<'file>,
+        span: Span,
     },
     Custom {
         message: String,
-        span: Span<'file>,
+        span: Span,
     },
     TypeMismatch {
         expected: TypeInfo,
         found: TypeInfo,
-        span: Span<'file>,
+        span: Span,
     },
     FunctionArgumentCountMismatch {
         expected: usize,
         found: usize,
-        expected_span: Span<'file>,
-        found_span: Span<'file>,
+        expected_span: Span,
+        found_span: Span,
     },
     UndefinedFunction {
         name: String,
-        span: Span<'file>,
+        span: Span,
+    },
+    MissingReturn {
+        span: Span,
     },
 }
 
-impl Diagnostic<'_> for Error<'_> {
+impl Diag for Error {
     fn message(&self) -> Cow<'_, str> {
         match self {
-            Error::ExpectedFound {
+            Self::ExpectedFound {
                 expected,
                 found,
                 span: _,
             } => format!(
-                "expected {}, found `{}`",
-                if expected.is_empty() {
-                    "something else".to_string()
-                } else if expected.len() == 1 {
-                    format!("`{}`", (&expected[0]).fg(Color::Yellow))
-                } else {
-                    format!(
-                        "one of {}",
-                        expected
-                            .iter()
-                            .map(|e| format!("`{}`", e.fg(Color::Yellow)))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                },
-                found.as_deref().unwrap_or("EOF").fg(Color::Yellow)
+                "expected one of {}, but found `{}`",
+                expected.join(", "),
+                found.as_deref().unwrap_or("nothing")
             )
             .into(),
-            Error::Custom { message, span: _ } => message.into(),
-            Error::TypeMismatch {
+            Self::Custom { message, span: _ } => message.into(),
+            Self::TypeMismatch {
                 expected,
                 found,
                 span: _,
-            } => format!(
-                "expected `{}`, found `{}`",
-                expected.to_string().fg(Color::Yellow),
-                found.to_string().fg(Color::Yellow)
-            )
-            .into(),
-            Error::FunctionArgumentCountMismatch {
+            } => format!("expected type `{}`, but found type `{}`", expected, found).into(),
+            Self::FunctionArgumentCountMismatch {
                 expected,
                 found,
                 expected_span: _,
                 found_span: _,
             } => format!(
-                "expected {} arguments, found {}",
-                expected.to_string().fg(Color::Yellow),
-                found.to_string().fg(Color::Yellow)
+                "expected {} function arguments, but found {}",
+                expected, found
             )
             .into(),
-            Error::UndefinedFunction { name, span: _ } => {
-                format!("undefined function `{}`", name.fg(Color::Yellow)).into()
+            Self::UndefinedFunction { name, span: _ } => {
+                format!("undefined function `{}`", name).into()
+            }
+            Self::MissingReturn { span: _ } => {
+                "this function does not return a value on all code paths".into()
             }
         }
     }
 
     fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
         match self {
-            Error::ExpectedFound {
+            Self::ExpectedFound {
+                expected: _,
+                found: _,
+                span,
+            } => vec![Spanned(Some("unexpected token".into()), *span)],
+            Self::Custom { message: _, span } => vec![Spanned(None, *span)],
+            Self::TypeMismatch {
                 expected,
                 found,
                 span,
-            } => vec![Spanned(
-                Some(
-                    format!(
-                        "expected {}, found `{}`",
-                        if expected.is_empty() {
-                            "something else".to_string()
-                        } else if expected.len() <= 1 {
-                            format!("`{}`", (&expected[0]).fg(Color::Yellow))
-                        } else {
-                            format!(
-                                "one of {}",
-                                expected
-                                    .iter()
-                                    .map(|e| format!("`{}`", e.fg(Color::Yellow)))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            )
-                        },
-                        found.as_deref().unwrap_or("EOF").fg(Color::Yellow)
-                    )
-                    .into(),
-                ),
-                *span,
-            )],
-            Error::Custom {
-                message: _,
-                span: _,
-            } => vec![],
-            Error::TypeMismatch {
-                expected,
-                found,
-                span,
-            } => vec![Spanned(
-                Some(
-                    format!(
-                        "expected `{}`, found `{}`",
-                        expected.to_string().fg(Color::Yellow),
-                        found.to_string().fg(Color::Yellow)
-                    )
-                    .into(),
-                ),
-                *span,
-            )],
-            Error::FunctionArgumentCountMismatch {
+            } => vec![
+                Spanned(Some(format!("expected `{}`", expected).into()), *span),
+                Spanned(Some(format!("found `{}`", found).into()), *span),
+            ],
+            Self::FunctionArgumentCountMismatch {
                 expected,
                 found,
                 expected_span,
@@ -153,8 +108,9 @@ impl Diagnostic<'_> for Error<'_> {
                 Spanned(
                     Some(
                         format!(
-                            "expected {} arguments here",
-                            expected.to_string().fg(Color::Yellow)
+                            "expected {} argument{}",
+                            expected,
+                            if *expected == 1 { "" } else { "s" },
                         )
                         .into(),
                     ),
@@ -163,76 +119,105 @@ impl Diagnostic<'_> for Error<'_> {
                 Spanned(
                     Some(
                         format!(
-                            "function defined with {} arguments",
-                            found.to_string().fg(Color::Yellow)
+                            "found {} argument{}",
+                            found,
+                            if *found == 1 { "" } else { "s" }
                         )
                         .into(),
                     ),
                     *found_span,
                 ),
             ],
-            Error::UndefinedFunction { name, span } => vec![Spanned(
-                Some(format!("undefined function `{}`", name.fg(Color::Yellow)).into()),
-                *span,
-            )],
+            Self::UndefinedFunction { name, span } => {
+                vec![Spanned(
+                    Some(format!("`{}` called here", name).into()),
+                    *span,
+                )]
+            }
+            Self::MissingReturn { span } => vec![Spanned(None, *span)],
         }
     }
 
-    fn note(&self) -> Option<String> {
+    fn notes(&self) -> Vec<String> {
         #[allow(clippy::match_same_arms)]
         match self {
-            Error::ExpectedFound { .. } => None,
-            Error::Custom { .. } => None,
-            Error::TypeMismatch { .. } => None,
-            Error::FunctionArgumentCountMismatch { .. } => None,
-            Error::UndefinedFunction { .. } => None,
+            Self::ExpectedFound { .. } => vec![],
+            Self::Custom { .. } => vec![],
+            Self::TypeMismatch { .. } => vec![],
+            Self::FunctionArgumentCountMismatch { .. } => vec![],
+            Self::UndefinedFunction { .. } => vec![],
+            Self::MissingReturn { .. } => {
+                vec!["consider adding a return statement at the end of this function".into()]
+            }
         }
+    }
+
+    fn kind(&self) -> Severity {
+        Severity::Error
     }
 }
 
 #[derive(Debug)]
-pub enum Warning<'file> {
-    BadName { name: String, span: Span<'file> },
+pub enum Warning {
+    BadName {
+        name: String,
+        span: Span,
+    },
+    Lint {
+        span: Span,
+        message: String,
+        note: Option<String>,
+    },
 }
 
-impl Diagnostic<'_> for Warning<'_> {
+impl Diag for Warning {
     fn message(&self) -> Cow<'_, str> {
         match self {
-            Warning::BadName { name, span: _ } => format!(
-                "identifier `{}` should be in snake case",
-                name.fg(Color::Yellow)
-            )
-            .into(),
+            Self::BadName { name, span: _ } => {
+                format!("identifier `{}` should be snake_case", name).into()
+            }
+            Self::Lint {
+                span: _,
+                message,
+                note: _,
+            } => message.into(),
         }
     }
 
     fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
         match self {
-            Warning::BadName { name, span } => vec![Spanned(
-                Some(
-                    format!(
-                        "consider renaming to `{}`",
-                        name.to_snake_case().fg(Color::Yellow)
-                    )
-                    .into(),
-                ),
-                *span,
-            )],
+            Self::BadName { name: _, span } => vec![Spanned(None, *span)],
+            Self::Lint {
+                span,
+                message: _,
+                note: _,
+            } => vec![Spanned(None, *span)],
         }
     }
 
-    fn note(&self) -> Option<String> {
+    fn notes(&self) -> Vec<String> {
         match self {
-            Warning::BadName { name, span: _ } => Some(format!(
-                "identifiers should be in snake case, e.g. `{}`",
-                name.to_snake_case().fg(Color::Yellow)
-            )),
+            Self::BadName { name, span: _ } => {
+                vec![format!("rename it to `{}`", name.to_snake_case())]
+            }
+            Self::Lint {
+                span: _,
+                message: _,
+                note,
+            } => match note {
+                Some(note) => vec![format!("note: {}", note)],
+                None => vec![],
+            },
         }
+    }
+
+    fn kind(&self) -> Severity {
+        Severity::Warning
     }
 }
 
-pub fn convert<'file>(error: &Rich<'_, String, Span<'file>>) -> Vec<Error<'file>> {
-    fn convert_inner<'file>(reason: &RichReason<String>, span: Span<'file>) -> Vec<Error<'file>> {
+pub fn convert(error: &Rich<'_, String, Span>) -> Vec<Error> {
+    fn convert_inner(reason: &RichReason<String>, span: Span) -> Vec<Error> {
         match reason {
             RichReason::ExpectedFound { expected, found } => vec![Error::ExpectedFound {
                 expected: expected.iter().map(ToString::to_string).collect(),

@@ -139,19 +139,14 @@ impl std::fmt::Display for Op {
     }
 }
 
-type LexerInput<'tokens, 'src, 'file> = WithContext<Span<'file>, &'src str>;
+type LexerInput<'src> = WithContext<Span, &'src str>;
 
-type LexerOutput<'tokens, 'src, 'file> = Vec<(Token<'src>, Span<'file>)>;
+type LexerOutput<'src> = Vec<(Token<'src>, Span)>;
 
-type LexerError<'tokens, 'src, 'file> = extra::Err<Rich<'src, char, Span<'file>>>;
+type LexerError<'src> = extra::Err<Rich<'src, char, Span>>;
 
 #[allow(clippy::too_many_lines)]
-pub fn lexer<'src, 'file: 'src>() -> impl Parser<
-    'src,
-    LexerInput<'src, 'src, 'file>,
-    LexerOutput<'src, 'src, 'file>,
-    LexerError<'src, 'src, 'file>,
-> {
+pub fn lexer<'src>() -> impl Parser<'src, LexerInput<'src>, LexerOutput<'src>, LexerError<'src>> {
     let variable = text::ascii::ident().map(Token::Variable).boxed();
 
     let bool = choice((

@@ -1,7 +1,8 @@
 use crate::{
     ast::{BinaryOp, UnaryOp},
-    mir::{FuncId, Type, VarId},
-    mir_no_span, FloatTy, IntTy,
+    mir::{FuncId, VarId},
+    mir_no_span::{self, Type},
+    FloatTy, IntTy,
 };
 
 #[derive(Debug)]
@@ -130,10 +131,17 @@ impl LoweringContext {
         let main_block = self.new_block();
         self.switch_to_block(main_block);
 
+        let mut finished_block = false;
+
         for stmt in function.body {
             if self.lower_statement(stmt) {
+                finished_block = true;
                 break;
             }
+        }
+
+        if !finished_block {
+            self.finish_block(Terminator::Goto(Goto::Block(BasicBlockId(0))));
         }
 
         let body = self
@@ -145,7 +153,7 @@ impl LoweringContext {
 
         Function {
             name: function.name,
-            params: function.args,
+            params: function.params,
             return_ty: function.return_ty,
             body,
         }
@@ -363,18 +371,14 @@ impl UnfinishedBasicBlock {
     }
 }
 
-impl TryInto<BasicBlock> for UnfinishedBasicBlock {
+impl TryFrom<UnfinishedBasicBlock> for BasicBlock {
     type Error = ();
 
-    fn try_into(self) -> Result<BasicBlock, Self::Error> {
-        if let Some(terminator) = self.terminator {
-            Ok(BasicBlock {
-                id: self.id,
-                instructions: self.instructions,
-                terminator,
-            })
-        } else {
-            Err(())
-        }
+    fn try_from(value: UnfinishedBasicBlock) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: value.id,
+            instructions: value.instructions,
+            terminator: value.terminator.ok_or(())?,
+        })
     }
 }

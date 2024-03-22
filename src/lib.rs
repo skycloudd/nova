@@ -1,17 +1,19 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![warn(clippy::arithmetic_side_effects)]
 
-use ariadne::{ColorGenerator, Label, Report};
 use chumsky::prelude::*;
-use error::{convert, Diagnostic, Error, Warning};
-use span::{Span, Spanned};
-use std::{fmt::Display, path::Path};
+use codespan_reporting::{
+    diagnostic::{Diagnostic, Label},
+    files::SimpleFiles,
+};
+use error::{convert, Diag, Error, Warning};
+use span::{Ctx, Span};
+use std::{borrow::Cow, fmt::Display, path::Path};
 
+mod analyse;
 mod ast;
 mod codegen;
-mod control_flow;
 mod error;
 mod lexer;
 mod low_ir;
@@ -25,22 +27,30 @@ mod typecheck;
 type IntTy = i32;
 type FloatTy = f32;
 
-pub enum CompileResult<'file> {
+pub enum CompileResult {
     Success {
-        warnings: Vec<Warning<'file>>,
+        warnings: Vec<Warning>,
     },
     Failure {
-        warnings: Vec<Warning<'file>>,
-        errors: Vec<Error<'file>>,
+        warnings: Vec<Warning>,
+        errors: Vec<Error>,
     },
 }
 
-pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
+pub fn run<'src, 'file>(
+    files: &mut SimpleFiles<Cow<'file, str>, &'src str>,
+    input: &'src str,
+    filename: &'file Path,
+) -> CompileResult {
+    let file_id = files.add(filename.to_string_lossy(), input);
+
+    let file_ctx = Ctx(file_id);
+
     let mut warnings = vec![];
     let mut errors = vec![];
 
     let (tokens, lex_errors) = lexer::lexer()
-        .parse(input.with_context(filename))
+        .parse(input.with_context(file_ctx))
         .into_output_errors();
 
     errors.extend(map_errors(lex_errors));
@@ -49,7 +59,7 @@ pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
         || (None, vec![]),
         |tokens| {
             let eof = input.chars().count().saturating_sub(1);
-            let end_of_input = Span::new(filename, eof..eof);
+            let end_of_input = Span::new(file_ctx, eof..eof);
 
             parser::parser()
                 .parse(tokens.spanned(end_of_input))
@@ -67,7 +77,12 @@ pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
 
     let mir = mir::build(typed_ast);
 
-    // let (cf_warnings, cf_errors) = control_flow::check(&mir);
+    // println!("{:#?}", mir);
+
+    let (analyse_warnings, analyse_errors) = analyse::analyse(&mir);
+
+    warnings.extend(analyse_warnings);
+    errors.extend(analyse_errors);
 
     if errors.is_empty() {
         let mir = mir_no_span::build(mir);
@@ -82,46 +97,29 @@ pub fn run<'file>(input: &str, filename: &'file Path) -> CompileResult<'file> {
     }
 }
 
-pub fn report<'a: 'file, 'file, Id>(
-    filename: Id,
-    diagnostic: &'file (impl Diagnostic<'file> + ?Sized),
-    kind: ariadne::ReportKind<'a>,
-) -> Report<'file, Span<'file>>
-where
-    Id: Into<<<Span<'file> as ariadne::Span>::SourceId as ToOwned>::Owned>,
-{
-    let mut color_generator = ColorGenerator::new();
+pub fn report(diagnostic: &impl Diag) -> Diagnostic<usize> {
+    codespan_reporting::diagnostic::Diagnostic::new(diagnostic.kind())
+        .with_message(diagnostic.message())
+        .with_labels(
+            diagnostic
+                .spans()
+                .into_iter()
+                .map(|span| {
+                    let mut label =
+                        Label::primary(span.1.context().0, span.1.start()..span.1.end());
 
-    let message = diagnostic.message();
-    let spans = diagnostic.spans();
-    let note = diagnostic.note();
+                    if let Some(message) = span.0 {
+                        label = label.with_message(message);
+                    }
 
-    let offset = spans.iter().map(|s| s.1.start()).min().unwrap_or(0);
-
-    let mut report = Report::build(kind, filename, offset);
-
-    report.set_message(message);
-
-    for Spanned(message, span) in spans {
-        let mut label = Label::new(span).with_color(color_generator.next());
-
-        if let Some(message) = message {
-            label = label.with_message(message);
-        }
-
-        report.add_label(label);
-    }
-
-    if let Some(note) = note {
-        report.set_note(note);
-    }
-
-    report.finish()
+                    label
+                })
+                .collect(),
+        )
+        .with_notes(diagnostic.notes())
 }
 
-fn map_errors<'file, T: Clone + Display>(
-    errors: Vec<Rich<'_, T, Span<'file>>>,
-) -> Vec<Error<'file>> {
+fn map_errors<T: Clone + Display>(errors: Vec<Rich<'_, T, Span>>) -> Vec<Error> {
     errors
         .into_iter()
         .map(|e| e.map_token(|t| t.to_string()))

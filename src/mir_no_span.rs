@@ -1,6 +1,6 @@
 use crate::{
     ast::{BinaryOp, UnaryOp},
-    mir::{self, FuncId, Type, VarId},
+    mir::{self, FuncId, VarId},
     span::Spanned,
     FloatTy, IntTy,
 };
@@ -13,7 +13,7 @@ pub enum TopLevel {
 #[derive(Debug)]
 pub struct Function {
     pub name: FuncId,
-    pub args: Vec<(VarId, Type)>,
+    pub params: Vec<(VarId, Type)>,
     pub return_ty: Type,
     pub body: Vec<Statement>,
 }
@@ -73,13 +73,33 @@ pub enum Expression {
     },
 }
 
-pub fn build<'src: 'file, 'file>(ast: Vec<Spanned<'file, mir::TopLevel<'file>>>) -> Vec<TopLevel> {
-    ast.into_iter()
-        .map(|top_level| build_mir_top_level(top_level))
-        .collect()
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Type {
+    Integer,
+    Float,
+    Boolean,
+    String,
 }
 
-fn build_mir_top_level<'file>(top_level: Spanned<'file, mir::TopLevel<'file>>) -> TopLevel {
+impl TryFrom<mir::Type> for Type {
+    type Error = ();
+
+    fn try_from(ty: mir::Type) -> Result<Self, Self::Error> {
+        match ty {
+            mir::Type::Error => Err(()),
+            mir::Type::Integer => Ok(Self::Integer),
+            mir::Type::Float => Ok(Self::Float),
+            mir::Type::Boolean => Ok(Self::Boolean),
+            mir::Type::String => Ok(Self::String),
+        }
+    }
+}
+
+pub fn build(ast: Vec<Spanned<mir::TopLevel>>) -> Vec<TopLevel> {
+    ast.into_iter().map(build_mir_top_level).collect()
+}
+
+fn build_mir_top_level(top_level: Spanned<mir::TopLevel>) -> TopLevel {
     match top_level.0 {
         mir::TopLevel::Function(function) => TopLevel::Function(build_mir_function(function)),
     }
@@ -88,28 +108,22 @@ fn build_mir_top_level<'file>(top_level: Spanned<'file, mir::TopLevel<'file>>) -
 fn build_mir_function(function: mir::Function) -> Function {
     Function {
         name: function.name.0,
-        args: function
-            .args
+        params: function
+            .params
             .0
             .into_iter()
-            .map(|(name, ty)| (name.0, ty.0))
+            .map(|(name, ty)| (name.0, ty.0.try_into().unwrap()))
             .collect(),
-        return_ty: function.return_ty.0,
+        return_ty: function.return_ty.0.try_into().unwrap(),
         body: build_statements(function.body),
     }
 }
 
-fn build_statements<'file>(
-    statements: Spanned<'file, Vec<Spanned<'file, mir::Statement<'file>>>>,
-) -> Vec<Statement> {
-    statements
-        .0
-        .into_iter()
-        .map(|stmt| build_mir_statement(stmt))
-        .collect()
+fn build_statements(statements: Spanned<Vec<Spanned<mir::Statement>>>) -> Vec<Statement> {
+    statements.0.into_iter().map(build_mir_statement).collect()
 }
 
-fn build_mir_statement<'file>(statement: Spanned<'file, mir::Statement<'file>>) -> Statement {
+fn build_mir_statement(statement: Spanned<mir::Statement>) -> Statement {
     match statement.0 {
         mir::Statement::Expr(expr) => Statement::Expr(build_mir_expr(expr)),
         mir::Statement::Block(statements) => Statement::Block(build_statements(statements)),
@@ -121,7 +135,7 @@ fn build_mir_statement<'file>(statement: Spanned<'file, mir::Statement<'file>>) 
         } => Statement::If {
             condition: build_mir_expr(condition),
             then_branch: build_statements(then_branch),
-            else_branch: else_branch.map(|stmts| build_statements(stmts)),
+            else_branch: else_branch.map(build_statements),
         },
         mir::Statement::For {
             name,
@@ -188,9 +202,10 @@ fn build_mir_statement<'file>(statement: Spanned<'file, mir::Statement<'file>>) 
     }
 }
 
-fn build_mir_expr<'file>(expr: Spanned<'file, mir::TypedExpression<'file>>) -> TypedExpression {
+fn build_mir_expr(expr: Spanned<mir::TypedExpression>) -> TypedExpression {
     TypedExpression {
         expr: match expr.0.expr {
+            mir::Expression::Error => unreachable!(),
             mir::Expression::Variable(name) => Expression::Variable(name.0),
             mir::Expression::Boolean(value) => Expression::Boolean(value),
             mir::Expression::Integer(value) => Expression::Integer(value),
@@ -206,14 +221,14 @@ fn build_mir_expr<'file>(expr: Spanned<'file, mir::TypedExpression<'file>>) -> T
                 rhs: Box::new(build_mir_expr(Spanned(*rhs.0, rhs.1))),
             },
             mir::Expression::Convert { ty, expr } => Expression::Convert {
-                ty: ty.0,
+                ty: ty.0.try_into().unwrap(),
                 expr: Box::new(build_mir_expr(Spanned(*expr.0, expr.1))),
             },
             mir::Expression::Call { func, args } => Expression::Call {
                 func: func.0,
-                args: args.0.into_iter().map(|arg| build_mir_expr(arg)).collect(),
+                args: args.0.into_iter().map(build_mir_expr).collect(),
             },
         },
-        ty: expr.0.ty,
+        ty: expr.0.ty.try_into().unwrap(),
     }
 }

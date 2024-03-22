@@ -1,7 +1,35 @@
 func main(): str do
+    # loop do
+    #     break;
+    # end
+
+    # let myVar = 123;
+
+    # aa();
+    # main(123);
+
+    # if 1 == 1 then
+    #     0;
+    # else if true then
+    #     1;
+    # else if false then
+    #     2;
+    # else
+    #     3;
+    # end end end
+
+    # return 123;
+
+    # if 1 == 1 then
+    #     return "Hello, World!";
+    # else
+    #     return "Goodbye, World!";
+    # end
+
     loop do
-        break;
+        return "Hello, World!";
     end
 
-    return "hello world";
+    # return "Goodbye, World!";
+    # return "Hello, World!";
 end

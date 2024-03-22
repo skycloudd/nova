@@ -2,8 +2,14 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-use ariadne::{Color, FileCache, Fmt};
 use clap::Parser;
+use codespan_reporting::{
+    files::SimpleFiles,
+    term::{
+        self,
+        termcolor::{ColorChoice, StandardStream},
+    },
+};
 use nova::{report, run, CompileResult};
 use std::{fs::read_to_string, path::PathBuf, process::ExitCode};
 
@@ -15,18 +21,23 @@ struct Args {
 fn main() -> ExitCode {
     let args = Args::parse();
 
-    eprintln!(
-        "{} {}",
-        "Compiling".fg(Color::Green),
-        args.filename.display()
-    );
+    eprintln!("Compiling {}", args.filename.display());
 
-    match run(&read_to_string(&args.filename).unwrap(), &args.filename) {
+    let mut files = SimpleFiles::new();
+
+    let writer = StandardStream::stderr(ColorChoice::Auto);
+    let config = codespan_reporting::term::Config::default();
+
+    match run(
+        &mut files,
+        &read_to_string(&args.filename).unwrap(),
+        &args.filename,
+    ) {
         CompileResult::Success { warnings } => {
             for warning in &warnings {
-                report(&args.filename, warning, ariadne::ReportKind::Warning)
-                    .eprint(FileCache::default())
-                    .unwrap();
+                let diag = report(warning);
+
+                term::emit(&mut writer.lock(), &config, &files, &diag).unwrap();
             }
 
             if !warnings.is_empty() {
@@ -37,19 +48,21 @@ fn main() -> ExitCode {
                 );
             }
 
-            eprintln!(
-                "{} {}",
-                "Finished".fg(Color::Green),
-                args.filename.display()
-            );
+            eprintln!("Finished {}", args.filename.display());
 
             ExitCode::SUCCESS
         }
         CompileResult::Failure { warnings, errors } => {
             for warning in &warnings {
-                report(&args.filename, warning, ariadne::ReportKind::Warning)
-                    .eprint(FileCache::default())
-                    .unwrap();
+                let diag = report(warning);
+
+                term::emit(&mut writer.lock(), &config, &files, &diag).unwrap();
+            }
+
+            for error in &errors {
+                let diag = report(error);
+
+                term::emit(&mut writer.lock(), &config, &files, &diag).unwrap();
             }
 
             if !warnings.is_empty() {
@@ -58,12 +71,6 @@ fn main() -> ExitCode {
                     warnings.len(),
                     if warnings.len() == 1 { "" } else { "s" }
                 );
-            }
-
-            for error in &errors {
-                report(&args.filename, error, ariadne::ReportKind::Error)
-                    .eprint(FileCache::default())
-                    .unwrap();
             }
 
             eprintln!(

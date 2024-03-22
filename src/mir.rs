@@ -10,101 +10,101 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'file> {
-    Function(Function<'file>),
+pub enum TopLevel {
+    Function(Function),
 }
 
 #[derive(Debug)]
-pub struct Function<'file> {
-    pub name: Spanned<'file, FuncId>,
-    pub args: Spanned<'file, Vec<(Spanned<'file, VarId>, Spanned<'file, Type>)>>,
-    pub return_ty: Spanned<'file, Type>,
-    pub body: Spanned<'file, Vec<Spanned<'file, Statement<'file>>>>,
+pub struct Function {
+    pub name: Spanned<FuncId>,
+    pub params: Spanned<Vec<(Spanned<VarId>, Spanned<Type>)>>,
+    pub return_ty: Spanned<Type>,
+    pub body: Spanned<Vec<Spanned<Statement>>>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FuncId(pub usize);
 
 #[derive(Debug)]
-pub enum Statement<'file> {
-    Expr(Spanned<'file, TypedExpression<'file>>),
-    Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
-    Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
+pub enum Statement {
+    Expr(Spanned<TypedExpression>),
+    Block(Spanned<Vec<Spanned<Self>>>),
+    Loop(Spanned<Vec<Spanned<Self>>>),
     If {
-        condition: Spanned<'file, TypedExpression<'file>>,
-        then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
-        else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
+        condition: Spanned<TypedExpression>,
+        then_branch: Spanned<Vec<Spanned<Self>>>,
+        else_branch: Option<Spanned<Vec<Spanned<Self>>>>,
     },
     For {
-        name: Spanned<'file, VarId>,
-        start: Spanned<'file, TypedExpression<'file>>,
-        end: Spanned<'file, TypedExpression<'file>>,
+        name: Spanned<VarId>,
+        start: Spanned<TypedExpression>,
+        end: Spanned<TypedExpression>,
         inclusive: bool,
-        body: Spanned<'file, Vec<Spanned<'file, Self>>>,
+        body: Spanned<Vec<Spanned<Self>>>,
     },
     Let {
-        name: Spanned<'file, VarId>,
-        value: Spanned<'file, TypedExpression<'file>>,
+        name: Spanned<VarId>,
+        value: Spanned<TypedExpression>,
     },
     Assign {
-        name: Spanned<'file, VarId>,
-        value: Spanned<'file, TypedExpression<'file>>,
+        name: Spanned<VarId>,
+        value: Spanned<TypedExpression>,
     },
     Break,
     Continue,
-    Return(Spanned<'file, TypedExpression<'file>>),
+    Return(Spanned<TypedExpression>),
 }
 
-#[derive(Debug)]
-pub struct TypedExpression<'file> {
-    pub expr: Expression<'file>,
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypedExpression {
+    pub expr: Expression,
     pub ty: Type,
 }
 
-#[derive(Debug)]
-pub enum Expression<'file> {
-    Variable(Spanned<'file, VarId>),
+#[derive(Clone, Debug, PartialEq)]
+pub enum Expression {
+    Error,
+    Variable(Spanned<VarId>),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
     String(String),
     Unary {
-        op: Spanned<'file, UnaryOp>,
-        rhs: Spanned<'file, Box<TypedExpression<'file>>>,
+        op: Spanned<UnaryOp>,
+        rhs: Spanned<Box<TypedExpression>>,
     },
     Binary {
-        lhs: Spanned<'file, Box<TypedExpression<'file>>>,
-        op: Spanned<'file, BinaryOp>,
-        rhs: Spanned<'file, Box<TypedExpression<'file>>>,
+        lhs: Spanned<Box<TypedExpression>>,
+        op: Spanned<BinaryOp>,
+        rhs: Spanned<Box<TypedExpression>>,
     },
     Convert {
-        ty: Spanned<'file, Type>,
-        expr: Spanned<'file, Box<TypedExpression<'file>>>,
+        ty: Spanned<Type>,
+        expr: Spanned<Box<TypedExpression>>,
     },
     Call {
-        func: Spanned<'file, FuncId>,
-        args: Spanned<'file, Vec<Spanned<'file, TypedExpression<'file>>>>,
+        func: Spanned<FuncId>,
+        args: Spanned<Vec<Spanned<TypedExpression>>>,
     },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
+    Error,
     Integer,
     Float,
     Boolean,
     String,
 }
 
-impl TryFrom<&ast::Type> for Type {
-    type Error = ();
-
-    fn try_from(ty: &ast::Type) -> Result<Self, Self::Error> {
+impl From<ast::Type> for Type {
+    fn from(ty: ast::Type) -> Self {
         match ty {
-            ast::Type::Error => Err(()),
-            ast::Type::Integer => Ok(Self::Integer),
-            ast::Type::Float => Ok(Self::Float),
-            ast::Type::Boolean => Ok(Self::Boolean),
-            ast::Type::String => Ok(Self::String),
+            ast::Type::Error => Self::Error,
+            ast::Type::Integer => Self::Integer,
+            ast::Type::Float => Self::Float,
+            ast::Type::Boolean => Self::Boolean,
+            ast::Type::String => Self::String,
         }
     }
 }
@@ -112,6 +112,7 @@ impl TryFrom<&ast::Type> for Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Error => write!(f, "error"),
             Self::Integer => write!(f, "int"),
             Self::Float => write!(f, "float"),
             Self::Boolean => write!(f, "bool"),
@@ -123,19 +124,19 @@ impl std::fmt::Display for Type {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct VarId(pub usize);
 
-trait IdMap<'src, 'file> {
+trait IdMap<'src> {
     type Id;
 
     fn get<'a>(&'a self, name: &'a str) -> Option<&Self::Id>;
-    fn insert(&mut self, name: Spanned<'file, &'src str>) -> Self::Id;
+    fn insert(&mut self, name: Spanned<&'src str>) -> Self::Id;
 }
 
-struct VarIdMap<'src, 'file> {
-    map: Scopes<&'src str, Spanned<'file, VarId>>,
+struct VarIdMap<'src> {
+    map: Scopes<&'src str, Spanned<VarId>>,
     id_gen: IdGen,
 }
 
-impl VarIdMap<'_, '_> {
+impl VarIdMap<'_> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
@@ -144,26 +145,26 @@ impl VarIdMap<'_, '_> {
     }
 }
 
-impl<'src, 'file> IdMap<'src, 'file> for VarIdMap<'src, 'file> {
-    type Id = Spanned<'file, VarId>;
+impl<'src> IdMap<'src> for VarIdMap<'src> {
+    type Id = Spanned<VarId>;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<'file, VarId>> {
+    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<VarId>> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: Spanned<'file, &'src str>) -> Spanned<'file, VarId> {
+    fn insert(&mut self, name: Spanned<&'src str>) -> Spanned<VarId> {
         let id = Spanned(VarId(self.id_gen.next()), name.1);
         self.map.insert(name.0, id);
         id
     }
 }
 
-struct FuncIdMap<'src, 'file> {
-    map: Scopes<&'src str, Spanned<'file, FuncId>>,
+struct FuncIdMap<'src> {
+    map: Scopes<&'src str, Spanned<FuncId>>,
     id_gen: IdGen,
 }
 
-impl FuncIdMap<'_, '_> {
+impl FuncIdMap<'_> {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
@@ -172,32 +173,30 @@ impl FuncIdMap<'_, '_> {
     }
 }
 
-impl<'src, 'file> IdMap<'src, 'file> for FuncIdMap<'src, 'file> {
-    type Id = Spanned<'file, FuncId>;
+impl<'src> IdMap<'src> for FuncIdMap<'src> {
+    type Id = Spanned<FuncId>;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<'file, FuncId>> {
+    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<FuncId>> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: Spanned<'file, &'src str>) -> Spanned<'file, FuncId> {
+    fn insert(&mut self, name: Spanned<&'src str>) -> Spanned<FuncId> {
         let id = Spanned(FuncId(self.id_gen.next()), name.1);
         self.map.insert(name.0, id);
         id
     }
 }
 
-pub fn build<'src: 'file, 'file>(
-    ast: Vec<Spanned<'file, TypedTopLevel<'src, 'file>>>,
-) -> Vec<Spanned<'file, TopLevel<'file>>> {
+pub fn build(ast: Vec<Spanned<TypedTopLevel<'_>>>) -> Vec<Spanned<TopLevel>> {
     MirBuilder::new().build(ast)
 }
 
-struct MirBuilder<'src, 'file> {
-    var_id_map: VarIdMap<'src, 'file>,
-    func_id_map: FuncIdMap<'src, 'file>,
+struct MirBuilder<'src> {
+    var_id_map: VarIdMap<'src>,
+    func_id_map: FuncIdMap<'src>,
 }
 
-impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
+impl<'src> MirBuilder<'src> {
     fn new() -> Self {
         Self {
             var_id_map: VarIdMap::new(),
@@ -205,16 +204,13 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
         }
     }
 
-    fn build(
-        &mut self,
-        ast: Vec<Spanned<'file, TypedTopLevel<'src, 'file>>>,
-    ) -> Vec<Spanned<'file, TopLevel<'file>>> {
+    fn build(&mut self, ast: Vec<Spanned<TypedTopLevel<'src>>>) -> Vec<Spanned<TopLevel>> {
         for top_level in &ast {
             match &top_level.0 {
                 TypedTopLevel::Function(function) => {
                     self.func_id_map.insert(function.name);
 
-                    for arg in &function.args.0 {
+                    for arg in &function.params.0 {
                         self.var_id_map.insert(arg.0);
                     }
                 }
@@ -228,8 +224,8 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
 
     fn build_mir_top_level(
         &mut self,
-        top_level: Spanned<'file, TypedTopLevel<'src, 'file>>,
-    ) -> Spanned<'file, TopLevel<'file>> {
+        top_level: Spanned<TypedTopLevel<'src>>,
+    ) -> Spanned<TopLevel> {
         Spanned(
             match top_level.0 {
                 TypedTopLevel::Function(function) => {
@@ -240,12 +236,12 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
         )
     }
 
-    fn build_mir_function(&mut self, function: TypedFunction<'src, 'file>) -> Function<'file> {
+    fn build_mir_function(&mut self, function: TypedFunction<'src>) -> Function {
         Function {
             name: *self.func_id_map.get(function.name.0).unwrap(),
-            args: Spanned(
+            params: Spanned(
                 function
-                    .args
+                    .params
                     .0
                     .iter()
                     .map(|arg| {
@@ -254,14 +250,14 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
 
                         (
                             *self.var_id_map.get(name.0).unwrap(),
-                            Spanned((&ty.0).try_into().unwrap(), ty.1),
+                            Spanned(ty.0.try_into().unwrap(), ty.1),
                         )
                     })
                     .collect(),
-                function.args.1,
+                function.params.1,
             ),
             return_ty: Spanned(
-                (&function.return_ty.0).try_into().unwrap(),
+                function.return_ty.0.try_into().unwrap(),
                 function.return_ty.1,
             ),
             body: self.build_statements(function.body),
@@ -270,8 +266,8 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
 
     fn build_statements(
         &mut self,
-        statements: Spanned<'file, Vec<Spanned<'file, TypedStatement<'src, 'file>>>>,
-    ) -> Spanned<'file, Vec<Spanned<'file, Statement<'file>>>> {
+        statements: Spanned<Vec<Spanned<TypedStatement<'src>>>>,
+    ) -> Spanned<Vec<Spanned<Statement>>> {
         Spanned(
             statements
                 .0
@@ -284,8 +280,8 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
 
     fn build_mir_statement(
         &mut self,
-        statement: Spanned<'file, TypedStatement<'src, 'file>>,
-    ) -> Spanned<'file, Statement<'file>> {
+        statement: Spanned<TypedStatement<'src>>,
+    ) -> Spanned<Statement> {
         Spanned(
             match statement.0 {
                 TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(expr)),
@@ -342,14 +338,11 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
         )
     }
 
-    fn build_mir_expr(
-        &mut self,
-        expr: Spanned<'file, TypedExpr<'src, 'file>>,
-    ) -> Spanned<'file, TypedExpression<'file>> {
+    fn build_mir_expr(&mut self, expr: Spanned<TypedExpr<'src>>) -> Spanned<TypedExpression> {
         Spanned(
             TypedExpression {
                 expr: match expr.0.expr {
-                    Expr::Error => unreachable!(),
+                    Expr::Error => Expression::Error,
                     Expr::Variable(name) => {
                         Expression::Variable(*self.var_id_map.get(name.0).unwrap())
                     }
@@ -379,7 +372,7 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
                         let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
 
                         Expression::Convert {
-                            ty: Spanned((&ty.0).try_into().unwrap(), ty.1),
+                            ty: Spanned(ty.0.try_into().unwrap(), ty.1),
                             expr: Spanned(Box::new(expr.0), expr.1),
                         }
                     }
@@ -394,7 +387,7 @@ impl<'src, 'file: 'src> MirBuilder<'src, 'file> {
                         ),
                     },
                 },
-                ty: (&expr.0.ty).try_into().unwrap(),
+                ty: expr.0.ty.try_into().unwrap(),
             },
             expr.1,
         )

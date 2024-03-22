@@ -1,28 +1,30 @@
 use chumsky::prelude::*;
-use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct Span<'file>(SimpleSpan<usize, &'file Path>);
+pub struct Ctx(pub usize);
 
-impl<'file> Span<'file> {
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct Span(SimpleSpan<usize, Ctx>);
+
+impl Span {
     #[must_use]
-    pub fn new(context: &'file Path, range: std::ops::Range<usize>) -> Span<'file> {
-        Span(SimpleSpan::<usize, &'file Path>::new(context, range))
+    pub fn new(context: Ctx, range: std::ops::Range<usize>) -> Self {
+        Self(SimpleSpan::<usize, Ctx>::new(context, range))
     }
 
     #[must_use]
-    pub fn union(self, other: Span<'file>) -> Span<'file> {
-        Span(self.0.union(other.0))
+    pub fn union(self, other: Self) -> Self {
+        Self(self.0.union(other.0))
     }
 }
 
-impl<'file> chumsky::span::Span for Span<'file> {
-    type Context = &'file Path;
+impl chumsky::span::Span for Span {
+    type Context = Ctx;
 
     type Offset = usize;
 
     fn new(context: Self::Context, range: std::ops::Range<Self::Offset>) -> Self {
-        Span::new(context, range)
+        Self::new(context, range)
     }
 
     fn context(&self) -> Self::Context {
@@ -38,32 +40,16 @@ impl<'file> chumsky::span::Span for Span<'file> {
     }
 }
 
-impl<'file> ariadne::Span for Span<'file> {
-    type SourceId = Path;
-
-    fn source(&self) -> &Self::SourceId {
-        self.0.context()
-    }
-
-    fn start(&self) -> usize {
-        self.0.start()
-    }
-
-    fn end(&self) -> usize {
-        self.0.end()
-    }
-}
-
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct Spanned<'file, T>(pub T, pub Span<'file>);
+pub struct Spanned<T>(pub T, pub Span);
 
-impl<T> AsRef<T> for Spanned<'_, T> {
+impl<T> AsRef<T> for Spanned<T> {
     fn as_ref(&self) -> &T {
         &self.0
     }
 }
 
-impl<T> AsMut<T> for Spanned<'_, T> {
+impl<T> AsMut<T> for Spanned<T> {
     fn as_mut(&mut self) -> &mut T {
         &mut self.0
     }

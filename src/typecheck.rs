@@ -10,13 +10,9 @@ use crate::{
 use rustc_hash::FxHashMap;
 use snake_case::is_snake_case;
 
-pub fn typecheck<'src, 'file>(
-    ast: Vec<Spanned<'file, TopLevel<'src, 'file>>>,
-) -> (
-    Vec<Spanned<'file, TypedTopLevel<'src, 'file>>>,
-    Vec<Warning<'file>>,
-    Vec<Error<'file>>,
-) {
+pub fn typecheck(
+    ast: Vec<Spanned<TopLevel>>,
+) -> (Vec<Spanned<TypedTopLevel>>, Vec<Warning>, Vec<Error>) {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
 
@@ -26,27 +22,24 @@ pub fn typecheck<'src, 'file>(
 }
 
 #[derive(Debug)]
-struct FunctionSignature<'file> {
-    args: Spanned<'file, Vec<Spanned<'file, TypeId>>>,
-    return_ty: Spanned<'file, TypeId>,
+struct FunctionSignature {
+    params: Spanned<Vec<Spanned<TypeId>>>,
+    return_ty: Spanned<TypeId>,
 }
 
-struct Typechecker<'src, 'file, 'warning, 'error> {
-    engine: Engine<'file>,
-    functions: FxHashMap<&'src str, FunctionSignature<'file>>,
+struct Typechecker<'src, 'warning, 'error> {
+    engine: Engine,
+    functions: FxHashMap<&'src str, FunctionSignature>,
     variables: Scopes<&'src str, TypeId>,
 
     current_function: Option<&'src str>,
 
-    warnings: &'warning mut Vec<Warning<'file>>,
-    errors: &'error mut Vec<Error<'file>>,
+    warnings: &'warning mut Vec<Warning>,
+    errors: &'error mut Vec<Error>,
 }
 
-impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
-    fn new(
-        warnings: &'warning mut Vec<Warning<'file>>,
-        errors: &'error mut Vec<Error<'file>>,
-    ) -> Self {
+impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
+    fn new(warnings: &'warning mut Vec<Warning>, errors: &'error mut Vec<Error>) -> Self {
         Self {
             engine: Engine::new(),
             functions: FxHashMap::default(),
@@ -61,21 +54,21 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
 
     fn typecheck_ast(
         &mut self,
-        ast: Vec<Spanned<'file, TopLevel<'src, 'file>>>,
-    ) -> Vec<Spanned<'file, TypedTopLevel<'src, 'file>>> {
+        ast: Vec<Spanned<TopLevel<'src>>>,
+    ) -> Vec<Spanned<TypedTopLevel<'src>>> {
         for top_level in &ast {
             let TopLevel::Function(function) = &top_level.0;
 
             match self.functions.get(&function.name.0) {
                 None => {
-                    let args = Spanned(
+                    let params = Spanned(
                         function
-                            .args
+                            .params
                             .0
                             .iter()
                             .map(|(_, ty)| Spanned(self.engine.insert_type(ty), ty.1))
                             .collect(),
-                        function.args.1,
+                        function.params.1,
                     );
 
                     let return_ty = Spanned(
@@ -84,7 +77,7 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
                     );
 
                     self.functions
-                        .insert(function.name.0, FunctionSignature { args, return_ty });
+                        .insert(function.name.0, FunctionSignature { params, return_ty });
                 }
                 Some(_) => panic!(),
             }
@@ -106,10 +99,7 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
         top_levels
     }
 
-    fn typecheck_function(
-        &mut self,
-        function: Function<'src, 'file>,
-    ) -> TypedTopLevel<'src, 'file> {
+    fn typecheck_function(&mut self, function: Function<'src>) -> TypedTopLevel<'src> {
         self.current_function = Some(function.name.0);
 
         if !is_snake_case(function.name.0) {
@@ -122,11 +112,11 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
         self.push_scope();
 
         for (name, ty) in function
-            .args
+            .params
             .0
             .iter()
             .map(|(name, _)| name)
-            .zip(&self.functions.get(&function.name.0).unwrap().args.0)
+            .zip(&self.functions.get(&function.name.0).unwrap().params.0)
         {
             if !is_snake_case(name.0) {
                 self.warnings.push(Warning::BadName {
@@ -154,7 +144,7 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
 
         TypedTopLevel::Function(TypedFunction {
             name: function.name,
-            args: function.args.clone(),
+            params: function.params.clone(),
             return_ty: function.return_ty,
             body,
         })
@@ -162,8 +152,8 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
 
     fn typecheck_statements(
         &mut self,
-        statements: Spanned<'file, Vec<Spanned<'file, Statement<'src, 'file>>>>,
-    ) -> Spanned<'file, Vec<Spanned<'file, TypedStatement<'src, 'file>>>> {
+        statements: Spanned<Vec<Spanned<Statement<'src>>>>,
+    ) -> Spanned<Vec<Spanned<TypedStatement<'src>>>> {
         Spanned(
             statements
                 .0
@@ -177,8 +167,8 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
     #[allow(clippy::too_many_lines)]
     fn typecheck_statement(
         &mut self,
-        statement: Spanned<'file, Statement<'src, 'file>>,
-    ) -> Spanned<'file, TypedStatement<'src, 'file>> {
+        statement: Spanned<Statement<'src>>,
+    ) -> Spanned<TypedStatement<'src>> {
         Spanned(
             match statement.0 {
                 Statement::Expr(expr) => {
@@ -355,10 +345,7 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn typecheck_expression(
-        &mut self,
-        expr: Spanned<'file, Expr<'src, 'file>>,
-    ) -> Spanned<'file, TypedExpr<'src, 'file>> {
+    fn typecheck_expression(&mut self, expr: Spanned<Expr<'src>>) -> Spanned<TypedExpr<'src>> {
         Spanned(
             match expr.0 {
                 Expr::Error => TypedExpr {
@@ -518,7 +505,7 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
                     let Some(signature) = self.functions.get(&func.0) else {
                         self.errors.push(Error::UndefinedFunction {
                             name: func.0.to_string(),
-                            span: func.1,
+                            span: expr.1,
                         });
 
                         return Spanned(
@@ -530,16 +517,16 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
                         );
                     };
 
-                    if args.0.len() != signature.args.0.len() {
+                    if args.0.len() != signature.params.0.len() {
                         self.errors.push(Error::FunctionArgumentCountMismatch {
-                            expected: signature.args.0.len(),
+                            expected: signature.params.0.len(),
                             found: args.0.len(),
-                            expected_span: signature.args.1,
+                            expected_span: signature.params.1,
                             found_span: args.1,
                         });
                     }
 
-                    for (arg, ty) in args.0.iter().zip(&signature.args.0) {
+                    for (arg, ty) in args.0.iter().zip(&signature.params.0) {
                         let arg_ty = self.engine.insert_type(&Spanned(arg.0.ty, arg.1));
 
                         self.engine.unify(arg_ty, ty.0).unwrap_or_else(|err| {
@@ -574,12 +561,12 @@ impl<'src, 'file, 'warning, 'error> Typechecker<'src, 'file, 'warning, 'error> {
     }
 }
 
-struct Engine<'file> {
+struct Engine {
     id_counter: usize,
-    vars: FxHashMap<TypeId, Spanned<'file, TypeInfo>>,
+    vars: FxHashMap<TypeId, Spanned<TypeInfo>>,
 }
 
-impl<'file> Engine<'file> {
+impl Engine {
     fn new() -> Self {
         Self {
             id_counter: 0,
@@ -587,18 +574,18 @@ impl<'file> Engine<'file> {
         }
     }
 
-    fn insert(&mut self, info: Spanned<'file, TypeInfo>) -> TypeId {
+    fn insert(&mut self, info: Spanned<TypeInfo>) -> TypeId {
         self.id_counter += 1;
         let id = TypeId(self.id_counter);
         self.vars.insert(id, info);
         id
     }
 
-    fn insert_type(&mut self, ty: &Spanned<'file, Type>) -> TypeId {
+    fn insert_type(&mut self, ty: &Spanned<Type>) -> TypeId {
         self.insert(Spanned(ty.0.into(), ty.1))
     }
 
-    fn unify(&mut self, a: TypeId, b: TypeId) -> Result<(), Box<Error<'file>>> {
+    fn unify(&mut self, a: TypeId, b: TypeId) -> Result<(), Box<Error>> {
         let var_a = &self.vars[&a];
         let var_b = &self.vars[&b];
 
@@ -627,7 +614,7 @@ impl<'file> Engine<'file> {
         }
     }
 
-    fn expect(&self, id: TypeId, ty: &TypeInfo) -> Result<(), Box<Error<'file>>> {
+    fn expect(&self, id: TypeId, ty: &TypeInfo) -> Result<(), Box<Error>> {
         let var = &self.vars[&id];
 
         if &var.0 == ty {
@@ -641,7 +628,7 @@ impl<'file> Engine<'file> {
         }
     }
 
-    fn reconstruct(&self, id: TypeId) -> Result<Spanned<'file, Type>, Box<Error<'file>>> {
+    fn reconstruct(&self, id: TypeId) -> Result<Spanned<Type>, Box<Error>> {
         let var = self.vars[&id];
 
         match var.0 {

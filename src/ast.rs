@@ -3,8 +3,8 @@ use crate::span::Spanned;
 macro_rules! top_level {
     ($name:ident, $func:ident) => {
         #[derive(Debug)]
-        pub enum $name<'src, 'file> {
-            Function($func<'src, 'file>),
+        pub enum $name<'src> {
+            Function($func<'src>),
         }
     };
 }
@@ -12,45 +12,45 @@ macro_rules! top_level {
 macro_rules! ast_function {
     ($name:ident, $stmt:ident) => {
         #[derive(Debug)]
-        pub struct $name<'src, 'file> {
-            pub name: Spanned<'file, &'src str>,
-            pub args: Spanned<'file, Vec<(Spanned<'file, &'src str>, Spanned<'file, Type>)>>,
-            pub return_ty: Spanned<'file, Type>,
-            pub body: Spanned<'file, Vec<Spanned<'file, $stmt<'src, 'file>>>>,
+        pub struct $name<'src> {
+            pub name: Spanned<&'src str>,
+            pub params: Spanned<Vec<(Spanned<&'src str>, Spanned<Type>)>>,
+            pub return_ty: Spanned<Type>,
+            pub body: Spanned<Vec<Spanned<$stmt<'src>>>>,
         }
     };
 }
 
 macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
-        #[derive(Debug)]
-        pub enum $name<'src, 'file> {
-            Expr(Spanned<'file, $expr<'src, 'file>>),
-            Block(Spanned<'file, Vec<Spanned<'file, Self>>>),
-            Loop(Spanned<'file, Vec<Spanned<'file, Self>>>),
+        #[derive(Clone, Debug)]
+        pub enum $name<'src> {
+            Expr(Spanned<$expr<'src>>),
+            Block(Spanned<Vec<Spanned<Self>>>),
+            Loop(Spanned<Vec<Spanned<Self>>>),
             If {
-                condition: Spanned<'file, $expr<'src, 'file>>,
-                then_branch: Spanned<'file, Vec<Spanned<'file, Self>>>,
-                else_branch: Option<Spanned<'file, Vec<Spanned<'file, Self>>>>,
+                condition: Spanned<$expr<'src>>,
+                then_branch: Spanned<Vec<Spanned<Self>>>,
+                else_branch: Option<Spanned<Vec<Spanned<Self>>>>,
             },
             For {
-                name: Spanned<'file, &'src str>,
-                start: Spanned<'file, $expr<'src, 'file>>,
-                end: Spanned<'file, $expr<'src, 'file>>,
+                name: Spanned<&'src str>,
+                start: Spanned<$expr<'src>>,
+                end: Spanned<$expr<'src>>,
                 inclusive: bool,
-                body: Spanned<'file, Vec<Spanned<'file, Self>>>,
+                body: Spanned<Vec<Spanned<Self>>>,
             },
             Let {
-                name: Spanned<'file, &'src str>,
-                value: Spanned<'file, $expr<'src, 'file>>,
+                name: Spanned<&'src str>,
+                value: Spanned<$expr<'src>>,
             },
             Assign {
-                name: Spanned<'file, &'src str>,
-                value: Spanned<'file, $expr<'src, 'file>>,
+                name: Spanned<&'src str>,
+                value: Spanned<$expr<'src>>,
             },
             Break,
             Continue,
-            Return(Spanned<'file, $expr<'src, 'file>>),
+            Return(Spanned<$expr<'src>>),
         }
     };
 }
@@ -58,29 +58,26 @@ macro_rules! ast_statement {
 macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
         #[derive(Clone, Debug)]
-        pub enum $name<'src, 'file> {
+        pub enum $name<'src> {
             Error,
-            Variable(Spanned<'file, &'src str>),
+            Variable(Spanned<&'src str>),
             Boolean(bool),
             Integer(crate::IntTy),
             Float(crate::FloatTy),
             String(String),
-            Unary(
-                Spanned<'file, UnaryOp>,
-                Spanned<'file, Box<$self_expr<'src, 'file>>>,
-            ),
+            Unary(Spanned<UnaryOp>, Spanned<Box<$self_expr<'src>>>),
             Binary(
-                Spanned<'file, Box<$self_expr<'src, 'file>>>,
-                Spanned<'file, BinaryOp>,
-                Spanned<'file, Box<$self_expr<'src, 'file>>>,
+                Spanned<Box<$self_expr<'src>>>,
+                Spanned<BinaryOp>,
+                Spanned<Box<$self_expr<'src>>>,
             ),
             Convert {
-                ty: Spanned<'file, Type>,
-                expr: Spanned<'file, Box<$self_expr<'src, 'file>>>,
+                ty: Spanned<Type>,
+                expr: Spanned<Box<$self_expr<'src>>>,
             },
             Call {
-                func: Spanned<'file, &'src str>,
-                args: Spanned<'file, Vec<Spanned<'file, $self_expr<'src, 'file>>>>,
+                func: Spanned<&'src str>,
+                args: Spanned<Vec<Spanned<$self_expr<'src>>>>,
             },
         }
     };
@@ -163,8 +160,8 @@ pub mod typed {
 
     #[allow(clippy::module_name_repetitions)]
     #[derive(Clone, Debug)]
-    pub struct TypedExpr<'src, 'file> {
-        pub expr: Expr<'src, 'file>,
+    pub struct TypedExpr<'src> {
+        pub expr: Expr<'src>,
         pub ty: Type,
     }
 
