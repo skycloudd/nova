@@ -72,6 +72,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn analyse_statement(&mut self, statement: &Spanned<Statement>) -> Finished {
         match &statement.0 {
             Statement::Expr(expr) => {
@@ -229,12 +230,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
 
                 finished
             }
-            Statement::Let { name: _, value } => {
-                self.analyse_expression(value);
-
-                Finished::No
-            }
-            Statement::Assign { name: _, value } => {
+            Statement::Let { name: _, value } | Statement::Assign { name: _, value } => {
                 self.analyse_expression(value);
 
                 Finished::No
@@ -264,7 +260,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                 self.analyse_expression(&Spanned(*rhs.0.clone(), rhs.1));
             }
             Expression::Convert { ty, expr } => {
-                if &ty.0 == &expr.0.ty {
+                if ty.0 == expr.0.ty {
                     self.warnings.push(Warning::Lint {
                         span: expr.1,
                         message: "this conversion has no effect".to_string(),
@@ -294,25 +290,27 @@ enum Finished {
 
 impl PartialOrd for Finished {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Finished::Return, Finished::Return) => Some(std::cmp::Ordering::Equal),
-            (Finished::Return, _) => Some(std::cmp::Ordering::Greater),
-            (_, Finished::Return) => Some(std::cmp::Ordering::Less),
-            (Finished::Loop, Finished::Loop) => Some(std::cmp::Ordering::Equal),
-            (Finished::Loop, _) => Some(std::cmp::Ordering::Greater),
-            (_, Finished::Loop) => Some(std::cmp::Ordering::Less),
-            (Finished::No, Finished::No) => Some(std::cmp::Ordering::Equal),
-        }
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for Finished {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        #[allow(clippy::match_same_arms)]
+        match (self, other) {
+            (Self::Return, Self::Return) => std::cmp::Ordering::Equal,
+            (Self::Return, _) => std::cmp::Ordering::Greater,
+            (_, Self::Return) => std::cmp::Ordering::Less,
+            (Self::Loop, Self::Loop) => std::cmp::Ordering::Equal,
+            (Self::Loop, _) => std::cmp::Ordering::Greater,
+            (_, Self::Loop) => std::cmp::Ordering::Less,
+            (Self::No, Self::No) => std::cmp::Ordering::Equal,
+        }
     }
 }
 
 fn expression_is_trivially_pure(expr: &Expression) -> bool {
+    #[allow(clippy::match_same_arms)]
     match expr {
         Expression::Error => false,
         Expression::Variable(_)
@@ -325,6 +323,6 @@ fn expression_is_trivially_pure(expr: &Expression) -> bool {
             expression_is_trivially_pure(&lhs.0.expr) && expression_is_trivially_pure(&rhs.0.expr)
         }
         Expression::Convert { ty: _, expr } => expression_is_trivially_pure(&expr.0.expr),
-        Expression::Call { func: _, args: _ } => false,
+        Expression::Call { func: _, args: _ } => false, // todo: check if the function is pure in a more advanced way
     }
 }

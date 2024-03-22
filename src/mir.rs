@@ -250,16 +250,13 @@ impl<'src> MirBuilder<'src> {
 
                         (
                             *self.var_id_map.get(name.0).unwrap(),
-                            Spanned(ty.0.try_into().unwrap(), ty.1),
+                            Spanned(ty.0.into(), ty.1),
                         )
                     })
                     .collect(),
                 function.params.1,
             ),
-            return_ty: Spanned(
-                function.return_ty.0.try_into().unwrap(),
-                function.return_ty.1,
-            ),
+            return_ty: Spanned(function.return_ty.0.into(), function.return_ty.1),
             body: self.build_statements(function.body),
         }
     }
@@ -372,7 +369,7 @@ impl<'src> MirBuilder<'src> {
                         let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
 
                         Expression::Convert {
-                            ty: Spanned(ty.0.try_into().unwrap(), ty.1),
+                            ty: Spanned(ty.0.into(), ty.1),
                             expr: Spanned(Box::new(expr.0), expr.1),
                         }
                     }
@@ -387,7 +384,7 @@ impl<'src> MirBuilder<'src> {
                         ),
                     },
                 },
-                ty: expr.0.ty.try_into().unwrap(),
+                ty: expr.0.ty.into(),
             },
             expr.1,
         )

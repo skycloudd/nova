@@ -63,19 +63,15 @@ impl Diag for Error {
                 expected,
                 found,
                 span: _,
-            } => format!("expected type `{}`, but found type `{}`", expected, found).into(),
+            } => format!("expected type `{expected}`, but found type `{found}`").into(),
             Self::FunctionArgumentCountMismatch {
                 expected,
                 found,
                 expected_span: _,
                 found_span: _,
-            } => format!(
-                "expected {} function arguments, but found {}",
-                expected, found
-            )
-            .into(),
+            } => format!("expected {expected} function arguments, but found {found}",).into(),
             Self::UndefinedFunction { name, span: _ } => {
-                format!("undefined function `{}`", name).into()
+                format!("undefined function `{name}`").into()
             }
             Self::MissingReturn { span: _ } => {
                 "this function does not return a value on all code paths".into()
@@ -84,6 +80,7 @@ impl Diag for Error {
     }
 
     fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
+        #[allow(clippy::match_same_arms)]
         match self {
             Self::ExpectedFound {
                 expected: _,
@@ -96,8 +93,8 @@ impl Diag for Error {
                 found,
                 span,
             } => vec![
-                Spanned(Some(format!("expected `{}`", expected).into()), *span),
-                Spanned(Some(format!("found `{}`", found).into()), *span),
+                Spanned(Some(format!("expected `{expected}`").into()), *span),
+                Spanned(Some(format!("found `{found}`").into()), *span),
             ],
             Self::FunctionArgumentCountMismatch {
                 expected,
@@ -129,10 +126,7 @@ impl Diag for Error {
                 ),
             ],
             Self::UndefinedFunction { name, span } => {
-                vec![Spanned(
-                    Some(format!("`{}` called here", name).into()),
-                    *span,
-                )]
+                vec![Spanned(Some(format!("`{name}` called here").into()), *span)]
             }
             Self::MissingReturn { span } => vec![Spanned(None, *span)],
         }
@@ -174,7 +168,7 @@ impl Diag for Warning {
     fn message(&self) -> Cow<'_, str> {
         match self {
             Self::BadName { name, span: _ } => {
-                format!("identifier `{}` should be snake_case", name).into()
+                format!("identifier `{name}` should be snake_case").into()
             }
             Self::Lint {
                 span: _,
@@ -185,6 +179,7 @@ impl Diag for Warning {
     }
 
     fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
+        #[allow(clippy::match_same_arms)]
         match self {
             Self::BadName { name: _, span } => vec![Spanned(None, *span)],
             Self::Lint {
@@ -204,10 +199,9 @@ impl Diag for Warning {
                 span: _,
                 message: _,
                 note,
-            } => match note {
-                Some(note) => vec![format!("note: {}", note)],
-                None => vec![],
-            },
+            } => note
+                .as_ref()
+                .map_or_else(Vec::new, |note| vec![format!("note: {}", note)]),
         }
     }
 
