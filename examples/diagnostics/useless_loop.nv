@@ -1,0 +1,11 @@
+func useless_loop(): int do
+    loop do
+        break;
+    end
+
+    loop do
+        continue;
+    end
+
+    return 0;
+end

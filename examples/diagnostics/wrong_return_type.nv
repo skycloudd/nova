@@ -1,0 +1,3 @@
+func wrong_return_type(): str do
+    return 123;
+end

@@ -1,0 +1,4 @@
+func simple_unreachable_code(): int do
+    return 0;
+    return 1;
+end
