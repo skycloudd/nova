@@ -134,36 +134,28 @@ fn statement_parser<'tokens, 'src: 'tokens>(
             .boxed();
 
         let if_ = recursive(|if_| {
-            let just_if = just(Token::Kw(Kw::If))
+            let if_part = just(Token::Kw(Kw::If))
                 .ignore_then(expr_parser())
                 .then_ignore(just(Token::Kw(Kw::Then)))
                 .then(statements.clone())
-                .then_ignore(just(Token::Kw(Kw::End)))
-                .map(|(condition, then_branch)| Statement::If {
-                    condition,
-                    then_branch,
-                    else_branch: None,
-                })
                 .boxed();
 
-            let if_else = just(Token::Kw(Kw::If))
-                .ignore_then(expr_parser())
-                .then_ignore(just(Token::Kw(Kw::Then)))
-                .then(statements.clone())
-                .then_ignore(just(Token::Kw(Kw::Else)))
-                .then(statements.clone())
+            let if_else = if_part
+                .clone()
+                .then(
+                    just(Token::Kw(Kw::Else))
+                        .ignore_then(statements.clone())
+                        .or_not(),
+                )
                 .then_ignore(just(Token::Kw(Kw::End)))
                 .map(|((condition, then_branch), else_branch)| Statement::If {
                     condition,
                     then_branch,
-                    else_branch: Some(else_branch),
+                    else_branch,
                 })
                 .boxed();
 
-            let if_else_if_else = just(Token::Kw(Kw::If))
-                .ignore_then(expr_parser())
-                .then_ignore(just(Token::Kw(Kw::Then)))
-                .then(statements.clone())
+            let if_else_if_else = if_part
                 .then_ignore(just(Token::Kw(Kw::Else)))
                 .then(choice((
                     if_.map_with(|if_, e| Spanned(if_, e.span()))
@@ -178,7 +170,7 @@ fn statement_parser<'tokens, 'src: 'tokens>(
                 })
                 .boxed();
 
-            choice((if_else_if_else, if_else, just_if))
+            choice((if_else_if_else, if_else))
         });
 
         let for_ = just(Token::Kw(Kw::For))
