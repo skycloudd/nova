@@ -144,15 +144,17 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                 then_branch,
                 else_branch,
             } => {
-                if let Expression::Boolean(value) = condition.0.expr {
+                self.analyse_expression(condition);
+
+                if let ExpressionTruthness::Known(known) =
+                    check_expression_thruthness(condition.0.expr.clone())
+                {
                     self.warnings.push(Warning::Lint {
                         span: condition.1,
-                        message: format!("this `if` condition is always {value}"),
+                        message: format!("this `if` condition is always {known}"),
                         note: None,
                     });
                 }
-
-                self.analyse_expression(condition);
 
                 let mut if_branch_finished = Finished::No;
 
@@ -324,5 +326,18 @@ fn expression_is_trivially_pure(expr: &Expression) -> bool {
         }
         Expression::Convert { ty: _, expr } => expression_is_trivially_pure(&expr.0.expr),
         Expression::Call { func: _, args: _ } => false, // todo: check if the function is pure in a more advanced way
+    }
+}
+
+#[derive(Debug)]
+enum ExpressionTruthness {
+    Known(bool),
+    Unknown,
+}
+
+fn check_expression_thruthness(expr: Expression) -> ExpressionTruthness {
+    match expr {
+        Expression::Boolean(bool) => ExpressionTruthness::Known(bool),
+        _ => ExpressionTruthness::Unknown,
     }
 }

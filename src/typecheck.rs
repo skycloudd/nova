@@ -6,6 +6,7 @@ use crate::{
     error::{Error, Warning},
     scopes::Scopes,
     span::Spanned,
+    FloatTy, IntTy,
 };
 use rustc_hash::FxHashMap;
 use snake_case::is_snake_case;
@@ -334,7 +335,21 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
                     self.engine
                         .unify(return_ty.0, expr_ty)
                         .unwrap_or_else(|err| {
-                            self.errors.push(*err);
+                            if let Error::TypeMismatch {
+                                expected,
+                                found,
+                                span,
+                            } = *err
+                            {
+                                self.errors.push(Error::ReturnTypeMismatch {
+                                    expected,
+                                    found,
+                                    expected_span: return_ty.1,
+                                    found_span: span,
+                                });
+                            } else {
+                                self.errors.push(*err);
+                            }
                         });
 
                     TypedStatement::Return(expr)
@@ -346,210 +361,202 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
 
     #[allow(clippy::too_many_lines)]
     fn typecheck_expression(&mut self, expr: Spanned<Expr<'src>>) -> Spanned<TypedExpr<'src>> {
-        Spanned(
-            match expr.0 {
-                Expr::Error => TypedExpr {
-                    expr: typed::Expr::Error,
-                    ty: Type::Error,
-                },
-                Expr::Variable(var) => {
-                    let var_result = self.variables.get(&var.0);
+        let checked_expr = match expr.0 {
+            Expr::Error => TypedExpr {
+                expr: typed::Expr::Error,
+                ty: Type::Error,
+            },
+            Expr::Variable(var) => {
+                let var_result = self.variables.get(&var.0);
 
-                    if let Some(ty) = var_result {
-                        TypedExpr {
-                            expr: typed::Expr::Variable(var),
-                            ty: match self.engine.reconstruct(*ty) {
-                                Ok(ty) => ty.0,
-                                Err(err) => {
-                                    self.errors.push(*err);
-                                    Type::Error
-                                }
-                            },
-                        }
-                    } else {
-                        panic!()
-                    }
-                }
-                Expr::Boolean(boolean) => TypedExpr {
-                    expr: typed::Expr::Boolean(boolean),
-                    ty: Type::Boolean,
-                },
-                Expr::Integer(integer) => TypedExpr {
-                    expr: typed::Expr::Integer(integer),
-                    ty: Type::Integer,
-                },
-                Expr::Float(float) => TypedExpr {
-                    expr: typed::Expr::Float(float),
-                    ty: Type::Float,
-                },
-                Expr::String(string) => TypedExpr {
-                    expr: typed::Expr::String(string),
-                    ty: Type::String,
-                },
-                Expr::Binary(lhs, op, rhs) => {
-                    let lhs = self.typecheck_expression(Spanned(*lhs.0, lhs.1));
-
-                    let lhs_ty = self.engine.insert_type(&Spanned(lhs.0.ty, lhs.1));
-
-                    let rhs = self.typecheck_expression(Spanned(*rhs.0, rhs.1));
-
-                    let rhs_ty = self.engine.insert_type(&Spanned(rhs.0.ty, rhs.1));
-
-                    let ty = bin_op!(
-                        &lhs.0.ty,
-                        &rhs.0.ty,
-                        op.0,
-                        (Boolean, Boolean, Equals, Boolean),
-                        (Boolean, Boolean, NotEquals, Boolean),
-                        (Integer, Integer, Equals, Boolean),
-                        (Integer, Integer, NotEquals, Boolean),
-                        (Integer, Integer, Plus, Integer),
-                        (Integer, Integer, Minus, Integer),
-                        (Integer, Integer, Multiply, Integer),
-                        (Integer, Integer, Divide, Integer),
-                        (Integer, Integer, GreaterThanEquals, Boolean),
-                        (Integer, Integer, LessThanEquals, Boolean),
-                        (Integer, Integer, GreaterThan, Boolean),
-                        (Integer, Integer, LessThan, Boolean),
-                        (Float, Float, Equals, Boolean),
-                        (Float, Float, NotEquals, Boolean),
-                        (Float, Float, Plus, Float),
-                        (Float, Float, Minus, Float),
-                        (Float, Float, Multiply, Float),
-                        (Float, Float, Divide, Float),
-                        (Float, Float, GreaterThanEquals, Boolean),
-                        (Float, Float, LessThanEquals, Boolean),
-                        (Float, Float, GreaterThan, Boolean),
-                        (Float, Float, LessThan, Boolean),
-                        (String, String, Equals, Boolean),
-                        (String, String, NotEquals, Boolean),
-                        (String, String, Plus, String)
-                    )
-                    .map_err(|()| panic!());
-
-                    let ty = match ty {
-                        Ok(ty) => ty,
-                        Err(err) => {
-                            self.errors.push(err);
-                            Type::Error
-                        }
-                    };
-
-                    self.engine.unify(lhs_ty, rhs_ty).ok();
-
+                if let Some(ty) = var_result {
                     TypedExpr {
-                        expr: typed::Expr::Binary(
-                            Spanned(Box::new(lhs.0), lhs.1),
-                            op,
-                            Spanned(Box::new(rhs.0), rhs.1),
-                        ),
-                        ty,
-                    }
-                }
-                Expr::Unary(op, expr) => {
-                    let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
-
-                    let ty = match (&expr.0.ty, op.0) {
-                        (Type::Integer, UnaryOp::Negate) => Ok(Type::Integer),
-                        (Type::Float, UnaryOp::Negate) => Ok(Type::Float),
-                        (Type::Boolean, UnaryOp::Not) => Ok(Type::Boolean),
-                        _ => panic!(),
-                    };
-
-                    let ty = match ty {
-                        Ok(ty) => ty,
-                        Err(err) => {
-                            self.errors.push(err);
-                            Type::Error
-                        }
-                    };
-
-                    TypedExpr {
-                        expr: typed::Expr::Unary(op, Spanned(Box::new(expr.0), expr.1)),
-                        ty,
-                    }
-                }
-                Expr::Convert { ty, expr } => {
-                    let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
-
-                    #[allow(clippy::match_same_arms)]
-                    match (&expr.0.ty, &ty.0) {
-                        (from, to) if from == to => {}
-
-                        (Type::Error, _) | (_, Type::Error) => {}
-
-                        (Type::Integer, Type::Float | Type::String) => {}
-
-                        (Type::Float, Type::Integer | Type::String) => {}
-
-                        _ => panic!(),
-                    }
-
-                    TypedExpr {
-                        ty: ty.0,
-                        expr: typed::Expr::Convert {
-                            ty,
-                            expr: Spanned(Box::new(expr.0), expr.1),
+                        expr: typed::Expr::Variable(var),
+                        ty: match self.engine.reconstruct(*ty) {
+                            Ok(ty) => ty.0,
+                            Err(err) => {
+                                self.errors.push(*err);
+                                Type::Error
+                            }
                         },
                     }
+                } else {
+                    panic!()
                 }
-                Expr::Call { func, args } => {
-                    let args = Spanned(
-                        args.0
-                            .into_iter()
-                            .map(|arg| self.typecheck_expression(arg))
-                            .collect::<Vec<_>>(),
-                        args.1,
-                    );
-
-                    let Some(signature) = self.functions.get(&func.0) else {
-                        self.errors.push(Error::UndefinedFunction {
-                            name: func.0.to_string(),
-                            span: expr.1,
-                        });
-
-                        return Spanned(
-                            TypedExpr {
-                                expr: typed::Expr::Error,
-                                ty: Type::Error,
-                            },
-                            expr.1,
-                        );
-                    };
-
-                    if args.0.len() != signature.params.0.len() {
-                        self.errors.push(Error::FunctionArgumentCountMismatch {
-                            expected: signature.params.0.len(),
-                            found: args.0.len(),
-                            expected_span: signature.params.1,
-                            found_span: args.1,
-                        });
-                    }
-
-                    for (arg, ty) in args.0.iter().zip(&signature.params.0) {
-                        let arg_ty = self.engine.insert_type(&Spanned(arg.0.ty, arg.1));
-
-                        self.engine.unify(arg_ty, ty.0).unwrap_or_else(|err| {
-                            self.errors.push(*err);
-                        });
-                    }
-
-                    let return_ty = match self.engine.reconstruct(signature.return_ty.0) {
-                        Ok(ty) => ty.0,
-                        Err(err) => {
-                            self.errors.push(*err);
-                            Type::Error
-                        }
-                    };
-
-                    TypedExpr {
-                        expr: typed::Expr::Call { func, args },
-                        ty: return_ty,
-                    }
-                }
+            }
+            Expr::Boolean(boolean) => TypedExpr {
+                expr: typed::Expr::Boolean(boolean),
+                ty: Type::Boolean,
             },
-            expr.1,
-        )
+            Expr::Integer(integer) => TypedExpr {
+                expr: typed::Expr::Integer(integer),
+                ty: Type::Integer,
+            },
+            Expr::Float(float) => TypedExpr {
+                expr: typed::Expr::Float(float),
+                ty: Type::Float,
+            },
+            Expr::String(string) => TypedExpr {
+                expr: typed::Expr::String(string),
+                ty: Type::String,
+            },
+            Expr::Binary(lhs, op, rhs) => {
+                let lhs = self.typecheck_expression(Spanned(*lhs.0, lhs.1));
+
+                let lhs_ty = self.engine.insert_type(&Spanned(lhs.0.ty, lhs.1));
+
+                let rhs = self.typecheck_expression(Spanned(*rhs.0, rhs.1));
+
+                let rhs_ty = self.engine.insert_type(&Spanned(rhs.0.ty, rhs.1));
+
+                let ty = bin_op!(
+                    &lhs.0.ty,
+                    &rhs.0.ty,
+                    op.0,
+                    (Boolean, Boolean, Equals, Boolean),
+                    (Boolean, Boolean, NotEquals, Boolean),
+                    (Integer, Integer, Equals, Boolean),
+                    (Integer, Integer, NotEquals, Boolean),
+                    (Integer, Integer, Plus, Integer),
+                    (Integer, Integer, Minus, Integer),
+                    (Integer, Integer, Multiply, Integer),
+                    (Integer, Integer, Divide, Integer),
+                    (Integer, Integer, GreaterThanEquals, Boolean),
+                    (Integer, Integer, LessThanEquals, Boolean),
+                    (Integer, Integer, GreaterThan, Boolean),
+                    (Integer, Integer, LessThan, Boolean),
+                    (Float, Float, Equals, Boolean),
+                    (Float, Float, NotEquals, Boolean),
+                    (Float, Float, Plus, Float),
+                    (Float, Float, Minus, Float),
+                    (Float, Float, Multiply, Float),
+                    (Float, Float, Divide, Float),
+                    (Float, Float, GreaterThanEquals, Boolean),
+                    (Float, Float, LessThanEquals, Boolean),
+                    (Float, Float, GreaterThan, Boolean),
+                    (Float, Float, LessThan, Boolean)
+                )
+                .map_err(|()| panic!());
+
+                let ty = match ty {
+                    Ok(ty) => ty,
+                    Err(err) => {
+                        self.errors.push(err);
+                        Type::Error
+                    }
+                };
+
+                self.engine.unify(lhs_ty, rhs_ty).ok();
+
+                TypedExpr {
+                    expr: typed::Expr::Binary(
+                        Spanned(Box::new(lhs.0), lhs.1),
+                        op,
+                        Spanned(Box::new(rhs.0), rhs.1),
+                    ),
+                    ty,
+                }
+            }
+            Expr::Unary(op, expr) => {
+                let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
+
+                let ty = match (&expr.0.ty, op.0) {
+                    (Type::Integer, UnaryOp::Negate) => Ok(Type::Integer),
+                    (Type::Float, UnaryOp::Negate) => Ok(Type::Float),
+                    (Type::Boolean, UnaryOp::Not) => Ok(Type::Boolean),
+                    _ => panic!(),
+                };
+
+                let ty = match ty {
+                    Ok(ty) => ty,
+                    Err(err) => {
+                        self.errors.push(err);
+                        Type::Error
+                    }
+                };
+
+                TypedExpr {
+                    expr: typed::Expr::Unary(op, Spanned(Box::new(expr.0), expr.1)),
+                    ty,
+                }
+            }
+            Expr::Convert { ty, expr } => {
+                let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
+
+                #[allow(clippy::match_same_arms)]
+                match (&expr.0.ty, &ty.0) {
+                    (from, to) if from == to => {}
+                    (Type::Error, _) | (_, Type::Error) => {}
+                    _ => panic!(),
+                }
+
+                TypedExpr {
+                    ty: ty.0,
+                    expr: typed::Expr::Convert {
+                        ty,
+                        expr: Spanned(Box::new(expr.0), expr.1),
+                    },
+                }
+            }
+            Expr::Call { func, args } => {
+                let args = Spanned(
+                    args.0
+                        .into_iter()
+                        .map(|arg| self.typecheck_expression(arg))
+                        .collect::<Vec<_>>(),
+                    args.1,
+                );
+
+                let Some(signature) = self.functions.get(&func.0) else {
+                    self.errors.push(Error::UndefinedFunction {
+                        name: func.0.to_string(),
+                        span: expr.1,
+                    });
+
+                    return Spanned(
+                        TypedExpr {
+                            expr: typed::Expr::Error,
+                            ty: Type::Error,
+                        },
+                        expr.1,
+                    );
+                };
+
+                if args.0.len() != signature.params.0.len() {
+                    self.errors.push(Error::FunctionArgumentCountMismatch {
+                        expected: signature.params.0.len(),
+                        found: args.0.len(),
+                        expected_span: signature.params.1,
+                        found_span: args.1,
+                    });
+                }
+
+                for (arg, ty) in args.0.iter().zip(&signature.params.0) {
+                    let arg_ty = self.engine.insert_type(&Spanned(arg.0.ty, arg.1));
+
+                    self.engine.unify(arg_ty, ty.0).unwrap_or_else(|err| {
+                        self.errors.push(*err);
+                    });
+                }
+
+                let return_ty = match self.engine.reconstruct(signature.return_ty.0) {
+                    Ok(ty) => ty.0,
+                    Err(err) => {
+                        self.errors.push(*err);
+                        Type::Error
+                    }
+                };
+
+                TypedExpr {
+                    expr: typed::Expr::Call { func, args },
+                    ty: return_ty,
+                }
+            }
+        };
+
+        let evaluated_expr = evaluate_expression(&checked_expr.expr).map(Value::recreate);
+
+        Spanned(evaluated_expr.unwrap_or(checked_expr), expr.1)
     }
 
     fn push_scope(&mut self) {
@@ -698,3 +705,112 @@ macro_rules! bin_op {
     };
 }
 use bin_op;
+
+#[derive(Debug, PartialEq)]
+pub enum Value {
+    Boolean(bool),
+    Integer(IntTy),
+    Float(FloatTy),
+    String(String),
+}
+
+impl Value {
+    fn recreate<'src>(self) -> TypedExpr<'src> {
+        match self {
+            Value::Boolean(bool) => TypedExpr {
+                expr: typed::Expr::Boolean(bool),
+                ty: Type::Boolean,
+            },
+            Value::Integer(int) => TypedExpr {
+                expr: typed::Expr::Integer(int),
+                ty: Type::Integer,
+            },
+            Value::Float(float) => TypedExpr {
+                expr: typed::Expr::Float(float),
+                ty: Type::Float,
+            },
+            Value::String(string) => TypedExpr {
+                expr: typed::Expr::String(string),
+                ty: Type::String,
+            },
+        }
+    }
+}
+
+fn evaluate_expression(expr: &typed::Expr) -> Option<Value> {
+    match expr {
+        typed::Expr::Error | typed::Expr::Variable(_) => None,
+        typed::Expr::Boolean(bool) => Some(Value::Boolean(*bool)),
+        typed::Expr::Integer(int) => Some(Value::Integer(*int)),
+        typed::Expr::Float(float) => Some(Value::Float(*float)),
+        typed::Expr::String(string) => Some(Value::String(string.clone())),
+        typed::Expr::Unary(op, rhs) => {
+            let rhs = evaluate_expression(&rhs.0.expr)?;
+
+            match op.0 {
+                UnaryOp::Negate => match rhs {
+                    Value::Integer(int) => Some(Value::Integer(-int)),
+                    Value::Float(float) => Some(Value::Float(-float)),
+                    _ => unreachable!(),
+                },
+                UnaryOp::Not => match rhs {
+                    Value::Boolean(bool) => Some(Value::Boolean(!bool)),
+                    _ => unreachable!(),
+                },
+            }
+        }
+        typed::Expr::Binary(lhs, op, rhs) => {
+            assert_eq!(lhs.0.ty, rhs.0.ty);
+
+            let lhs_value = evaluate_expression(&lhs.0.expr)?;
+            let rhs_value = evaluate_expression(&rhs.0.expr)?;
+
+            match (lhs_value, rhs_value) {
+                (Value::Boolean(lhs), Value::Boolean(rhs)) => match op.0 {
+                    BinaryOp::Equals => Some(Value::Boolean(lhs == rhs)),
+                    BinaryOp::NotEquals => Some(Value::Boolean(lhs != rhs)),
+                    _ => unreachable!(),
+                },
+                (Value::Integer(lhs), Value::Integer(rhs)) => match op.0 {
+                    BinaryOp::Equals => Some(Value::Boolean(lhs == rhs)),
+                    BinaryOp::NotEquals => Some(Value::Boolean(lhs != rhs)),
+                    BinaryOp::Plus => Some(Value::Integer(lhs + rhs)),
+                    BinaryOp::Minus => Some(Value::Integer(lhs - rhs)),
+                    BinaryOp::Multiply => Some(Value::Integer(lhs * rhs)),
+                    BinaryOp::Divide => Some(Value::Integer(lhs / rhs)),
+                    BinaryOp::GreaterThanEquals => Some(Value::Boolean(lhs >= rhs)),
+                    BinaryOp::LessThanEquals => Some(Value::Boolean(lhs <= rhs)),
+                    BinaryOp::GreaterThan => Some(Value::Boolean(lhs > rhs)),
+                    BinaryOp::LessThan => Some(Value::Boolean(lhs < rhs)),
+                },
+                (Value::Float(lhs), Value::Float(rhs)) => match op.0 {
+                    BinaryOp::Equals => Some(Value::Boolean(lhs == rhs)),
+                    BinaryOp::NotEquals => Some(Value::Boolean(lhs != rhs)),
+                    BinaryOp::Plus => Some(Value::Float(lhs + rhs)),
+                    BinaryOp::Minus => Some(Value::Float(lhs - rhs)),
+                    BinaryOp::Multiply => Some(Value::Float(lhs * rhs)),
+                    BinaryOp::Divide => Some(Value::Float(lhs / rhs)),
+                    BinaryOp::GreaterThanEquals => Some(Value::Boolean(lhs >= rhs)),
+                    BinaryOp::LessThanEquals => Some(Value::Boolean(lhs <= rhs)),
+                    BinaryOp::GreaterThan => Some(Value::Boolean(lhs > rhs)),
+                    BinaryOp::LessThan => Some(Value::Boolean(lhs < rhs)),
+                },
+                (Value::String(_lhs), Value::String(_rhs)) => match op.0 {
+                    _ => unreachable!(),
+                },
+                _ => unreachable!(),
+            }
+        }
+        typed::Expr::Convert { ty, expr } => {
+            let expr_ty = expr.0.ty;
+            let expr = evaluate_expression(&expr.0.expr)?;
+
+            match (ty.0, expr_ty) {
+                (from, to) if from == to => Some(expr),
+                (Type::Error, _) => None,
+                _ => unreachable!(),
+            }
+        }
+        typed::Expr::Call { func: _, args: _ } => None,
+    }
+}

@@ -30,6 +30,12 @@ pub enum Error {
         found: TypeInfo,
         span: Span,
     },
+    ReturnTypeMismatch {
+        expected: TypeInfo,
+        found: TypeInfo,
+        expected_span: Span,
+        found_span: Span,
+    },
     FunctionArgumentCountMismatch {
         expected: usize,
         found: usize,
@@ -64,6 +70,13 @@ impl Diag for Error {
                 found,
                 span: _,
             } => format!("expected type `{expected}`, but found type `{found}`").into(),
+            Self::ReturnTypeMismatch {
+                expected,
+                found,
+                expected_span: _,
+                found_span: _,
+            } => format!("returning an expression of type `{found}`, but expected `{expected}`")
+                .into(),
             Self::FunctionArgumentCountMismatch {
                 expected,
                 found,
@@ -95,6 +108,18 @@ impl Diag for Error {
             } => vec![
                 Spanned(Some(format!("expected `{expected}`").into()), *span),
                 Spanned(Some(format!("found `{found}`").into()), *span),
+            ],
+            Self::ReturnTypeMismatch {
+                expected,
+                found,
+                expected_span,
+                found_span,
+            } => vec![
+                Spanned(
+                    Some(format!("expected `{expected}` because of the return type").into()),
+                    *expected_span,
+                ),
+                Spanned(Some(format!("found `{found}`").into()), *found_span),
             ],
             Self::FunctionArgumentCountMismatch {
                 expected,
@@ -138,6 +163,7 @@ impl Diag for Error {
             Self::ExpectedFound { .. } => vec![],
             Self::Custom { .. } => vec![],
             Self::TypeMismatch { .. } => vec![],
+            Self::ReturnTypeMismatch { .. } => vec![],
             Self::FunctionArgumentCountMismatch { .. } => vec![],
             Self::UndefinedFunction { .. } => vec![],
             Self::MissingReturn { .. } => {
@@ -168,7 +194,7 @@ impl Diag for Warning {
     fn message(&self) -> Cow<'_, str> {
         match self {
             Self::BadName { name, span: _ } => {
-                format!("identifier `{name}` should be snake_case").into()
+                format!("identifier `{name}` should be snake case").into()
             }
             Self::Lint {
                 span: _,
