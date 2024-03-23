@@ -9,6 +9,4 @@ func main(): str do
         1 + 1;
         return "a";
     end
-
-    return "b";
 end

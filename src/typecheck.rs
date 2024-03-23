@@ -510,7 +510,7 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
                 let Some(signature) = self.functions.get(&func.0) else {
                     self.errors.push(Error::UndefinedFunction {
                         name: func.0.to_string(),
-                        span: expr.1,
+                        span: func.1,
                     });
 
                     return Spanned(

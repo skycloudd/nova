@@ -5,11 +5,10 @@ use crate::{
 use chumsky::error::{Rich, RichReason};
 use codespan_reporting::diagnostic::Severity;
 use heck::ToSnakeCase;
-use std::borrow::Cow;
 
 pub trait Diag {
-    fn message(&self) -> Cow<'_, str>;
-    fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>>;
+    fn message(&self) -> String;
+    fn spans(&self) -> Vec<Spanned<Option<String>>>;
     fn notes(&self) -> Vec<String>;
     fn kind(&self) -> Severity;
 }
@@ -49,10 +48,13 @@ pub enum Error {
     MissingReturn {
         span: Span,
     },
+    BreakOrContinueOutsideLoop {
+        span: Span,
+    },
 }
 
 impl Diag for Error {
-    fn message(&self) -> Cow<'_, str> {
+    fn message(&self) -> String {
         match self {
             Self::ExpectedFound {
                 expected,
@@ -65,52 +67,51 @@ impl Diag for Error {
                     .as_deref()
                     .map(|found| format!("`{found}`"))
                     .unwrap_or("something else".to_string())
-            )
-            .into(),
-            Self::Custom { message, span: _ } => message.into(),
+            ),
+            Self::Custom { message, span: _ } => message.clone(),
             Self::TypeMismatch {
                 expected,
                 found,
                 span: _,
-            } => format!("expected type `{expected}`, but found type `{found}`").into(),
+            } => format!("expected type `{expected}`, but found type `{found}`"),
             Self::ReturnTypeMismatch {
                 expected,
                 found,
                 expected_span: _,
                 found_span: _,
-            } => format!("returning an expression of type `{found}`, but expected `{expected}`")
-                .into(),
+            } => format!("returning an expression of type `{found}`, but expected `{expected}`"),
             Self::FunctionArgumentCountMismatch {
                 expected,
                 found,
                 expected_span: _,
                 found_span: _,
-            } => format!("expected {expected} function arguments, but found {found}",).into(),
-            Self::UndefinedFunction { name, span: _ } => {
-                format!("undefined function `{name}`").into()
-            }
+            } => format!("expected {expected} function arguments, but found {found}"),
+            Self::UndefinedFunction { name, span: _ } => format!("undefined function `{name}`"),
             Self::MissingReturn { span: _ } => {
-                "this function does not return a value on all code paths".into()
+                "this function does not return a value on all code paths".to_string()
+            }
+            Self::BreakOrContinueOutsideLoop { span: _ } => {
+                "a `break` or `continue` statement was used outside of a loop".to_string()
             }
         }
     }
 
-    fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
+    fn spans(&self) -> Vec<Spanned<Option<String>>> {
         #[allow(clippy::match_same_arms)]
         match self {
             Self::ExpectedFound {
                 expected: _,
                 found: _,
                 span,
-            } => vec![Spanned(Some("unexpected token".into()), *span)],
+            } => vec![Spanned(Some("unexpected token".to_string()), *span)],
             Self::Custom { message: _, span } => vec![Spanned(None, *span)],
             Self::TypeMismatch {
                 expected,
                 found,
                 span,
             } => vec![
-                Spanned(Some(format!("expected `{expected}`").into()), *span),
-                Spanned(Some(format!("found `{found}`").into()), *span),
+                Spanned(Some(format!("expected `{expected}`")), *span),
+                Spanned(Some(format!("found `{found}`")), *span),
             ],
             Self::ReturnTypeMismatch {
                 expected,
@@ -119,10 +120,10 @@ impl Diag for Error {
                 found_span,
             } => vec![
                 Spanned(
-                    Some(format!("expected `{expected}` because of the return type").into()),
+                    Some(format!("expected `{expected}` because of the return type")),
                     *expected_span,
                 ),
-                Spanned(Some(format!("found `{found}`").into()), *found_span),
+                Spanned(Some(format!("found `{found}`")), *found_span),
             ],
             Self::FunctionArgumentCountMismatch {
                 expected,
@@ -131,32 +132,27 @@ impl Diag for Error {
                 found_span,
             } => vec![
                 Spanned(
-                    Some(
-                        format!(
-                            "expected {} argument{}",
-                            expected,
-                            if *expected == 1 { "" } else { "s" },
-                        )
-                        .into(),
-                    ),
+                    Some(format!(
+                        "expected {} argument{}",
+                        expected,
+                        if *expected == 1 { "" } else { "s" },
+                    )),
                     *expected_span,
                 ),
                 Spanned(
-                    Some(
-                        format!(
-                            "found {} argument{}",
-                            found,
-                            if *found == 1 { "" } else { "s" }
-                        )
-                        .into(),
-                    ),
+                    Some(format!(
+                        "found {} argument{}",
+                        found,
+                        if *found == 1 { "" } else { "s" }
+                    )),
                     *found_span,
                 ),
             ],
             Self::UndefinedFunction { name, span } => {
-                vec![Spanned(Some(format!("`{name}` called here").into()), *span)]
+                vec![Spanned(Some(format!("`{name}` called here")), *span)]
             }
             Self::MissingReturn { span } => vec![Spanned(None, *span)],
+            Self::BreakOrContinueOutsideLoop { span } => vec![Spanned(None, *span)],
         }
     }
 
@@ -171,6 +167,9 @@ impl Diag for Error {
             Self::UndefinedFunction { .. } => vec![],
             Self::MissingReturn { .. } => {
                 vec!["consider adding a return statement at the end of this function".into()]
+            }
+            Self::BreakOrContinueOutsideLoop { .. } => {
+                vec!["you can only use this inside of a loop".into()]
             }
         }
     }
@@ -194,7 +193,7 @@ pub enum Warning {
 }
 
 impl Diag for Warning {
-    fn message(&self) -> Cow<'_, str> {
+    fn message(&self) -> String {
         match self {
             Self::BadName { name, span: _ } => {
                 format!("identifier `{name}` should be snake case").into()
@@ -207,7 +206,7 @@ impl Diag for Warning {
         }
     }
 
-    fn spans(&self) -> Vec<Spanned<Option<Cow<'_, str>>>> {
+    fn spans(&self) -> Vec<Spanned<Option<String>>> {
         #[allow(clippy::match_same_arms)]
         match self {
             Self::BadName { name: _, span } => vec![Spanned(None, *span)],

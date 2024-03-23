@@ -18,6 +18,8 @@ pub fn analyse(mir: &[Spanned<TopLevel>]) -> (Vec<Warning>, Vec<Error>) {
 struct Analysis<'warning, 'error> {
     warnings: &'warning mut Vec<Warning>,
     errors: &'error mut Vec<Error>,
+
+    loop_depth: usize,
 }
 
 impl<'warning, 'error> Analysis<'warning, 'error> {
@@ -25,7 +27,11 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
         warnings: &'warning mut Vec<Warning>,
         errors: &'error mut Vec<Error>,
     ) -> Analysis<'warning, 'error> {
-        Analysis { warnings, errors }
+        Analysis {
+            warnings,
+            errors,
+            loop_depth: 0,
+        }
     }
 
     fn analyse(&mut self, mir: &[Spanned<TopLevel>]) {
@@ -123,6 +129,8 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
 
                 let mut finished = Finished::No;
 
+                self.loop_depth += 1;
+
                 for stmt in &stmts.0 {
                     let res = self.analyse_statement(stmt);
 
@@ -136,6 +144,8 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                         });
                     }
                 }
+
+                self.loop_depth -= 1;
 
                 finished
             }
@@ -237,7 +247,14 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
 
                 Finished::No
             }
-            Statement::Break | Statement::Continue => Finished::Loop,
+            Statement::Break | Statement::Continue => {
+                if self.loop_depth == 0 {
+                    self.errors
+                        .push(Error::BreakOrContinueOutsideLoop { span: statement.1 });
+                }
+
+                Finished::Loop
+            }
             Statement::Return(expr) => {
                 self.analyse_expression(expr);
 

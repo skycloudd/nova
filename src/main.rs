@@ -2,6 +2,7 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
+use camino::Utf8PathBuf;
 use clap::Parser;
 use codespan_reporting::{
     files::SimpleFiles,
@@ -11,17 +12,17 @@ use codespan_reporting::{
     },
 };
 use nova::{report, run, CompileResult};
-use std::{fs::read_to_string, path::PathBuf, process::ExitCode};
+use std::{fs::read_to_string, process::ExitCode};
 
 #[derive(clap::Parser)]
 struct Args {
-    filename: PathBuf,
+    filename: Utf8PathBuf,
 }
 
 fn main() -> ExitCode {
     let args = Args::parse();
 
-    eprintln!("Compiling {}", args.filename.display());
+    eprintln!("Compiling {}", args.filename);
 
     let mut files = SimpleFiles::new();
 
@@ -48,7 +49,7 @@ fn main() -> ExitCode {
                 );
             }
 
-            eprintln!("Finished {}", args.filename.display());
+            eprintln!("Finished {}", args.filename);
 
             ExitCode::SUCCESS
         }

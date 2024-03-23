@@ -2,6 +2,7 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
+use camino::Utf8Path;
 use chumsky::prelude::*;
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
@@ -9,7 +10,7 @@ use codespan_reporting::{
 };
 use error::{convert, Diag, Error, Warning};
 use span::{Ctx, Span};
-use std::{borrow::Cow, fmt::Display, path::Path};
+use std::fmt::Display;
 
 mod analyse;
 mod ast;
@@ -38,11 +39,11 @@ pub enum CompileResult {
 }
 
 pub fn run<'src, 'file>(
-    files: &mut SimpleFiles<Cow<'file, str>, &'src str>,
+    files: &mut SimpleFiles<&'file Utf8Path, &'src str>,
     input: &'src str,
-    filename: &'file Path,
+    filename: &'file Utf8Path,
 ) -> CompileResult {
-    let file_id = files.add(filename.to_string_lossy(), input);
+    let file_id = files.add(filename, input);
 
     let file_ctx = Ctx(file_id);
 

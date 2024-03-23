@@ -1,0 +1,29 @@
+func main(): int do
+    let n = 10;
+
+    fib_recursive(n);
+    fib_iterative(n);
+
+    return 0;
+end
+
+func fib_recursive(n: int): int do
+    if n <= 1 then
+        return n;
+    end
+
+    return fib_recursive(n - 1) + fib_recursive(n - 2);
+end
+
+func fib_iterative(n: int): int do
+    let a = 0;
+    let b = 1;
+
+    for i in 0..n do
+        let tmp = a;
+        a = b;
+        b = tmp + b;
+    end
+
+    return a;
+end
