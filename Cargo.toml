@@ -5,10 +5,11 @@ edition = "2021"
 
 [dependencies]
 camino = "1.1.6"
-chumsky = "1.0.0-alpha.6"
+chumsky = { version = "1.0.0-alpha.6", features = ["label"] }
 clap = { version = "4.5.3", features = ["derive"] }
 codespan-reporting = "0.11.1"
 heck = "0.5.0"
+levenshtein = "1.0.5"
 log = "0.4.21"
 rustc-hash = "1.1.0"
 simple_logger = { version = "4.3.3", default-features = false, features = [

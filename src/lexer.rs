@@ -256,21 +256,21 @@ pub fn lexer<'src>() -> impl Parser<'src, LexerInput<'src>, LexerOutput<'src>, L
     ))
     .boxed();
 
-    let token = choice((
-        keyword, bool, variable, float, integer, string, operator, ctrl,
-    ))
-    .boxed();
-
     let comment = just("#")
         .then(any().and_is(just('\n').not()).repeated())
         .padded()
         .boxed();
 
+    let token = choice((
+        keyword, bool, variable, float, integer, string, operator, ctrl,
+    ))
+    .map_with(|tok, e| (tok, e.span()))
+    .padded_by(comment.clone().repeated())
+    .padded()
+    .recover_with(skip_then_retry_until(any().ignored(), end()))
+    .boxed();
+
     token
-        .map_with(|tok, e| (tok, e.span()))
-        .padded_by(comment.clone().repeated())
-        .padded()
-        .recover_with(skip_then_retry_until(any().ignored(), end()))
         .repeated()
         .collect()
         .padded_by(comment.repeated())

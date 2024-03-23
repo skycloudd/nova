@@ -51,6 +51,11 @@ pub enum Error {
     BreakOrContinueOutsideLoop {
         span: Span,
     },
+    UndefinedVariable {
+        name: String,
+        span: Span,
+        closest: Option<(String, usize)>,
+    },
 }
 
 impl Diag for Error {
@@ -61,7 +66,8 @@ impl Diag for Error {
                 found,
                 span: _,
             } => format!(
-                "expected one of {}, but found {}",
+                "expected {}{}, but found {}",
+                if expected.len() == 1 { "" } else { "one of " },
                 expected.join(", "),
                 found
                     .as_deref()
@@ -92,6 +98,13 @@ impl Diag for Error {
             }
             Self::BreakOrContinueOutsideLoop { span: _ } => {
                 "a `break` or `continue` statement was used outside of a loop".to_string()
+            }
+            Self::UndefinedVariable {
+                name,
+                span: _,
+                closest: _,
+            } => {
+                format!("no variable `{name}` was found in this scope")
             }
         }
     }
@@ -153,6 +166,13 @@ impl Diag for Error {
             }
             Self::MissingReturn { span } => vec![Spanned(None, *span)],
             Self::BreakOrContinueOutsideLoop { span } => vec![Spanned(None, *span)],
+            Self::UndefinedVariable {
+                name,
+                span,
+                closest: _,
+            } => {
+                vec![Spanned(Some(format!("`{name}` used here")), *span)]
+            }
         }
     }
 
@@ -171,6 +191,12 @@ impl Diag for Error {
             Self::BreakOrContinueOutsideLoop { .. } => {
                 vec!["you can only use this inside of a loop".into()]
             }
+            Self::UndefinedVariable { closest, .. } => closest
+                .as_ref()
+                .filter(|(_, dist)| *dist <= 3)
+                .map_or_else(Vec::new, |(closest, _)| {
+                    vec![format!("did you mean `{}`?", closest)]
+                }),
         }
     }
 

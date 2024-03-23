@@ -1,8 +1,8 @@
 func main(): int do
-    let n = 10;
-
-    fib_recursive(n);
-    fib_iterative(n);
+    for n in 0..10 do
+        fib_recursive(n);
+        fib_iterative(n);
+    end
 
     return 0;
 end

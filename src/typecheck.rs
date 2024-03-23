@@ -67,6 +67,7 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
                             .params
                             .0
                             .iter()
+                            .filter(|(_, ty)| ty.0 != Type::Error)
                             .map(|(_, ty)| Spanned(self.engine.insert_type(ty), ty.1))
                             .collect(),
                         function.params.1,
@@ -381,7 +382,19 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
                         },
                     }
                 } else {
-                    panic!()
+                    self.errors.push(Error::UndefinedVariable {
+                        name: var.0.to_string(),
+                        span: var.1,
+                        closest: self
+                            .variables
+                            .closest_str_key(&var.0)
+                            .map(|(name, dist)| (name.to_string(), dist)),
+                    });
+
+                    TypedExpr {
+                        expr: typed::Expr::Error,
+                        ty: Type::Error,
+                    }
                 }
             }
             Expr::Boolean(boolean) => TypedExpr {
@@ -624,7 +637,7 @@ impl Engine {
     fn expect(&self, id: TypeId, ty: &TypeInfo) -> Result<(), Box<Error>> {
         let var = &self.vars[&id];
 
-        if &var.0 == ty {
+        if &var.0 == ty || &var.0 == &TypeInfo::Error {
             Ok(())
         } else {
             Err(Box::new(Error::TypeMismatch {
@@ -760,10 +773,10 @@ fn evaluate_expression(expr: &typed::Expr) -> Option<Value> {
             }
         }
         typed::Expr::Binary(lhs, op, rhs) => {
-            assert_eq!(lhs.0.ty, rhs.0.ty);
-
             let lhs_value = evaluate_expression(&lhs.0.expr)?;
             let rhs_value = evaluate_expression(&rhs.0.expr)?;
+
+            assert_eq!(lhs.0.ty, rhs.0.ty);
 
             match (lhs_value, rhs_value) {
                 (Value::Boolean(lhs), Value::Boolean(rhs)) => match op.0 {

@@ -38,3 +38,16 @@ impl<K: Eq + Hash, V: Eq + Hash> Scopes<K, V> {
             .or_else(|| self.base.get(k))
     }
 }
+
+impl<V> Scopes<&str, V> {
+    pub fn closest_str_key(&self, name: &str) -> Option<(&str, usize)> {
+        self.scopes
+            .iter()
+            .rev()
+            .chain(std::iter::once(&self.base))
+            .flat_map(|map| map.keys())
+            .map(|a| (a, levenshtein::levenshtein(a, name)))
+            .min_by_key(|(_, dist)| *dist)
+            .map(|(a, dist)| (*a, dist))
+    }
+}
