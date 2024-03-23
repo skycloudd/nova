@@ -59,9 +59,12 @@ impl Diag for Error {
                 found,
                 span: _,
             } => format!(
-                "expected one of {}, but found `{}`",
+                "expected one of {}, but found {}",
                 expected.join(", "),
-                found.as_deref().unwrap_or("nothing")
+                found
+                    .as_deref()
+                    .map(|found| format!("`{found}`"))
+                    .unwrap_or("something else".to_string())
             )
             .into(),
             Self::Custom { message, span: _ } => message.into(),
