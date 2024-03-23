@@ -4,6 +4,7 @@ set -e
 
 cargo build
 
-for file in examples/*.nv; do
-    ./target/debug/nova "$file" > /dev/null
+for file in $(find examples -name "*.nv"); do
+    echo "[test.sh] running $file"
+    ./target/debug/nova "$file"
 done
