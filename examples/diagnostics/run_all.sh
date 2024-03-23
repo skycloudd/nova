@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 cargo build
 
 # for every file ending in .nv in the current directory
