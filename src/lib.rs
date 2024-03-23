@@ -9,6 +9,7 @@ use codespan_reporting::{
     files::SimpleFiles,
 };
 use error::{convert, Diag, Error, Warning};
+use log::{error, info};
 use span::{Ctx, Span};
 use std::fmt::Display;
 
@@ -43,6 +44,8 @@ pub fn run<'src, 'file>(
     input: &'src str,
     filename: &'file Utf8Path,
 ) -> CompileResult {
+    info!("Compiling {}", filename);
+
     let file_id = files.add(filename, input);
 
     let file_ctx = Ctx(file_id);
@@ -92,8 +95,12 @@ pub fn run<'src, 'file>(
 
         codegen::codegen(&low_ir);
 
+        info!("Compilation successful");
+
         CompileResult::Success { warnings }
     } else {
+        error!("Compilation failed");
+
         CompileResult::Failure { warnings, errors }
     }
 }

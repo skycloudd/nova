@@ -12,6 +12,7 @@ use codespan_reporting::{
     },
 };
 use nova::{report, run, CompileResult};
+use simple_logger::SimpleLogger;
 use std::{fs::read_to_string, process::ExitCode};
 
 #[derive(clap::Parser)]
@@ -20,9 +21,9 @@ struct Args {
 }
 
 fn main() -> ExitCode {
-    let args = Args::parse();
+    SimpleLogger::new().init().unwrap();
 
-    eprintln!("Compiling {}", args.filename);
+    let args = Args::parse();
 
     let mut files = SimpleFiles::new();
 
@@ -48,8 +49,6 @@ fn main() -> ExitCode {
                     if warnings.len() == 1 { "" } else { "s" }
                 );
             }
-
-            eprintln!("Finished {}", args.filename);
 
             ExitCode::SUCCESS
         }
