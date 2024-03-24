@@ -4,7 +4,7 @@ macro_rules! top_level {
     ($name:ident, $func:ident) => {
         #[derive(Debug)]
         pub enum $name<'src> {
-            Function($func<'src>),
+            Function(Spanned<$func<'src>>),
         }
     };
 }
@@ -25,6 +25,8 @@ macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
         #[derive(Clone, Debug)]
         pub enum $name<'src> {
+            #[allow(dead_code)]
+            Error,
             Expr(Spanned<$expr<'src>>),
             Block(Spanned<Vec<Spanned<Self>>>),
             Loop(Spanned<Vec<Spanned<Self>>>),
@@ -105,8 +107,8 @@ pub enum BinaryOp {
     LessThan,
 }
 
-impl std::fmt::Display for BinaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for BinaryOp {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Equals => write!(f, "=="),
             Self::NotEquals => write!(f, "!="),
@@ -128,8 +130,8 @@ pub enum UnaryOp {
     Not,
 }
 
-impl std::fmt::Display for UnaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for UnaryOp {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Negate => write!(f, "-"),
             Self::Not => write!(f, "!"),
@@ -165,8 +167,8 @@ pub mod typed {
         pub ty: Type,
     }
 
-    impl std::fmt::Display for Type {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl core::fmt::Display for Type {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             match self {
                 Self::Error => write!(f, "error"),
                 Self::Boolean => write!(f, "bool"),

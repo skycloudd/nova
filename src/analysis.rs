@@ -46,10 +46,10 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
         }
     }
 
-    fn analyse_function(&mut self, function: &Function) {
-        if function.params.0.len() > 10 {
+    fn analyse_function(&mut self, function: &Spanned<Function>) {
+        if function.0.params.0.len() > 10 {
             self.warnings.push(Warning::Lint {
-                span: function.params.1,
+                span: function.0.params.1,
                 message: "function has too many parameters".to_string(),
                 note: Some("consider refactoring into multiple functions".to_string()),
             });
@@ -57,7 +57,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
 
         let mut finished = Finished::No;
 
-        for statement in &function.body.0 {
+        for statement in &function.0.body.0 {
             let res = self.analyse_statement(statement);
 
             if finished < Finished::Return && res == Finished::Return {
@@ -73,7 +73,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
 
         if finished != Finished::Return {
             self.errors.push(Error::MissingReturn {
-                span: function.body.1,
+                span: function.0.body.1,
             });
         }
     }
@@ -81,6 +81,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
     #[allow(clippy::too_many_lines)]
     fn analyse_statement(&mut self, statement: &Spanned<Statement>) -> Finished {
         match &statement.0 {
+            Statement::Error => Finished::No,
             Statement::Expr(expr) => {
                 if expression_is_trivially_pure(&expr.0.expr) {
                     self.warnings.push(Warning::Lint {
@@ -113,6 +114,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
 
                 finished
             }
+            #[allow(clippy::arithmetic_side_effects)]
             Statement::Loop(stmts) => {
                 if stmts.0.len() == 1
                     && matches!(
@@ -157,7 +159,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                 self.analyse_expression(condition);
 
                 if let ExpressionTruthness::Known(known) =
-                    check_expression_thruthness(condition.0.expr.clone())
+                    check_expression_thruthness(&condition.0.expr)
                 {
                     self.warnings.push(Warning::Lint {
                         span: condition.1,
@@ -308,22 +310,22 @@ enum Finished {
 }
 
 impl PartialOrd for Finished {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Finished {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         #[allow(clippy::match_same_arms)]
         match (self, other) {
-            (Self::Return, Self::Return) => std::cmp::Ordering::Equal,
-            (Self::Return, _) => std::cmp::Ordering::Greater,
-            (_, Self::Return) => std::cmp::Ordering::Less,
-            (Self::Loop, Self::Loop) => std::cmp::Ordering::Equal,
-            (Self::Loop, _) => std::cmp::Ordering::Greater,
-            (_, Self::Loop) => std::cmp::Ordering::Less,
-            (Self::No, Self::No) => std::cmp::Ordering::Equal,
+            (Self::Return, Self::Return) => core::cmp::Ordering::Equal,
+            (Self::Return, _) => core::cmp::Ordering::Greater,
+            (_, Self::Return) => core::cmp::Ordering::Less,
+            (Self::Loop, Self::Loop) => core::cmp::Ordering::Equal,
+            (Self::Loop, _) => core::cmp::Ordering::Greater,
+            (_, Self::Loop) => core::cmp::Ordering::Less,
+            (Self::No, Self::No) => core::cmp::Ordering::Equal,
         }
     }
 }
@@ -352,9 +354,9 @@ enum ExpressionTruthness {
     Unknown,
 }
 
-fn check_expression_thruthness(expr: Expression) -> ExpressionTruthness {
+const fn check_expression_thruthness(expr: &Expression) -> ExpressionTruthness {
     match expr {
-        Expression::Boolean(bool) => ExpressionTruthness::Known(bool),
+        Expression::Boolean(bool) => ExpressionTruthness::Known(*bool),
         _ => ExpressionTruthness::Unknown,
     }
 }

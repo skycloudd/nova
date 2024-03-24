@@ -64,11 +64,16 @@ fn function_parser<'tokens, 'src: 'tokens>(
                 )))
                 .boxed(),
         )
-        .map(|(((name, params), return_ty), body)| Function {
-            name,
-            params,
-            return_ty,
-            body,
+        .map_with(|(((name, params), return_ty), body), e| {
+            Spanned(
+                Function {
+                    name,
+                    params,
+                    return_ty,
+                    body,
+                },
+                e.span(),
+            )
         })
         .map_with(|function, e| Spanned(TopLevel::Function(function), e.span()))
         .boxed()

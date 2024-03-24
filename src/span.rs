@@ -8,7 +8,7 @@ pub struct Span(SimpleSpan<usize, Ctx>);
 
 impl Span {
     #[must_use]
-    pub fn new(context: Ctx, range: std::ops::Range<usize>) -> Self {
+    pub fn new(context: Ctx, range: core::ops::Range<usize>) -> Self {
         Self(SimpleSpan::<usize, Ctx>::new(context, range))
     }
 
@@ -23,7 +23,7 @@ impl chumsky::span::Span for Span {
 
     type Offset = usize;
 
-    fn new(context: Self::Context, range: std::ops::Range<Self::Offset>) -> Self {
+    fn new(context: Self::Context, range: core::ops::Range<Self::Offset>) -> Self {
         Self::new(context, range)
     }
 

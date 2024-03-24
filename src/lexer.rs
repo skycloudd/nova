@@ -64,8 +64,8 @@ pub enum Op {
     Not,
 }
 
-impl std::fmt::Display for Token<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Token<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             // Token::Error => write!(f, "error"),
             Token::Variable(v) => write!(f, "{v}"),
@@ -80,8 +80,8 @@ impl std::fmt::Display for Token<'_> {
     }
 }
 
-impl std::fmt::Display for Kw {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Kw {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::End => write!(f, "end"),
             Self::Loop => write!(f, "loop"),
@@ -100,8 +100,8 @@ impl std::fmt::Display for Kw {
     }
 }
 
-impl std::fmt::Display for Ctrl {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Ctrl {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::LeftParen => write!(f, "("),
             Self::RightParen => write!(f, ")"),
@@ -118,8 +118,8 @@ impl std::fmt::Display for Ctrl {
     }
 }
 
-impl std::fmt::Display for Op {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Op {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Equals => write!(f, "=="),
             Self::NotEquals => write!(f, "!="),
@@ -155,7 +155,12 @@ pub fn lexer<'src>() -> impl Parser<'src, LexerInput<'src>, LexerOutput<'src>, L
     ))
     .boxed();
 
-    let integer = text::int(10)
+    let sign = choice((just('+'), just('-'))).or_not().boxed();
+
+    let integer = sign
+        .clone()
+        .then(text::int(10))
+        .to_slice()
         .validate(|n: &str, e, emitter| match n.parse() {
             Ok(n) => n,
             Err(err) => {
@@ -166,7 +171,8 @@ pub fn lexer<'src>() -> impl Parser<'src, LexerInput<'src>, LexerOutput<'src>, L
         .map(Token::Integer)
         .boxed();
 
-    let float = text::int(10)
+    let float = sign
+        .then(text::int(10))
         .then_ignore(just('.'))
         .then(text::digits(10))
         .to_slice()

@@ -1,6 +1,14 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![warn(clippy::arithmetic_side_effects)]
+#![deny(clippy::float_arithmetic)]
+#![deny(clippy::float_cmp)]
+#![warn(clippy::alloc_instead_of_core)]
+#![warn(clippy::std_instead_of_core)]
+#![warn(clippy::std_instead_of_alloc)]
+#![warn(clippy::print_stdout)]
+#![warn(clippy::print_stderr)]
 
 use camino::Utf8PathBuf;
 use clap::Parser;
@@ -43,11 +51,14 @@ fn main() -> ExitCode {
             }
 
             if !warnings.is_empty() {
-                eprintln!(
-                    "{} warning{} generated",
-                    warnings.len(),
-                    if warnings.len() == 1 { "" } else { "s" }
-                );
+                #[allow(clippy::print_stderr)]
+                {
+                    eprintln!(
+                        "{} warning{} generated",
+                        warnings.len(),
+                        if warnings.len() == 1 { "" } else { "s" }
+                    );
+                }
             }
 
             ExitCode::SUCCESS
@@ -66,18 +77,24 @@ fn main() -> ExitCode {
             }
 
             if !warnings.is_empty() {
-                eprintln!(
-                    "{} warning{} generated",
-                    warnings.len(),
-                    if warnings.len() == 1 { "" } else { "s" }
-                );
+                #[allow(clippy::print_stderr)]
+                {
+                    eprintln!(
+                        "{} warning{} generated",
+                        warnings.len(),
+                        if warnings.len() == 1 { "" } else { "s" }
+                    );
+                }
             }
 
-            eprintln!(
-                "{} error{} found",
-                errors.len(),
-                if errors.len() == 1 { "" } else { "s" }
-            );
+            #[allow(clippy::print_stderr)]
+            {
+                eprintln!(
+                    "{} error{} found",
+                    errors.len(),
+                    if errors.len() == 1 { "" } else { "s" }
+                );
+            }
 
             ExitCode::FAILURE
         }

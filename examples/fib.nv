@@ -20,9 +20,9 @@ func fib_iterative(n: int): int do
     let b = 1;
 
     for i in 0..n do
-        let tmp = a;
+        let c = a + b;
         a = b;
-        b = tmp + b;
+        b = c;
     end
 
     return a;

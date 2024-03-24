@@ -11,7 +11,7 @@ impl Codegen {
         Self {}
     }
 
-    fn codegen(&mut self, _low_ir: &[TopLevel]) {
-        // todo!("{:#?}", low_ir)
+    fn codegen(&mut self, low_ir: &[TopLevel]) {
+        todo!("{:#?}", low_ir)
     }
 }

@@ -105,17 +105,18 @@ fn build_mir_top_level(top_level: Spanned<mir::TopLevel>) -> TopLevel {
     }
 }
 
-fn build_mir_function(function: mir::Function) -> Function {
+fn build_mir_function(function: Spanned<mir::Function>) -> Function {
     Function {
-        name: function.name.0,
+        name: function.0.name.0,
         params: function
+            .0
             .params
             .0
             .into_iter()
             .map(|(name, ty)| (name.0, ty.0.try_into().unwrap()))
             .collect(),
-        return_ty: function.return_ty.0.try_into().unwrap(),
-        body: build_statements(function.body),
+        return_ty: function.0.return_ty.0.try_into().unwrap(),
+        body: build_statements(function.0.body),
     }
 }
 
@@ -125,6 +126,7 @@ fn build_statements(statements: Spanned<Vec<Spanned<mir::Statement>>>) -> Vec<St
 
 fn build_mir_statement(statement: Spanned<mir::Statement>) -> Statement {
     match statement.0 {
+        mir::Statement::Error => unreachable!(),
         mir::Statement::Expr(expr) => Statement::Expr(build_mir_expr(expr)),
         mir::Statement::Block(statements) => Statement::Block(build_statements(statements)),
         mir::Statement::Loop(statements) => Statement::Loop(build_statements(statements)),

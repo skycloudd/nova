@@ -1,16 +1,20 @@
-use crate::{
-    span::{Span, Spanned},
-    typecheck::TypeInfo,
-};
+use crate::{ast::BinaryOp, span::Span, typecheck::TypeInfo, IntTy};
 use chumsky::error::{Rich, RichReason};
 use codespan_reporting::diagnostic::Severity;
 use heck::ToSnakeCase;
 
 pub trait Diag {
     fn message(&self) -> String;
-    fn spans(&self) -> Vec<Spanned<Option<String>>>;
+    fn spans(&self) -> Vec<ErrorSpan>;
     fn notes(&self) -> Vec<String>;
     fn kind(&self) -> Severity;
+}
+
+#[derive(Debug)]
+#[allow(clippy::module_name_repetitions)]
+pub enum ErrorSpan {
+    Primary(Option<String>, Span),
+    Secondary(Option<String>, Span),
 }
 
 #[derive(Debug)]
@@ -44,6 +48,7 @@ pub enum Error {
     UndefinedFunction {
         name: String,
         span: Span,
+        closest: Option<(String, usize)>,
     },
     MissingReturn {
         span: Span,
@@ -55,6 +60,26 @@ pub enum Error {
         name: String,
         span: Span,
         closest: Option<(String, usize)>,
+    },
+    IntegerArithmetic {
+        name: String,
+        effect: String,
+        result: Option<IntTy>,
+        span: Span,
+    },
+    FunctionAlreadyDefined {
+        name: String,
+        span: Span,
+        already_defined_span: Span,
+    },
+    InvalidBinaryOperation {
+        lhs: TypeInfo,
+        lhs_span: Span,
+        rhs: TypeInfo,
+        rhs_span: Span,
+        op: BinaryOp,
+        op_span: Span,
+        full_span: Span,
     },
 }
 
@@ -69,10 +94,10 @@ impl Diag for Error {
                 "expected {}{}, but found {}",
                 if expected.len() == 1 { "" } else { "one of " },
                 expected.join(", "),
-                found
-                    .as_deref()
-                    .map(|found| format!("`{found}`"))
-                    .unwrap_or("something else".to_string())
+                found.as_deref().map_or_else(
+                    || "something else".to_string(),
+                    |found| format!("`{found}`")
+                )
             ),
             Self::Custom { message, span: _ } => message.clone(),
             Self::TypeMismatch {
@@ -92,7 +117,11 @@ impl Diag for Error {
                 expected_span: _,
                 found_span: _,
             } => format!("expected {expected} function arguments, but found {found}"),
-            Self::UndefinedFunction { name, span: _ } => format!("undefined function `{name}`"),
+            Self::UndefinedFunction {
+                name,
+                span: _,
+                closest: _,
+            } => format!("the function `{name}` does not exist"),
             Self::MissingReturn { span: _ } => {
                 "this function does not return a value on all code paths".to_string()
             }
@@ -106,25 +135,55 @@ impl Diag for Error {
             } => {
                 format!("no variable `{name}` was found in this scope")
             }
+            Self::IntegerArithmetic {
+                name,
+                effect,
+                result: _,
+                span: _,
+            } => {
+                format!("this {name} unconditionally results in {effect}")
+            }
+            Self::FunctionAlreadyDefined {
+                name,
+                span: _,
+                already_defined_span: _,
+            } => {
+                format!("a function called `{name}` has already been defined in this file")
+            }
+            Self::InvalidBinaryOperation {
+                lhs,
+                lhs_span: _,
+                rhs,
+                rhs_span: _,
+                op,
+                op_span: _,
+                full_span: _,
+            } => {
+                format!("invalid binary operation `{op}` between types `{lhs}` and `{rhs}`")
+            }
         }
     }
 
-    fn spans(&self) -> Vec<Spanned<Option<String>>> {
+    #[allow(clippy::too_many_lines)]
+    fn spans(&self) -> Vec<ErrorSpan> {
         #[allow(clippy::match_same_arms)]
         match self {
             Self::ExpectedFound {
                 expected: _,
                 found: _,
                 span,
-            } => vec![Spanned(Some("unexpected token".to_string()), *span)],
-            Self::Custom { message: _, span } => vec![Spanned(None, *span)],
+            } => vec![ErrorSpan::Primary(
+                Some("unexpected token".to_string()),
+                *span,
+            )],
+            Self::Custom { message: _, span } => vec![ErrorSpan::Primary(None, *span)],
             Self::TypeMismatch {
                 expected,
                 found,
                 span,
             } => vec![
-                Spanned(Some(format!("expected `{expected}`")), *span),
-                Spanned(Some(format!("found `{found}`")), *span),
+                ErrorSpan::Primary(Some(format!("expected `{expected}`")), *span),
+                ErrorSpan::Primary(Some(format!("found `{found}`")), *span),
             ],
             Self::ReturnTypeMismatch {
                 expected,
@@ -132,11 +191,11 @@ impl Diag for Error {
                 expected_span,
                 found_span,
             } => vec![
-                Spanned(
+                ErrorSpan::Secondary(
                     Some(format!("expected `{expected}` because of the return type")),
                     *expected_span,
                 ),
-                Spanned(Some(format!("found `{found}`")), *found_span),
+                ErrorSpan::Primary(Some(format!("found `{found}`")), *found_span),
             ],
             Self::FunctionArgumentCountMismatch {
                 expected,
@@ -144,7 +203,7 @@ impl Diag for Error {
                 expected_span,
                 found_span,
             } => vec![
-                Spanned(
+                ErrorSpan::Primary(
                     Some(format!(
                         "expected {} argument{}",
                         expected,
@@ -152,7 +211,7 @@ impl Diag for Error {
                     )),
                     *expected_span,
                 ),
-                Spanned(
+                ErrorSpan::Primary(
                     Some(format!(
                         "found {} argument{}",
                         found,
@@ -161,18 +220,62 @@ impl Diag for Error {
                     *found_span,
                 ),
             ],
-            Self::UndefinedFunction { name, span } => {
-                vec![Spanned(Some(format!("`{name}` called here")), *span)]
+            Self::UndefinedFunction {
+                name,
+                span,
+                closest: _,
+            } => {
+                vec![ErrorSpan::Primary(
+                    Some(format!("`{name}` called here")),
+                    *span,
+                )]
             }
-            Self::MissingReturn { span } => vec![Spanned(None, *span)],
-            Self::BreakOrContinueOutsideLoop { span } => vec![Spanned(None, *span)],
+            Self::MissingReturn { span } => vec![ErrorSpan::Primary(None, *span)],
+            Self::BreakOrContinueOutsideLoop { span } => vec![ErrorSpan::Primary(None, *span)],
             Self::UndefinedVariable {
                 name,
                 span,
                 closest: _,
             } => {
-                vec![Spanned(Some(format!("`{name}` used here")), *span)]
+                vec![ErrorSpan::Primary(
+                    Some(format!("`{name}` used here")),
+                    *span,
+                )]
             }
+            Self::IntegerArithmetic {
+                name,
+                effect: _,
+                result: _,
+                span,
+            } => {
+                vec![ErrorSpan::Primary(Some(format!("{name} here")), *span)]
+            }
+            Self::FunctionAlreadyDefined {
+                name,
+                span,
+                already_defined_span,
+            } => {
+                vec![
+                    ErrorSpan::Secondary(
+                        Some("first definition here".to_string()),
+                        *already_defined_span,
+                    ),
+                    ErrorSpan::Primary(Some(format!("`{name}` redefined here")), *span),
+                ]
+            }
+            Self::InvalidBinaryOperation {
+                lhs,
+                lhs_span,
+                rhs,
+                rhs_span,
+                op: _,
+                op_span,
+                full_span: _,
+            } => vec![
+                ErrorSpan::Primary(Some(format!("`{lhs}`")), *lhs_span),
+                ErrorSpan::Primary(Some(format!("`{rhs}`")), *rhs_span),
+                ErrorSpan::Secondary(None, *op_span),
+            ],
         }
     }
 
@@ -184,7 +287,12 @@ impl Diag for Error {
             Self::TypeMismatch { .. } => vec![],
             Self::ReturnTypeMismatch { .. } => vec![],
             Self::FunctionArgumentCountMismatch { .. } => vec![],
-            Self::UndefinedFunction { .. } => vec![],
+            Self::UndefinedFunction { closest, .. } => closest
+                .as_ref()
+                .filter(|(_, dist)| *dist <= 3)
+                .map_or_else(Vec::new, |(closest, _)| {
+                    vec![format!("help: did you mean `{}`?", closest)]
+                }),
             Self::MissingReturn { .. } => {
                 vec!["consider adding a return statement at the end of this function".into()]
             }
@@ -195,8 +303,25 @@ impl Diag for Error {
                 .as_ref()
                 .filter(|(_, dist)| *dist <= 3)
                 .map_or_else(Vec::new, |(closest, _)| {
-                    vec![format!("did you mean `{}`?", closest)]
+                    vec![format!("help: did you mean `{}`?", closest)]
                 }),
+            Self::IntegerArithmetic { result, .. } => result.map_or_else(Vec::new, |result| {
+                vec![format!(
+                    "replace it with `{}` if this was intended, but it likely wasn't",
+                    result
+                )]
+            }),
+            Self::FunctionAlreadyDefined { .. } => vec![
+                "functions cannot be redefined".into(),
+                "consider removing one of these function definitions".into(),
+            ],
+            Self::InvalidBinaryOperation { lhs, rhs, .. } => {
+                if lhs == rhs {
+                    vec!["this operation is not valid for these types".into()]
+                } else {
+                    vec!["both expressions must be of the same type".into()]
+                }
+            }
         }
     }
 
@@ -221,9 +346,7 @@ pub enum Warning {
 impl Diag for Warning {
     fn message(&self) -> String {
         match self {
-            Self::BadName { name, span: _ } => {
-                format!("identifier `{name}` should be snake case").into()
-            }
+            Self::BadName { name, span: _ } => format!("identifier `{name}` should be snake case"),
             Self::Lint {
                 span: _,
                 message,
@@ -232,15 +355,15 @@ impl Diag for Warning {
         }
     }
 
-    fn spans(&self) -> Vec<Spanned<Option<String>>> {
+    fn spans(&self) -> Vec<ErrorSpan> {
         #[allow(clippy::match_same_arms)]
         match self {
-            Self::BadName { name: _, span } => vec![Spanned(None, *span)],
+            Self::BadName { name: _, span } => vec![ErrorSpan::Primary(None, *span)],
             Self::Lint {
                 span,
                 message: _,
                 note: _,
-            } => vec![Spanned(None, *span)],
+            } => vec![ErrorSpan::Primary(None, *span)],
         }
     }
 

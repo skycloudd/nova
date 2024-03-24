@@ -1,6 +1,14 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![warn(clippy::arithmetic_side_effects)]
+#![deny(clippy::float_arithmetic)]
+#![deny(clippy::float_cmp)]
+#![warn(clippy::alloc_instead_of_core)]
+#![warn(clippy::std_instead_of_core)]
+#![warn(clippy::std_instead_of_alloc)]
+#![warn(clippy::print_stdout)]
+#![warn(clippy::print_stderr)]
 
 use camino::Utf8Path;
 use chumsky::prelude::*;
@@ -8,12 +16,12 @@ use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
     files::SimpleFiles,
 };
-use error::{convert, Diag, Error, Warning};
+use core::fmt::Display;
+use error::{convert, Diag, Error, ErrorSpan, Warning};
 use log::{error, info};
 use span::{Ctx, Span};
-use std::fmt::Display;
 
-mod analyse;
+mod analysis;
 mod ast;
 mod codegen;
 mod error;
@@ -83,7 +91,7 @@ pub fn run<'src, 'file>(
 
     // println!("{:#?}", mir);
 
-    let (analyse_warnings, analyse_errors) = analyse::analyse(&mir);
+    let (analyse_warnings, analyse_errors) = analysis::analyse(&mir);
 
     warnings.extend(analyse_warnings);
     errors.extend(analyse_errors);
@@ -112,15 +120,26 @@ pub fn report(diagnostic: &impl Diag) -> Diagnostic<usize> {
             diagnostic
                 .spans()
                 .into_iter()
-                .map(|span| {
-                    let mut label =
-                        Label::primary(span.1.context().0, span.1.start()..span.1.end());
+                .map(|span| match span {
+                    ErrorSpan::Primary(message, span) => {
+                        let mut label = Label::primary(span.context().0, span.start()..span.end());
 
-                    if let Some(message) = span.0 {
-                        label = label.with_message(message);
+                        if let Some(message) = message {
+                            label = label.with_message(message);
+                        }
+
+                        label
                     }
+                    ErrorSpan::Secondary(message, span) => {
+                        let mut label =
+                            Label::secondary(span.context().0, span.start()..span.end());
 
-                    label
+                        if let Some(message) = message {
+                            label = label.with_message(message);
+                        }
+
+                        label
+                    }
                 })
                 .collect(),
         )
@@ -144,10 +163,14 @@ impl IdGen {
     const fn new() -> Self {
         Self { next_id: 0 }
     }
+}
 
-    fn next(&mut self) -> usize {
+impl Iterator for IdGen {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let id = self.next_id;
-        self.next_id += 1;
-        id
+        self.next_id = self.next_id.checked_add(1)?;
+        Some(id)
     }
 }

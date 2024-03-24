@@ -11,7 +11,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum TopLevel {
-    Function(Function),
+    Function(Spanned<Function>),
 }
 
 #[derive(Debug)]
@@ -27,6 +27,7 @@ pub struct FuncId(pub usize);
 
 #[derive(Debug)]
 pub enum Statement {
+    Error,
     Expr(Spanned<TypedExpression>),
     Block(Spanned<Vec<Spanned<Self>>>),
     Loop(Spanned<Vec<Spanned<Self>>>),
@@ -109,8 +110,8 @@ impl From<ast::Type> for Type {
     }
 }
 
-impl std::fmt::Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Type {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Error => write!(f, "error"),
             Self::Integer => write!(f, "int"),
@@ -153,7 +154,7 @@ impl<'src> IdMap<'src> for VarIdMap<'src> {
     }
 
     fn insert(&mut self, name: Spanned<&'src str>) -> Spanned<VarId> {
-        let id = Spanned(VarId(self.id_gen.next()), name.1);
+        let id = Spanned(VarId(self.id_gen.next().unwrap()), name.1);
         self.map.insert(name.0, id);
         id
     }
@@ -181,7 +182,7 @@ impl<'src> IdMap<'src> for FuncIdMap<'src> {
     }
 
     fn insert(&mut self, name: Spanned<&'src str>) -> Spanned<FuncId> {
-        let id = Spanned(FuncId(self.id_gen.next()), name.1);
+        let id = Spanned(FuncId(self.id_gen.next().unwrap()), name.1);
         self.map.insert(name.0, id);
         id
     }
@@ -208,9 +209,9 @@ impl<'src> MirBuilder<'src> {
         for top_level in &ast {
             match &top_level.0 {
                 TypedTopLevel::Function(function) => {
-                    self.func_id_map.insert(function.name);
+                    self.func_id_map.insert(function.0.name);
 
-                    for arg in &function.params.0 {
+                    for arg in &function.0.params.0 {
                         self.var_id_map.insert(arg.0);
                     }
                 }
@@ -236,29 +237,33 @@ impl<'src> MirBuilder<'src> {
         )
     }
 
-    fn build_mir_function(&mut self, function: TypedFunction<'src>) -> Function {
-        Function {
-            name: *self.func_id_map.get(function.name.0).unwrap(),
-            params: Spanned(
-                function
-                    .params
-                    .0
-                    .iter()
-                    .map(|arg| {
-                        let name = arg.0;
-                        let ty = arg.1;
+    fn build_mir_function(&mut self, function: Spanned<TypedFunction<'src>>) -> Spanned<Function> {
+        Spanned(
+            Function {
+                name: *self.func_id_map.get(function.0.name.0).unwrap(),
+                params: Spanned(
+                    function
+                        .0
+                        .params
+                        .0
+                        .iter()
+                        .map(|arg| {
+                            let name = arg.0;
+                            let ty = arg.1;
 
-                        (
-                            *self.var_id_map.get(name.0).unwrap(),
-                            Spanned(ty.0.into(), ty.1),
-                        )
-                    })
-                    .collect(),
-                function.params.1,
-            ),
-            return_ty: Spanned(function.return_ty.0.into(), function.return_ty.1),
-            body: self.build_statements(function.body),
-        }
+                            (
+                                *self.var_id_map.get(name.0).unwrap(),
+                                Spanned(ty.0.into(), ty.1),
+                            )
+                        })
+                        .collect(),
+                    function.0.params.1,
+                ),
+                return_ty: Spanned(function.0.return_ty.0.into(), function.0.return_ty.1),
+                body: self.build_statements(function.0.body),
+            },
+            function.1,
+        )
     }
 
     fn build_statements(
@@ -281,6 +286,7 @@ impl<'src> MirBuilder<'src> {
     ) -> Spanned<Statement> {
         Spanned(
             match statement.0 {
+                TypedStatement::Error => Statement::Error,
                 TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(expr)),
                 TypedStatement::Block(statements) => {
                     Statement::Block(self.build_statements(statements))
