@@ -344,7 +344,7 @@ fn expression_is_trivially_pure(expr: &Expression) -> bool {
             expression_is_trivially_pure(&lhs.0.expr) && expression_is_trivially_pure(&rhs.0.expr)
         }
         Expression::Convert { ty: _, expr } => expression_is_trivially_pure(&expr.0.expr),
-        Expression::Call { func: _, args: _ } => false, // todo: check if the function is pure in a more advanced way
+        Expression::Call { func: _, args: _ } => false,
     }
 }
 

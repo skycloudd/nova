@@ -848,7 +848,7 @@ impl Engine {
         let var = self.vars[&id];
 
         match var.0 {
-            TypeInfo::Unknown => panic!(),
+            TypeInfo::Unknown => Err(Box::new(Error::CantInferType { span: var.1 })),
             TypeInfo::Ref(id) => Ok(self.reconstruct(id)?.0),
             TypeInfo::Error => Ok(Type::Error),
             TypeInfo::Boolean => Ok(Type::Boolean),

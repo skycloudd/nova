@@ -100,6 +100,9 @@ pub enum Error {
         into_span: Span,
         full_span: Span,
     },
+    CantInferType {
+        span: Span,
+    },
 }
 
 impl Diag for Error {
@@ -197,6 +200,9 @@ impl Diag for Error {
                 full_span: _,
             } => {
                 format!("cannot convert an expression of type `{from}` to `{into}`")
+            }
+            Self::CantInferType { span: _ } => {
+                "cannot infer the type of this expression".to_string()
             }
         }
     }
@@ -333,6 +339,7 @@ impl Diag for Error {
                 ErrorSpan::Primary(Some(format!("converting from `{from}`")), *from_span),
                 ErrorSpan::Primary(Some(format!("into type `{into}`")), *into_span),
             ],
+            Self::CantInferType { span } => vec![ErrorSpan::Primary(None, *span)],
         }
     }
 
@@ -381,6 +388,7 @@ impl Diag for Error {
             }
             Self::InvalidUnaryOperation { .. } => vec![],
             Self::InvalidConversion { .. } => vec![],
+            Self::CantInferType { .. } => vec![],
         }
     }
 
