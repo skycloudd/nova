@@ -1,4 +1,9 @@
-use crate::{ast::BinaryOp, span::Span, typecheck::TypeInfo, IntTy};
+use crate::{
+    ast::{BinaryOp, UnaryOp},
+    span::Span,
+    typecheck::TypeInfo,
+    IntTy,
+};
 use chumsky::error::{Rich, RichReason};
 use codespan_reporting::diagnostic::Severity;
 use heck::ToSnakeCase;
@@ -81,6 +86,20 @@ pub enum Error {
         op_span: Span,
         full_span: Span,
     },
+    InvalidUnaryOperation {
+        ty: TypeInfo,
+        ty_span: Span,
+        op: UnaryOp,
+        op_span: Span,
+        full_span: Span,
+    },
+    InvalidConversion {
+        from: TypeInfo,
+        from_span: Span,
+        into: TypeInfo,
+        into_span: Span,
+        full_span: Span,
+    },
 }
 
 impl Diag for Error {
@@ -160,6 +179,24 @@ impl Diag for Error {
                 full_span: _,
             } => {
                 format!("invalid binary operation `{op}` between types `{lhs}` and `{rhs}`")
+            }
+            Self::InvalidUnaryOperation {
+                ty,
+                ty_span: _,
+                op,
+                op_span: _,
+                full_span: _,
+            } => {
+                format!("invalid unary operator `{op}` for type `{ty}`")
+            }
+            Self::InvalidConversion {
+                from,
+                from_span: _,
+                into,
+                into_span: _,
+                full_span: _,
+            } => {
+                format!("cannot convert an expression of type `{from}` to `{into}`")
             }
         }
     }
@@ -276,6 +313,26 @@ impl Diag for Error {
                 ErrorSpan::Primary(Some(format!("`{rhs}`")), *rhs_span),
                 ErrorSpan::Secondary(None, *op_span),
             ],
+            Self::InvalidUnaryOperation {
+                ty,
+                ty_span,
+                op,
+                op_span,
+                full_span: _,
+            } => vec![
+                ErrorSpan::Primary(Some(format!("expression of type `{ty}`")), *ty_span),
+                ErrorSpan::Secondary(Some(format!("operator `{op}`")), *op_span),
+            ],
+            Self::InvalidConversion {
+                from,
+                from_span,
+                into,
+                into_span,
+                full_span: _,
+            } => vec![
+                ErrorSpan::Primary(Some(format!("converting from `{from}`")), *from_span),
+                ErrorSpan::Primary(Some(format!("into type `{into}`")), *into_span),
+            ],
         }
     }
 
@@ -322,6 +379,8 @@ impl Diag for Error {
                     vec!["both expressions must be of the same type".into()]
                 }
             }
+            Self::InvalidUnaryOperation { .. } => vec![],
+            Self::InvalidConversion { .. } => vec![],
         }
     }
 

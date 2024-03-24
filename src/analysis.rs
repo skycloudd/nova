@@ -87,7 +87,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                     self.warnings.push(Warning::Lint {
                         span: statement.1,
                         message: "this statement has no effect".to_string(),
-                        note: None,
+                        note: Some("removing it won't change the program's behaviour".to_string()),
                     });
                 }
 
@@ -125,7 +125,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                     self.warnings.push(Warning::Lint {
                         span: statement.1,
                         message: "this loop has no effect".to_string(),
-                        note: None,
+                        note: Some("removing it won't change the program's behaviour".to_string()),
                     });
                 }
 
@@ -222,7 +222,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                     self.warnings.push(Warning::Lint {
                         span: start.1,
                         message: "this loop will never execute and has no effect".to_string(),
-                        note: None,
+                        note: Some("removing it won't change the program's behaviour".to_string()),
                     });
                 }
 

@@ -52,7 +52,7 @@ pub fn run<'src, 'file>(
     input: &'src str,
     filename: &'file Utf8Path,
 ) -> CompileResult {
-    info!("Compiling {}", filename);
+    info!("compiling {}", filename);
 
     let file_id = files.add(filename, input);
 
@@ -103,11 +103,11 @@ pub fn run<'src, 'file>(
 
         codegen::codegen(&low_ir);
 
-        info!("Compilation successful");
+        info!("compilation successful");
 
         CompileResult::Success { warnings }
     } else {
-        error!("Compilation failed");
+        error!("compilation failed");
 
         CompileResult::Failure { warnings, errors }
     }

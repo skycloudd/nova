@@ -19,6 +19,7 @@ use codespan_reporting::{
         termcolor::{ColorChoice, StandardStream},
     },
 };
+use log::info;
 use nova::{report, run, CompileResult};
 use simple_logger::SimpleLogger;
 use std::{fs::read_to_string, process::ExitCode};
@@ -51,14 +52,11 @@ fn main() -> ExitCode {
             }
 
             if !warnings.is_empty() {
-                #[allow(clippy::print_stderr)]
-                {
-                    eprintln!(
-                        "{} warning{} generated",
-                        warnings.len(),
-                        if warnings.len() == 1 { "" } else { "s" }
-                    );
-                }
+                info!(
+                    "{} warning{} generated",
+                    warnings.len(),
+                    if warnings.len() == 1 { "" } else { "s" }
+                );
             }
 
             ExitCode::SUCCESS
@@ -77,24 +75,18 @@ fn main() -> ExitCode {
             }
 
             if !warnings.is_empty() {
-                #[allow(clippy::print_stderr)]
-                {
-                    eprintln!(
-                        "{} warning{} generated",
-                        warnings.len(),
-                        if warnings.len() == 1 { "" } else { "s" }
-                    );
-                }
-            }
-
-            #[allow(clippy::print_stderr)]
-            {
-                eprintln!(
-                    "{} error{} found",
-                    errors.len(),
-                    if errors.len() == 1 { "" } else { "s" }
+                info!(
+                    "{} warning{} generated",
+                    warnings.len(),
+                    if warnings.len() == 1 { "" } else { "s" }
                 );
             }
+
+            info!(
+                "{} error{} found",
+                errors.len(),
+                if errors.len() == 1 { "" } else { "s" }
+            );
 
             ExitCode::FAILURE
         }

@@ -453,10 +453,6 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
 
                     let rhs_ty = self.engine.insert_type(&Spanned(rhs.0.ty, rhs.1));
 
-                    // self.engine.unify(lhs_ty, rhs_ty).unwrap_or_else(|err| {
-                    //     self.errors.push(*err);
-                    // });
-
                     let ty = bin_op!(
                         &lhs.0.ty,
                         &rhs.0.ty,
@@ -529,7 +525,13 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
                         (Type::Integer, UnaryOp::Negate) => Ok(Type::Integer),
                         (Type::Float, UnaryOp::Negate) => Ok(Type::Float),
                         (Type::Boolean, UnaryOp::Not) => Ok(Type::Boolean),
-                        _ => panic!(),
+                        _ => Err(Error::InvalidUnaryOperation {
+                            ty: expr.0.ty.into(),
+                            ty_span: expr.1,
+                            op: op.0,
+                            op_span: op.1,
+                            full_span: expr.1,
+                        }),
                     };
 
                     let ty = match ty {
@@ -549,10 +551,26 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
                     let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
 
                     #[allow(clippy::match_same_arms)]
-                    match (&expr.0.ty, &ty.0) {
+                    match (expr.0.ty, ty.0) {
                         (from, to) if from == to => {}
                         (Type::Error, _) | (_, Type::Error) => {}
-                        _ => panic!(),
+                        (from_ty, into_ty) => {
+                            self.errors.push(Error::InvalidConversion {
+                                from: from_ty.into(),
+                                from_span: expr.1,
+                                into: into_ty.into(),
+                                into_span: ty.1,
+                                full_span: expr.1,
+                            });
+
+                            return Spanned(
+                                TypedExpr {
+                                    expr: typed::Expr::Error,
+                                    ty: Type::Error,
+                                },
+                                expr.1,
+                            );
+                        }
                     }
 
                     TypedExpr {
