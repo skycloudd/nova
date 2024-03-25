@@ -17,7 +17,7 @@ use cranelift_object::{ObjectBuilder, ObjectModule, ObjectProduct};
 use log::debug;
 use rustc_hash::FxHashMap;
 
-pub fn codegen(low_ir: &[TopLevel]) -> ObjectProduct {
+pub fn codegen(low_ir: Vec<TopLevel>) -> ObjectProduct {
     let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
         panic!("host machine is not supported: {msg}");
     });
@@ -51,10 +51,10 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    fn codegen(&mut self, low_ir: &[TopLevel]) {
+    fn codegen(&mut self, low_ir: Vec<TopLevel>) {
         let mut functions = FxHashMap::default();
 
-        for top_level in low_ir {
+        for top_level in &low_ir {
             match top_level {
                 TopLevel::Function(function) => {
                     let mut sig = self.module.make_signature();
@@ -94,7 +94,7 @@ impl<'a> Codegen<'a> {
 
     fn codegen_function(
         &mut self,
-        function: &Function,
+        function: Function,
         functions: &FxHashMap<FuncId, cranelift_module::FuncId>,
     ) {
         for param in &function.params {
@@ -119,11 +119,13 @@ impl<'a> Codegen<'a> {
 
         let mut translator = FunctionTranslator::new(builder, self.module, functions);
 
+        let function_id = function.id;
+
         translator.translate(function, entry_block);
 
         translator.builder.finalize();
 
-        let id = *functions.get(&function.id).unwrap();
+        let id = *functions.get(&function_id).unwrap();
 
         self.module.define_function(id, &mut self.ctx).unwrap();
 
@@ -154,7 +156,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
         }
     }
 
-    fn translate(&mut self, function: &Function, entry_block: Block) {
+    fn translate(&mut self, function: Function, entry_block: Block) {
         debug!("translate function: {}", function.id.0);
 
         for (idx, param) in function.params.iter().enumerate() {
@@ -178,36 +180,36 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
             .ins()
             .jump(*blocks.get(&function.body[0].id).unwrap(), &[]);
 
-        for block in &function.body {
+        for block in function.body {
             self.translate_block(block, &blocks);
         }
 
         self.builder.seal_all_blocks();
     }
 
-    fn translate_block(&mut self, block: &BasicBlock, blocks: &FxHashMap<BasicBlockId, Block>) {
+    fn translate_block(&mut self, block: BasicBlock, blocks: &FxHashMap<BasicBlockId, Block>) {
         debug!("translate block: {:?}", block.id);
 
         self.builder
             .switch_to_block(*blocks.get(&block.id).unwrap());
 
-        for instr in &block.instructions {
+        for instr in block.instructions {
             self.translate_instruction(instr);
         }
 
-        self.translate_terminator(&block.terminator, blocks);
+        self.translate_terminator(block.terminator, blocks);
     }
 
     fn translate_terminator(
         &mut self,
-        terminator: &Terminator,
+        terminator: Terminator,
         blocks: &FxHashMap<BasicBlockId, Block>,
     ) {
         debug!("translate terminator: {:?}", terminator);
 
         match terminator {
             Terminator::Goto(block) => {
-                self.builder.ins().jump(*blocks.get(block).unwrap(), &[]);
+                self.builder.ins().jump(*blocks.get(&block).unwrap(), &[]);
             }
             Terminator::Return(expr) => {
                 let expr = self.translate_expr(expr);
@@ -221,8 +223,8 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
             } => {
                 let condition = self.translate_expr(condition);
 
-                let then_block = *blocks.get(then_block).unwrap();
-                let else_block = *blocks.get(else_block).unwrap();
+                let then_block = *blocks.get(&then_block).unwrap();
+                let else_block = *blocks.get(&else_block).unwrap();
 
                 self.builder
                     .ins()
@@ -234,7 +236,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
         }
     }
 
-    fn translate_instruction(&mut self, instr: &Instruction) {
+    fn translate_instruction(&mut self, instr: Instruction) {
         debug!("translate instr: {:?}", instr);
 
         match instr {
@@ -250,10 +252,10 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
 
                 self.builder.def_var(var, value);
 
-                self.vars.insert(*name, var);
+                self.vars.insert(name, var);
             }
             Instruction::Assign { name, value } => {
-                let var = *self.vars.get(name).unwrap();
+                let var = *self.vars.get(&name).unwrap();
 
                 let value = self.translate_expr(value);
 
@@ -262,24 +264,24 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
         }
     }
 
-    fn translate_expr(&mut self, expr: &TypedExpression) -> Value {
+    fn translate_expr(&mut self, expr: TypedExpression) -> Value {
         debug!("translate expr: {:?}", expr);
 
-        match &expr.expr {
+        match expr.expr {
             Expression::Variable(var) => {
-                let var = self.vars.get(var).unwrap();
+                let var = self.vars.get(&var).unwrap();
 
                 self.builder.use_var(*var)
             }
-            Expression::Boolean(bool) => self.builder.ins().iconst(BOOL_TYPE, i64::from(*bool)),
-            Expression::Integer(int) => self.builder.ins().iconst(INT_TYPE, i64::from(*int)),
-            Expression::Float(float) => self.builder.ins().f32const(*float),
+            Expression::Boolean(bool) => self.builder.ins().iconst(BOOL_TYPE, i64::from(bool)),
+            Expression::Integer(int) => self.builder.ins().iconst(INT_TYPE, i64::from(int)),
+            Expression::Float(float) => self.builder.ins().f32const(float),
             Expression::String(_string) => unimplemented!(
                 "strings will be implemented in stdlib when pointers are implemented"
             ),
             Expression::Unary { op, value } => {
                 let value_ty = value.ty;
-                let value = self.translate_expr(value);
+                let value = self.translate_expr(*value);
 
                 match (op, value_ty) {
                     (UnaryOp::Negate, Type::Integer) => self.builder.ins().ineg(value),
@@ -290,10 +292,10 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
             }
             Expression::Binary { lhs, op, rhs } => {
                 let lhs_ty = lhs.ty;
-                let lhs = self.translate_expr(lhs);
+                let lhs = self.translate_expr(*lhs);
 
                 let rhs_ty = rhs.ty;
-                let rhs = self.translate_expr(rhs);
+                let rhs = self.translate_expr(*rhs);
 
                 match (lhs_ty, rhs_ty) {
                     (Type::Integer, Type::Integer) => match op {
@@ -349,8 +351,8 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
                 }
             }
             Expression::Convert { ty, expr } => {
-                let expr_ty = &expr.ty;
-                let expr = self.translate_expr(expr);
+                let expr_ty = expr.ty;
+                let expr = self.translate_expr(*expr);
 
                 match (expr_ty, ty) {
                     (from, to) if from == to => expr,
@@ -358,12 +360,12 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
                 }
             }
             Expression::Call { func, args } => {
-                let callee = self.functions.get(func).unwrap();
+                let callee = self.functions.get(&func).unwrap();
 
                 let local_callee = self.module.declare_func_in_func(*callee, self.builder.func);
 
                 let args = args
-                    .iter()
+                    .into_iter()
                     .map(|arg| self.translate_expr(arg))
                     .collect::<Vec<_>>();
 

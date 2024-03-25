@@ -106,7 +106,7 @@ pub fn run<'src, 'file>(
 
         let low_ir = low_ir::lower(mir);
 
-        let object = codegen::codegen(&low_ir);
+        let object = codegen::codegen(low_ir);
 
         info!("compilation successful");
 
