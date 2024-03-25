@@ -19,7 +19,7 @@ use codespan_reporting::{
         termcolor::{ColorChoice, StandardStream},
     },
 };
-use log::info;
+use log::{info, warn};
 use nova::{report, run, CompileResult};
 use simple_logger::SimpleLogger;
 use std::{fs::read_to_string, process::ExitCode};
@@ -27,10 +27,18 @@ use std::{fs::read_to_string, process::ExitCode};
 #[derive(clap::Parser)]
 struct Args {
     filename: Utf8PathBuf,
+
+    #[clap(short, long)]
+    out: Option<Utf8PathBuf>,
 }
 
 fn main() -> ExitCode {
-    SimpleLogger::new().init().unwrap();
+    SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .with_module_level("cranelift", log::LevelFilter::Warn)
+        .env()
+        .init()
+        .unwrap();
 
     let args = Args::parse();
 
@@ -44,7 +52,16 @@ fn main() -> ExitCode {
         &read_to_string(&args.filename).unwrap(),
         &args.filename,
     ) {
-        CompileResult::Success { warnings } => {
+        CompileResult::Success { object, warnings } => {
+            if let Some(out) = args.out {
+                let data = object.emit().unwrap();
+
+                std::fs::write(out, data).unwrap();
+            } else {
+                warn!("no output file specified");
+                warn!("use -o/--out to specify an output file");
+            }
+
             for warning in &warnings {
                 let diag = report(warning);
 

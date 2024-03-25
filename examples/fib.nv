@@ -1,7 +1,11 @@
 func main(): int do
     for n in 0..10 do
-        fib_recursive(n);
-        fib_iterative(n);
+        let rec_result = fib_recursive(n);
+        let iter_result = fib_iterative(n);
+
+        if rec_result != iter_result then
+            return 1;
+        end
     end
 
     return 0;

@@ -6,13 +6,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel {
-    Function(Function),
+pub enum TopLevel<'src> {
+    Function(Function<'src>),
 }
 
 #[derive(Debug)]
-pub struct Function {
-    pub name: FuncId,
+pub struct Function<'src> {
+    pub id: FuncId,
+    pub name: &'src str,
     pub params: Vec<(VarId, Type)>,
     pub return_ty: Type,
     pub body: Vec<Statement>,
@@ -107,6 +108,7 @@ fn build_mir_top_level(top_level: Spanned<mir::TopLevel>) -> TopLevel {
 
 fn build_mir_function(function: Spanned<mir::Function>) -> Function {
     Function {
+        id: function.0.id.0,
         name: function.0.name.0,
         params: function
             .0
@@ -171,7 +173,7 @@ fn build_mir_statement(statement: Spanned<mir::Statement>) -> Statement {
                             ty: Type::Boolean,
                         },
                         then_branch: build_statements(body),
-                        else_branch: None,
+                        else_branch: Some(vec![Statement::Break]),
                     },
                     Statement::Assign {
                         name: name.0,

@@ -6,13 +6,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel {
-    Function(Function),
+pub enum TopLevel<'src> {
+    Function(Function<'src>),
 }
 
 #[derive(Debug)]
-pub struct Function {
-    pub name: FuncId,
+pub struct Function<'src> {
+    pub id: FuncId,
+    pub name: &'src str,
     pub params: Vec<(VarId, Type)>,
     pub return_ty: Type,
     pub body: Vec<BasicBlock>,
@@ -27,22 +28,17 @@ pub struct BasicBlock {
 
 #[derive(Clone, Debug)]
 pub enum Terminator {
-    Goto(Goto),
+    Goto(BasicBlockId),
+    Return(TypedExpression),
     If {
         condition: TypedExpression,
-        then_block: Goto,
-        else_block: Goto,
+        then_block: BasicBlockId,
+        else_block: BasicBlockId,
     },
     Unreachable,
 }
 
-#[derive(Clone, Debug)]
-pub enum Goto {
-    Block(BasicBlockId),
-    Return(TypedExpression),
-}
-
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Hash, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BasicBlockId(usize);
 
 #[derive(Clone, Debug)]
@@ -85,7 +81,13 @@ pub enum Expression {
 }
 
 pub fn lower(ast: Vec<mir_no_span::TopLevel>) -> Vec<TopLevel> {
-    LoweringContext::default().lower(ast)
+    ast.into_iter()
+        .map(|top_level| match top_level {
+            mir_no_span::TopLevel::Function(function) => {
+                TopLevel::Function(LoweringContext::default().lower_function(function))
+            }
+        })
+        .collect()
 }
 
 #[derive(Debug, Default)]
@@ -118,17 +120,7 @@ impl LoweringContext {
 }
 
 impl LoweringContext {
-    fn lower(&mut self, ast: Vec<mir_no_span::TopLevel>) -> Vec<TopLevel> {
-        ast.into_iter().map(|tl| self.lower_top_level(tl)).collect()
-    }
-
-    fn lower_top_level(&mut self, top_level: mir_no_span::TopLevel) -> TopLevel {
-        match top_level {
-            mir_no_span::TopLevel::Function(f) => TopLevel::Function(self.lower_function(f)),
-        }
-    }
-
-    fn lower_function(&mut self, function: mir_no_span::Function) -> Function {
+    fn lower_function<'src>(&mut self, function: mir_no_span::Function<'src>) -> Function<'src> {
         let main_block = self.new_block();
         self.switch_to_block(main_block);
 
@@ -153,6 +145,7 @@ impl LoweringContext {
             .collect();
 
         Function {
+            id: function.id,
             name: function.name,
             params: function.params,
             return_ty: function.return_ty,
@@ -185,7 +178,7 @@ impl LoweringContext {
                 let loop_block = self.new_block();
                 let exit_block = self.new_block();
 
-                self.finish_block(Terminator::Goto(Goto::Block(loop_block)));
+                self.finish_block(Terminator::Goto(loop_block));
 
                 self.switch_to_block(loop_block);
 
@@ -210,7 +203,7 @@ impl LoweringContext {
                 assert_eq!(self.loop_stack.len(), loop_stack_len_before);
 
                 if !finished_block {
-                    self.finish_block(Terminator::Goto(Goto::Block(loop_block)));
+                    self.finish_block(Terminator::Goto(loop_block));
                 }
 
                 self.switch_to_block(exit_block);
@@ -230,8 +223,8 @@ impl LoweringContext {
 
                 self.finish_block(Terminator::If {
                     condition,
-                    then_block: Goto::Block(then_block),
-                    else_block: Goto::Block(else_block),
+                    then_block,
+                    else_block,
                 });
 
                 self.switch_to_block(then_block);
@@ -246,7 +239,7 @@ impl LoweringContext {
                 }
 
                 if !finished_block {
-                    self.finish_block(Terminator::Goto(Goto::Block(exit_block)));
+                    self.finish_block(Terminator::Goto(exit_block));
                 }
 
                 self.switch_to_block(else_block);
@@ -263,7 +256,7 @@ impl LoweringContext {
                 }
 
                 if !finished_block {
-                    self.finish_block(Terminator::Goto(Goto::Block(exit_block)));
+                    self.finish_block(Terminator::Goto(exit_block));
                 }
 
                 self.switch_to_block(exit_block);
@@ -291,21 +284,21 @@ impl LoweringContext {
             mir_no_span::Statement::Break => {
                 let loop_info = self.loop_stack.last().unwrap();
 
-                self.finish_block(Terminator::Goto(Goto::Block(loop_info.exit_block)));
+                self.finish_block(Terminator::Goto(loop_info.exit_block));
 
                 true
             }
             mir_no_span::Statement::Continue => {
                 let loop_info = self.loop_stack.last().unwrap();
 
-                self.finish_block(Terminator::Goto(Goto::Block(loop_info.start_block)));
+                self.finish_block(Terminator::Goto(loop_info.start_block));
 
                 true
             }
             mir_no_span::Statement::Return(expr) => {
                 let expr = Self::lower_expression(expr);
 
-                let terminator = Terminator::Goto(Goto::Return(expr));
+                let terminator = Terminator::Return(expr);
 
                 self.finish_block(terminator);
 

@@ -10,6 +10,7 @@
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
 
+use crate::span::Spanned;
 use camino::Utf8Path;
 use chumsky::prelude::*;
 use codespan_reporting::{
@@ -17,6 +18,7 @@ use codespan_reporting::{
     files::SimpleFiles,
 };
 use core::fmt::Display;
+use cranelift_object::ObjectProduct;
 use error::{convert, Diag, Error, ErrorSpan, Warning};
 use log::{error, info};
 use span::{Ctx, Span};
@@ -39,6 +41,7 @@ type FloatTy = f32;
 
 pub enum CompileResult {
     Success {
+        object: Box<ObjectProduct>,
         warnings: Vec<Warning>,
     },
     Failure {
@@ -89,23 +92,28 @@ pub fn run<'src, 'file>(
 
     let mir = mir::build(typed_ast);
 
-    // println!("{:#?}", mir);
-
     let (analyse_warnings, analyse_errors) = analysis::analyse(&mir);
 
     warnings.extend(analyse_warnings);
     errors.extend(analyse_errors);
+
+    if errors.is_empty() && !has_correct_main(&mir) {
+        errors.push(Error::MissingMainFunction);
+    }
 
     if errors.is_empty() {
         let mir = mir_no_span::build(mir);
 
         let low_ir = low_ir::lower(mir);
 
-        codegen::codegen(&low_ir);
+        let object = codegen::codegen(&low_ir);
 
         info!("compilation successful");
 
-        CompileResult::Success { warnings }
+        CompileResult::Success {
+            object: Box::new(object),
+            warnings,
+        }
     } else {
         error!("compilation failed");
 
@@ -173,4 +181,21 @@ impl Iterator for IdGen {
         self.next_id = self.next_id.checked_add(1)?;
         Some(id)
     }
+}
+
+#[allow(clippy::match_like_matches_macro)]
+#[allow(clippy::match_wildcard_for_single_variants)]
+fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
+    mir.iter().any(|top_level| match top_level.0 {
+        mir::TopLevel::Function(Spanned(
+            mir::Function {
+                name: Spanned("main", _),
+                params: Spanned(ref params, _),
+                return_ty: Spanned(mir::Type::Integer, _),
+                ..
+            },
+            _,
+        )) if params.is_empty() => true,
+        _ => false,
+    })
 }

@@ -1,5 +1,0 @@
-func var_snake_case(): int do
-    let myVar = 123;
-
-    return myVar;
-end

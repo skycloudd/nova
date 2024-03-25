@@ -10,13 +10,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel {
-    Function(Spanned<Function>),
+pub enum TopLevel<'src> {
+    Function(Spanned<Function<'src>>),
 }
 
 #[derive(Debug)]
-pub struct Function {
-    pub name: Spanned<FuncId>,
+pub struct Function<'src> {
+    pub id: Spanned<FuncId>,
+    pub name: Spanned<&'src str>,
     pub params: Spanned<Vec<(Spanned<VarId>, Spanned<Type>)>>,
     pub return_ty: Spanned<Type>,
     pub body: Spanned<Vec<Spanned<Statement>>>,
@@ -188,7 +189,7 @@ impl<'src> IdMap<'src> for FuncIdMap<'src> {
     }
 }
 
-pub fn build(ast: Vec<Spanned<TypedTopLevel<'_>>>) -> Vec<Spanned<TopLevel>> {
+pub fn build(ast: Vec<Spanned<TypedTopLevel>>) -> Vec<Spanned<TopLevel>> {
     MirBuilder::new().build(ast)
 }
 
@@ -205,7 +206,7 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build(&mut self, ast: Vec<Spanned<TypedTopLevel<'src>>>) -> Vec<Spanned<TopLevel>> {
+    fn build(&mut self, ast: Vec<Spanned<TypedTopLevel<'src>>>) -> Vec<Spanned<TopLevel<'src>>> {
         for top_level in &ast {
             match &top_level.0 {
                 TypedTopLevel::Function(function) => {
@@ -226,7 +227,7 @@ impl<'src> MirBuilder<'src> {
     fn build_mir_top_level(
         &mut self,
         top_level: Spanned<TypedTopLevel<'src>>,
-    ) -> Spanned<TopLevel> {
+    ) -> Spanned<TopLevel<'src>> {
         Spanned(
             match top_level.0 {
                 TypedTopLevel::Function(function) => {
@@ -237,10 +238,14 @@ impl<'src> MirBuilder<'src> {
         )
     }
 
-    fn build_mir_function(&mut self, function: Spanned<TypedFunction<'src>>) -> Spanned<Function> {
+    fn build_mir_function(
+        &mut self,
+        function: Spanned<TypedFunction<'src>>,
+    ) -> Spanned<Function<'src>> {
         Spanned(
             Function {
-                name: *self.func_id_map.get(function.0.name.0).unwrap(),
+                id: *self.func_id_map.get(function.0.name.0).unwrap(),
+                name: function.0.name,
                 params: Spanned(
                     function
                         .0

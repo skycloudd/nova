@@ -103,6 +103,7 @@ pub enum Error {
     CantInferType {
         span: Span,
     },
+    MissingMainFunction,
 }
 
 impl Diag for Error {
@@ -204,6 +205,7 @@ impl Diag for Error {
             Self::CantInferType { span: _ } => {
                 "cannot infer the type of this expression".to_string()
             }
+            Self::MissingMainFunction => "no `main` function has been defined".to_string(),
         }
     }
 
@@ -340,6 +342,7 @@ impl Diag for Error {
                 ErrorSpan::Primary(Some(format!("into type `{into}`")), *into_span),
             ],
             Self::CantInferType { span } => vec![ErrorSpan::Primary(None, *span)],
+            Self::MissingMainFunction => vec![],
         }
     }
 
@@ -389,6 +392,14 @@ impl Diag for Error {
             Self::InvalidUnaryOperation { .. } => vec![],
             Self::InvalidConversion { .. } => vec![],
             Self::CantInferType { .. } => vec![],
+            Self::MissingMainFunction => {
+                vec![
+                    "add the `main` function to your program.".into(),
+                    "the `main` function is the entry point of the program and must always exist."
+                        .into(),
+                    "it must have the signature `func main(): int`".into(),
+                ]
+            }
         }
     }
 
