@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryOp, UnaryOp},
+    ast::{self, BinaryOp, UnaryOp},
     mir::{self, FuncId, VarId},
     span::Spanned,
     FloatTy, IntTy,
@@ -74,24 +74,38 @@ pub enum Expression {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Integer,
     Float,
     Boolean,
     String,
+    Pointer(Box<Type>),
 }
 
-impl TryFrom<mir::Type> for Type {
+impl Type {
+    pub fn sizeof(&self) -> usize {
+        match self {
+            Type::Integer => std::mem::size_of::<IntTy>(),
+            Type::Float => std::mem::size_of::<FloatTy>(),
+            Type::Boolean => std::mem::size_of::<bool>(),
+            Type::String => unimplemented!(),
+            Type::Pointer(_) => std::mem::size_of::<usize>(),
+        }
+    }
+}
+
+impl TryFrom<ast::Type> for Type {
     type Error = ();
 
-    fn try_from(ty: mir::Type) -> Result<Self, Self::Error> {
+    fn try_from(ty: ast::Type) -> Result<Self, Self::Error> {
         match ty {
-            mir::Type::Error => Err(()),
-            mir::Type::Integer => Ok(Self::Integer),
-            mir::Type::Float => Ok(Self::Float),
-            mir::Type::Boolean => Ok(Self::Boolean),
-            mir::Type::String => Ok(Self::String),
+            ast::Type::Error => Err(()),
+            ast::Type::Integer => Ok(Self::Integer),
+            ast::Type::Float => Ok(Self::Float),
+            ast::Type::Boolean => Ok(Self::Boolean),
+            ast::Type::String => Ok(Self::String),
+            ast::Type::Pointer(inner) => Ok(Self::Pointer(Box::new((*inner.0).try_into()?))),
         }
     }
 }

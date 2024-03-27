@@ -128,6 +128,8 @@ impl core::fmt::Display for BinaryOp {
 pub enum UnaryOp {
     Negate,
     Not,
+    Ref,
+    Deref,
 }
 
 impl core::fmt::Display for UnaryOp {
@@ -135,17 +137,20 @@ impl core::fmt::Display for UnaryOp {
         match self {
             Self::Negate => write!(f, "-"),
             Self::Not => write!(f, "!"),
+            Self::Ref => write!(f, "&"),
+            Self::Deref => write!(f, "*"),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Error,
     Boolean,
     Integer,
     Float,
     String,
+    Pointer(Spanned<Box<Type>>),
 }
 
 pub mod typed {
@@ -175,6 +180,7 @@ pub mod typed {
                 Self::Integer => write!(f, "int"),
                 Self::Float => write!(f, "float"),
                 Self::String => write!(f, "str"),
+                Self::Pointer(ty) => write!(f, "ptr<{}>", ty.0),
             }
         }
     }

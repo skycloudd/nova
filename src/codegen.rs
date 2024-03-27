@@ -60,10 +60,10 @@ impl<'a> Codegen<'a> {
                     let mut sig = self.module.make_signature();
 
                     for param in &function.params {
-                        sig.params.push(param.1.into());
+                        sig.params.push(param.1.clone().into());
                     }
 
-                    sig.returns.push(function.return_ty.into());
+                    sig.returns.push(function.return_ty.clone().into());
 
                     let id = self
                         .module
@@ -98,14 +98,14 @@ impl<'a> Codegen<'a> {
         functions: &FxHashMap<FuncId, cranelift_module::FuncId>,
     ) {
         for param in &function.params {
-            self.ctx.func.signature.params.push(param.1.into());
+            self.ctx.func.signature.params.push(param.1.clone().into());
         }
 
         self.ctx
             .func
             .signature
             .returns
-            .push(function.return_ty.into());
+            .push(function.return_ty.clone().into());
 
         let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
 
@@ -162,7 +162,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
         for (idx, param) in function.params.iter().enumerate() {
             let var = self.variable();
 
-            self.builder.declare_var(var, param.1.into());
+            self.builder.declare_var(var, param.1.clone().into());
 
             self.builder
                 .def_var(var, self.builder.block_params(entry_block)[idx]);
@@ -246,7 +246,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
             Instruction::Let { name, value } => {
                 let var = self.variable();
 
-                self.builder.declare_var(var, value.ty.into());
+                self.builder.declare_var(var, value.ty.clone().into());
 
                 let value = self.translate_expr(value);
 
@@ -280,21 +280,43 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
                 "strings will be implemented in stdlib when pointers are implemented"
             ),
             Expression::Unary { op, value } => {
-                let value_ty = value.ty;
+                let value_ty = value.ty.clone();
                 let value = self.translate_expr(*value);
 
                 match (op, value_ty) {
                     (UnaryOp::Negate, Type::Integer) => self.builder.ins().ineg(value),
                     (UnaryOp::Negate, Type::Float) => self.builder.ins().fneg(value),
                     (UnaryOp::Not, Type::Boolean) => self.builder.ins().bnot(value),
+                    (UnaryOp::Ref, any) => {
+                        let stackslot = self.builder.create_sized_stack_slot(StackSlotData::new(
+                            StackSlotKind::ExplicitSlot,
+                            any.sizeof() as u32,
+                        ));
+
+                        let ptr = self.builder.ins().stack_addr(POINTER_TYPE, stackslot, 0);
+
+                        self.builder
+                            .ins()
+                            .store(MemFlags::new().with_aligned(), value, ptr, 0);
+
+                        ptr
+                    }
+                    (UnaryOp::Deref, Type::Pointer(inner)) => {
+                        let ptr =
+                            self.builder
+                                .ins()
+                                .load((*inner).into(), MemFlags::new(), value, 0);
+
+                        ptr
+                    }
                     _ => unreachable!(),
                 }
             }
             Expression::Binary { lhs, op, rhs } => {
-                let lhs_ty = lhs.ty;
+                let lhs_ty = lhs.ty.clone();
                 let lhs = self.translate_expr(*lhs);
 
-                let rhs_ty = rhs.ty;
+                let rhs_ty = rhs.ty.clone();
                 let rhs = self.translate_expr(*rhs);
 
                 match (lhs_ty, rhs_ty) {
@@ -351,7 +373,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
                 }
             }
             Expression::Convert { ty, expr } => {
-                let expr_ty = expr.ty;
+                let expr_ty = expr.ty.clone();
                 let expr = self.translate_expr(*expr);
 
                 match (expr_ty, ty) {
@@ -384,6 +406,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
 const INT_TYPE: IrType = types::I32;
 const FLOAT_TYPE: IrType = types::F32;
 const BOOL_TYPE: IrType = types::I8;
+const POINTER_TYPE: IrType = types::R64;
 
 impl From<Type> for IrType {
     fn from(value: Type) -> Self {
@@ -394,6 +417,7 @@ impl From<Type> for IrType {
             Type::String => unimplemented!(
                 "strings will be implemented in stdlib when pointers are implemented"
             ),
+            Type::Pointer(_inner) => POINTER_TYPE, // todo: make this dynamically either 32 or 64 bits
         }
     }
 }

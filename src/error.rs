@@ -1,7 +1,6 @@
 use crate::{
-    ast::{BinaryOp, UnaryOp},
+    ast::{BinaryOp, Type, UnaryOp},
     span::Span,
-    typecheck::TypeInfo,
     IntTy,
 };
 use chumsky::error::{Rich, RichReason};
@@ -34,13 +33,13 @@ pub enum Error {
         span: Span,
     },
     TypeMismatch {
-        expected: TypeInfo,
-        found: TypeInfo,
+        expected: Type,
+        found: Type,
         span: Span,
     },
     ReturnTypeMismatch {
-        expected: TypeInfo,
-        found: TypeInfo,
+        expected: Type,
+        found: Type,
         expected_span: Span,
         found_span: Span,
     },
@@ -78,25 +77,25 @@ pub enum Error {
         already_defined_span: Span,
     },
     InvalidBinaryOperation {
-        lhs: TypeInfo,
+        lhs: Type,
         lhs_span: Span,
-        rhs: TypeInfo,
+        rhs: Type,
         rhs_span: Span,
         op: BinaryOp,
         op_span: Span,
         full_span: Span,
     },
     InvalidUnaryOperation {
-        ty: TypeInfo,
+        ty: Type,
         ty_span: Span,
         op: UnaryOp,
         op_span: Span,
         full_span: Span,
     },
     InvalidConversion {
-        from: TypeInfo,
+        from: Type,
         from_span: Span,
-        into: TypeInfo,
+        into: Type,
         into_span: Span,
         full_span: Span,
     },

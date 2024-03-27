@@ -1,0 +1,9 @@
+func main(): int do
+    let a = 123;
+
+    return takes_ptr(&a);
+end
+
+func takes_ptr(a: ptr<int>): int do
+    return *a;
+end

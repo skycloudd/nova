@@ -1,8 +1,7 @@
 use crate::{
     ast::{
-        self,
         typed::{Expr, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
-        BinaryOp, UnaryOp,
+        BinaryOp, Type, UnaryOp,
     },
     scopes::Scopes,
     span::Spanned,
@@ -88,39 +87,6 @@ pub enum Expression {
         func: Spanned<FuncId>,
         args: Spanned<Vec<Spanned<TypedExpression>>>,
     },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Type {
-    Error,
-    Integer,
-    Float,
-    Boolean,
-    String,
-}
-
-impl From<ast::Type> for Type {
-    fn from(ty: ast::Type) -> Self {
-        match ty {
-            ast::Type::Error => Self::Error,
-            ast::Type::Integer => Self::Integer,
-            ast::Type::Float => Self::Float,
-            ast::Type::Boolean => Self::Boolean,
-            ast::Type::String => Self::String,
-        }
-    }
-}
-
-impl core::fmt::Display for Type {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Error => write!(f, "error"),
-            Self::Integer => write!(f, "int"),
-            Self::Float => write!(f, "float"),
-            Self::Boolean => write!(f, "bool"),
-            Self::String => write!(f, "str"),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -252,19 +218,11 @@ impl<'src> MirBuilder<'src> {
                         .params
                         .0
                         .iter()
-                        .map(|arg| {
-                            let name = arg.0;
-                            let ty = arg.1;
-
-                            (
-                                *self.var_id_map.get(name.0).unwrap(),
-                                Spanned(ty.0.into(), ty.1),
-                            )
-                        })
+                        .map(|arg| (*self.var_id_map.get(arg.0 .0).unwrap(), arg.1.clone()))
                         .collect(),
                     function.0.params.1,
                 ),
-                return_ty: Spanned(function.0.return_ty.0.into(), function.0.return_ty.1),
+                return_ty: function.0.return_ty,
                 body: self.build_statements(function.0.body),
             },
             function.1,
@@ -380,7 +338,7 @@ impl<'src> MirBuilder<'src> {
                         let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
 
                         Expression::Convert {
-                            ty: Spanned(ty.0.into(), ty.1),
+                            ty,
                             expr: Spanned(Box::new(expr.0), expr.1),
                         }
                     }
@@ -395,7 +353,7 @@ impl<'src> MirBuilder<'src> {
                         ),
                     },
                 },
-                ty: expr.0.ty.into(),
+                ty: expr.0.ty,
             },
             expr.1,
         )

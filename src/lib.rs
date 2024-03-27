@@ -191,7 +191,7 @@ fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
             mir::Function {
                 name: Spanned("main", _),
                 params: Spanned(ref params, _),
-                return_ty: Spanned(mir::Type::Integer, _),
+                return_ty: Spanned(ast::Type::Integer, _),
                 ..
             },
             _,

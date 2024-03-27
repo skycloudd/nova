@@ -361,6 +361,8 @@ fn expr_parser<'tokens, 'src: 'tokens>(
         let unary_op = choice((
             just(Token::Op(Op::Minus)).to(UnaryOp::Negate),
             just(Token::Op(Op::Not)).to(UnaryOp::Not),
+            just(Token::Op(Op::Ref)).to(UnaryOp::Ref),
+            just(Token::Op(Op::Star)).to(UnaryOp::Deref),
         ))
         .map_with(|t, e| Spanned(t, e.span()))
         .labelled("unary operator");
@@ -490,14 +492,27 @@ fn ident<'tokens, 'src: 'tokens>(
 
 fn type_parser<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Type>, ParserError<'tokens, 'src>> {
-    select! {
-        Token::Variable("bool") => Type::Boolean,
-        Token::Variable("int") => Type::Integer,
-        Token::Variable("float") => Type::Float,
-        Token::Variable("str") => Type::String,
+    recursive(|type_| {
+        let ptr = select! {
+            Token::Variable("ptr") => ()
+        }
+        .ignore_then(type_.delimited_by(
+            just(Token::Op(Op::LessThan)),
+            just(Token::Op(Op::GreaterThan)),
+        ))
+        .map(|ty: Spanned<Type>| Type::Pointer(Spanned(Box::new(ty.0), ty.1)));
 
-    }
-    .map_with(|ty, e| Spanned(ty, e.span()))
-    .labelled("type")
-    .boxed()
+        choice((
+            select! {
+                Token::Variable("bool") => Type::Boolean,
+                Token::Variable("int") => Type::Integer,
+                Token::Variable("float") => Type::Float,
+                Token::Variable("str") => Type::String,
+            },
+            ptr,
+        ))
+        .map_with(|ty, e| Spanned(ty, e.span()))
+        .labelled("type")
+        .boxed()
+    })
 }

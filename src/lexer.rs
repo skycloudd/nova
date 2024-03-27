@@ -62,6 +62,7 @@ pub enum Op {
     LessThan,
 
     Not,
+    Ref,
 }
 
 impl core::fmt::Display for Token<'_> {
@@ -135,6 +136,7 @@ impl core::fmt::Display for Op {
             Self::LessThan => write!(f, "<"),
 
             Self::Not => write!(f, "!"),
+            Self::Ref => write!(f, "&"),
         }
     }
 }
@@ -259,6 +261,7 @@ pub fn lexer<'src>() -> impl Parser<'src, LexerInput<'src>, LexerOutput<'src>, L
         just('>').to(Token::Op(Op::GreaterThan)),
         just('<').to(Token::Op(Op::LessThan)),
         just('!').to(Token::Op(Op::Not)),
+        just('&').to(Token::Op(Op::Ref)),
     ))
     .boxed();
 
