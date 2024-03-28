@@ -5,14 +5,13 @@ use crate::{
 };
 use chumsky::{input::SpannedInput, prelude::*};
 
-type ParserInput<'tokens> = SpannedInput<Token, Span, &'tokens [(Token, Span)]>;
+type ParserInput<'tok> = SpannedInput<Token, Span, &'tok [(Token, Span)]>;
 
 type ParserOutput = Vec<Spanned<TopLevel>>;
 
-type ParserError<'tokens> = extra::Err<Rich<'tokens, Token, Span>>;
+type ParserError<'tok> = extra::Err<Rich<'tok, Token, Span>>;
 
-pub fn parser<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, ParserOutput, ParserError<'tokens>> {
+pub fn parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, ParserOutput, ParserError<'tok>> {
     toplevel_parser()
         .repeated()
         .collect()
@@ -20,13 +19,13 @@ pub fn parser<'tokens>(
         .boxed()
 }
 
-fn toplevel_parser<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, Spanned<TopLevel>, ParserError<'tokens>> {
+fn toplevel_parser<'tok>(
+) -> impl Parser<'tok, ParserInput<'tok>, Spanned<TopLevel>, ParserError<'tok>> {
     function_parser()
 }
 
-fn function_parser<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, Spanned<TopLevel>, ParserError<'tokens>> {
+fn function_parser<'tok>(
+) -> impl Parser<'tok, ParserInput<'tok>, Spanned<TopLevel>, ParserError<'tok>> {
     just(Token::Kw(Kw::Func))
         .ignore_then(ident())
         .then(
@@ -77,8 +76,8 @@ fn function_parser<'tokens>(
 }
 
 #[allow(clippy::too_many_lines)]
-fn statement_parser<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, Spanned<Statement>, ParserError<'tokens>> {
+fn statement_parser<'tok>(
+) -> impl Parser<'tok, ParserInput<'tok>, Spanned<Statement>, ParserError<'tok>> {
     recursive(|statement| {
         let expr = expr_parser()
             .then_ignore(just(Token::Ctrl(Ctrl::SemiColon)))
@@ -242,8 +241,7 @@ fn statement_parser<'tokens>(
 }
 
 #[allow(clippy::too_many_lines)]
-fn expr_parser<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, Spanned<Expr>, ParserError<'tokens>> {
+fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, ParserError<'tok>> {
     recursive(|expression| {
         let variable = ident()
             .map_with(|variable, e| Spanned(Expr::Variable(variable), e.span()))
@@ -474,8 +472,7 @@ fn expr_parser<'tokens>(
     .boxed()
 }
 
-fn ident<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, Spanned<&'static str>, ParserError<'tokens>> {
+fn ident<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<&'static str>, ParserError<'tok>> {
     select! {
         Token::Variable(name) => name
     }
@@ -484,8 +481,7 @@ fn ident<'tokens>(
     .boxed()
 }
 
-fn type_parser<'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens>, Spanned<Type>, ParserError<'tokens>> {
+fn type_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Type>, ParserError<'tok>> {
     recursive(|type_| {
         let ptr = select! {
             Token::Variable("ptr") => ()
