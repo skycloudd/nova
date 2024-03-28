@@ -54,6 +54,7 @@ pub fn run<'src, 'file>(
     files: &mut SimpleFiles<&'file Utf8Path, &'src str>,
     input: &'src str,
     filename: &'file Utf8Path,
+    print_timing: bool,
 ) -> CompileResult {
     info!("compiling {}", filename);
 
@@ -61,38 +62,45 @@ pub fn run<'src, 'file>(
 
     let file_ctx = Ctx(file_id);
 
+    let mut timing = TimingStats::new(print_timing);
+
     let mut warnings = vec![];
     let mut errors = vec![];
 
-    let (tokens, lex_errors) = lexer::lexer()
-        .parse(input.with_context(file_ctx))
-        .into_output_errors();
+    let (tokens, lex_errors) = timing.time("lexing", || {
+        lexer::lexer()
+            .parse(input.with_context(file_ctx))
+            .into_output_errors()
+    });
 
     errors.extend(map_errors(lex_errors));
 
-    let (ast, parse_errors) = tokens.as_ref().map_or_else(
-        || (None, vec![]),
-        |tokens| {
-            let eof = input.chars().count().saturating_sub(1);
-            let end_of_input = Span::new(file_ctx, eof..eof);
+    let (ast, parse_errors) = timing.time("parsing", || {
+        tokens.as_ref().map_or_else(
+            || (None, vec![]),
+            |tokens| {
+                let eof = input.chars().count().saturating_sub(1);
+                let end_of_input = Span::new(file_ctx, eof..eof);
 
-            parser::parser()
-                .parse(tokens.spanned(end_of_input))
-                .into_output_errors()
-        },
-    );
+                parser::parser()
+                    .parse(tokens.spanned(end_of_input))
+                    .into_output_errors()
+            },
+        )
+    });
 
     errors.extend(map_errors(parse_errors));
 
-    let (typed_ast, typecheck_warnings, typecheck_errs) =
-        ast.map_or_else(|| (vec![], vec![], vec![]), typecheck::typecheck);
+    let (typed_ast, typecheck_warnings, typecheck_errs) = timing.time("typechecking", || {
+        ast.map_or_else(|| (vec![], vec![], vec![]), typecheck::typecheck)
+    });
 
     warnings.extend(typecheck_warnings);
     errors.extend(typecheck_errs);
 
-    let mir = mir::build(typed_ast);
+    let mir = timing.time("building MIR", || mir::build(typed_ast));
 
-    let (analyse_warnings, analyse_errors) = analysis::analyse(&mir);
+    let (analyse_warnings, analyse_errors) = timing.time("analysis", || analysis::analyse(&mir));
 
     warnings.extend(analyse_warnings);
     errors.extend(analyse_errors);
@@ -101,12 +109,12 @@ pub fn run<'src, 'file>(
         errors.push(Error::MissingMainFunction);
     }
 
-    if errors.is_empty() {
-        let mir = mir_no_span::build(mir);
+    let res = if errors.is_empty() {
+        let mir = timing.time("removing spans", || mir_no_span::build(mir));
 
-        let low_ir = low_ir::lower(mir);
+        let low_ir = timing.time("building LIR", || low_ir::lower(mir));
 
-        let object = codegen::codegen(low_ir);
+        let object = timing.time("codegen", || codegen::codegen(low_ir));
 
         info!("compilation successful");
 
@@ -118,7 +126,11 @@ pub fn run<'src, 'file>(
         error!("compilation failed");
 
         CompileResult::Failure { warnings, errors }
-    }
+    };
+
+    timing.print();
+
+    res
 }
 
 pub fn report(diagnostic: &impl Diag) -> Diagnostic<usize> {
@@ -198,4 +210,45 @@ fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
         )) if params.is_empty() => true,
         _ => false,
     })
+}
+
+struct TimingStats {
+    stats: Vec<(&'static str, std::time::Duration)>,
+    flag: bool,
+}
+
+impl TimingStats {
+    fn new(flag: bool) -> Self {
+        Self {
+            stats: vec![],
+            flag,
+        }
+    }
+
+    fn push(&mut self, name: &'static str, duration: std::time::Duration) {
+        self.stats.push((name, duration));
+    }
+
+    fn time<F, T>(&mut self, name: &'static str, f: F) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        let start = std::time::Instant::now();
+        let res = f();
+        let duration = start.elapsed();
+
+        self.push(name, duration);
+
+        res
+    }
+
+    fn print(&self) {
+        if !self.flag {
+            return;
+        }
+
+        for (name, duration) in &self.stats {
+            info!("{:<15}: {:?}", name, duration);
+        }
+    }
 }

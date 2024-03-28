@@ -26,10 +26,16 @@ use std::{fs::read_to_string, process::ExitCode};
 
 #[derive(clap::Parser)]
 struct Args {
+    /// Input file path
     filename: Utf8PathBuf,
 
+    /// Output .o file path
     #[clap(short, long)]
     out: Option<Utf8PathBuf>,
+
+    /// Print timing information to stderr
+    #[clap(short, long)]
+    timing: bool,
 }
 
 fn main() -> ExitCode {
@@ -51,6 +57,7 @@ fn main() -> ExitCode {
         &mut files,
         &read_to_string(&args.filename).unwrap(),
         &args.filename,
+        args.timing,
     ) {
         CompileResult::Success { object, warnings } => {
             if let Some(out) = args.out {

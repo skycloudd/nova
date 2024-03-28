@@ -20,8 +20,8 @@ executable=${input%.nv}
 set -e
 
 echo "$SCRIPT_SUCCESS compiling \`$input\` to \`$obj_file\` and running \`$executable\`"
-cargo run -- $input -o $obj_file
-gcc -o $executable $obj_file
+cargo run -- $input -t -o $obj_file 
+cc -o $executable $obj_file
 
 set +e
 
