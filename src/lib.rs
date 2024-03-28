@@ -248,7 +248,7 @@ impl TimingStats {
         }
 
         for (name, duration) in &self.stats {
-            info!("{:<15}: {:?}", name, duration);
+            info!("{:<15}: {:>8.2?}", name, duration);
         }
     }
 }

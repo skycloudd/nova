@@ -14,7 +14,7 @@ use cranelift::{
 };
 use cranelift_module::{Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule, ObjectProduct};
-use log::debug;
+use log::trace;
 use rustc_hash::FxHashMap;
 
 pub fn codegen(low_ir: Vec<TopLevel>) -> ObjectProduct {
@@ -157,7 +157,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
     }
 
     fn translate(&mut self, function: Function, entry_block: Block) {
-        debug!("translate function: {}", function.id.0);
+        trace!("translate function: {}", function.id.0);
 
         for (idx, param) in function.params.iter().enumerate() {
             let var = self.variable();
@@ -188,7 +188,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
     }
 
     fn translate_block(&mut self, block: BasicBlock, blocks: &FxHashMap<BasicBlockId, Block>) {
-        debug!("translate block: {:?}", block.id);
+        trace!("translate block: {:?}", block.id);
 
         self.builder
             .switch_to_block(*blocks.get(&block.id).unwrap());
@@ -205,7 +205,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
         terminator: Terminator,
         blocks: &FxHashMap<BasicBlockId, Block>,
     ) {
-        debug!("translate terminator: {:?}", terminator);
+        trace!("translate terminator: {:?}", terminator);
 
         match terminator {
             Terminator::Goto(block) => {
@@ -237,7 +237,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
     }
 
     fn translate_instruction(&mut self, instr: Instruction) {
-        debug!("translate instr: {:?}", instr);
+        trace!("translate instr: {:?}", instr);
 
         match instr {
             Instruction::Expr(expr) => {
@@ -265,7 +265,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
     }
 
     fn translate_expr(&mut self, expr: TypedExpression) -> Value {
-        debug!("translate expr: {:?}", expr);
+        trace!("translate expr: {:?}", expr);
 
         match expr.expr {
             Expression::Variable(var) => {
