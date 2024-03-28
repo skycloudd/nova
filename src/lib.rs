@@ -50,13 +50,16 @@ pub enum CompileResult {
     },
 }
 
-pub fn run<'src, 'file>(
-    files: &mut SimpleFiles<&'file Utf8Path, &'src str>,
-    input: &'src str,
+pub fn run<'file>(
+    files: &mut SimpleFiles<&'file Utf8Path, &str>,
+    input: &str,
     filename: &'file Utf8Path,
     print_timing: bool,
 ) -> CompileResult {
     info!("compiling {}", filename);
+
+    // leak the input
+    let input: &'static str = Box::leak(input.into());
 
     let file_id = files.add(filename, input);
 
@@ -203,7 +206,7 @@ fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
             mir::Function {
                 name: Spanned("main", _),
                 params: Spanned(ref params, _),
-                return_ty: Spanned(ast::Type::Integer, _),
+                return_ty: Spanned(mir::Type::Integer, _),
                 ..
             },
             _,

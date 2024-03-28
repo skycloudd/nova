@@ -41,7 +41,7 @@ struct Args {
 fn main() -> ExitCode {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
-        .with_module_level("cranelift", log::LevelFilter::Debug)
+        .with_module_level("cranelift", log::LevelFilter::Warn)
         .env()
         .init()
         .unwrap();

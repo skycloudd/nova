@@ -1,19 +1,19 @@
 use crate::{
-    ast::{self, BinaryOp, UnaryOp},
+    ast::{BinaryOp, UnaryOp},
     mir::{self, FuncId, VarId},
     span::Spanned,
     FloatTy, IntTy,
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'src> {
-    Function(Function<'src>),
+pub enum TopLevel {
+    Function(Function),
 }
 
 #[derive(Debug)]
-pub struct Function<'src> {
+pub struct Function {
     pub id: FuncId,
-    pub name: &'src str,
+    pub name: &'static str,
     pub params: Vec<(VarId, Type)>,
     pub return_ty: Type,
     pub body: Vec<Statement>,
@@ -86,26 +86,26 @@ pub enum Type {
 impl Type {
     pub fn sizeof(&self) -> usize {
         match self {
-            Type::Integer => std::mem::size_of::<IntTy>(),
-            Type::Float => std::mem::size_of::<FloatTy>(),
-            Type::Boolean => std::mem::size_of::<bool>(),
+            Type::Integer => 4,
+            Type::Float => 4,
+            Type::Boolean => 1,
             Type::String => unimplemented!(),
             Type::Pointer(_) => std::mem::size_of::<usize>(),
         }
     }
 }
 
-impl TryFrom<ast::Type> for Type {
+impl TryFrom<mir::Type> for Type {
     type Error = ();
 
-    fn try_from(ty: ast::Type) -> Result<Self, Self::Error> {
+    fn try_from(ty: mir::Type) -> Result<Self, <Type as TryFrom<mir::Type>>::Error> {
         match ty {
-            ast::Type::Error => Err(()),
-            ast::Type::Integer => Ok(Self::Integer),
-            ast::Type::Float => Ok(Self::Float),
-            ast::Type::Boolean => Ok(Self::Boolean),
-            ast::Type::String => Ok(Self::String),
-            ast::Type::Pointer(inner) => Ok(Self::Pointer(Box::new((*inner.0).try_into()?))),
+            mir::Type::Error => Err(()),
+            mir::Type::Integer => Ok(Self::Integer),
+            mir::Type::Float => Ok(Self::Float),
+            mir::Type::Boolean => Ok(Self::Boolean),
+            mir::Type::String => Ok(Self::String),
+            mir::Type::Pointer(inner) => Ok(Self::Pointer(Box::new((*inner.0).try_into()?))),
         }
     }
 }

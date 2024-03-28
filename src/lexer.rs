@@ -2,9 +2,9 @@ use crate::{FloatTy, IntTy, Span};
 use chumsky::{input::WithContext, prelude::*};
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Token<'src> {
+pub enum Token {
     // Error,
-    Variable(&'src str),
+    Variable(&'static str),
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
@@ -65,7 +65,7 @@ pub enum Op {
     Ref,
 }
 
-impl core::fmt::Display for Token<'_> {
+impl core::fmt::Display for Token {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             // Token::Error => write!(f, "error"),
@@ -141,14 +141,14 @@ impl core::fmt::Display for Op {
     }
 }
 
-type LexerInput<'src> = WithContext<Span, &'src str>;
+type LexerInput = WithContext<Span, &'static str>;
 
-type LexerOutput<'src> = Vec<(Token<'src>, Span)>;
+type LexerOutput = Vec<(Token, Span)>;
 
-type LexerError<'src> = extra::Err<Rich<'src, char, Span>>;
+type LexerError = extra::Err<Rich<'static, char, Span>>;
 
 #[allow(clippy::too_many_lines)]
-pub fn lexer<'src>() -> impl Parser<'src, LexerInput<'src>, LexerOutput<'src>, LexerError<'src>> {
+pub fn lexer() -> impl Parser<'static, LexerInput, LexerOutput, LexerError> {
     let variable = text::ascii::ident().map(Token::Variable).boxed();
 
     let bool = choice((

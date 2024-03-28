@@ -3,8 +3,8 @@ use crate::span::Spanned;
 macro_rules! top_level {
     ($name:ident, $func:ident) => {
         #[derive(Debug)]
-        pub enum $name<'src> {
-            Function(Spanned<$func<'src>>),
+        pub enum $name {
+            Function(Spanned<$func>),
         }
     };
 }
@@ -12,11 +12,11 @@ macro_rules! top_level {
 macro_rules! ast_function {
     ($name:ident, $stmt:ident) => {
         #[derive(Debug)]
-        pub struct $name<'src> {
-            pub name: Spanned<&'src str>,
-            pub params: Spanned<Vec<(Spanned<&'src str>, Spanned<Type>)>>,
+        pub struct $name {
+            pub name: Spanned<&'static str>,
+            pub params: Spanned<Vec<(Spanned<&'static str>, Spanned<Type>)>>,
             pub return_ty: Spanned<Type>,
-            pub body: Spanned<Vec<Spanned<$stmt<'src>>>>,
+            pub body: Spanned<Vec<Spanned<$stmt>>>,
         }
     };
 }
@@ -24,35 +24,35 @@ macro_rules! ast_function {
 macro_rules! ast_statement {
     ($name:ident, $expr:ident) => {
         #[derive(Clone, Debug)]
-        pub enum $name<'src> {
+        pub enum $name {
             #[allow(dead_code)]
             Error,
-            Expr(Spanned<$expr<'src>>),
+            Expr(Spanned<$expr>),
             Block(Spanned<Vec<Spanned<Self>>>),
             Loop(Spanned<Vec<Spanned<Self>>>),
             If {
-                condition: Spanned<$expr<'src>>,
+                condition: Spanned<$expr>,
                 then_branch: Spanned<Vec<Spanned<Self>>>,
                 else_branch: Option<Spanned<Vec<Spanned<Self>>>>,
             },
             For {
-                name: Spanned<&'src str>,
-                start: Spanned<$expr<'src>>,
-                end: Spanned<$expr<'src>>,
+                name: Spanned<&'static str>,
+                start: Spanned<$expr>,
+                end: Spanned<$expr>,
                 inclusive: bool,
                 body: Spanned<Vec<Spanned<Self>>>,
             },
             Let {
-                name: Spanned<&'src str>,
-                value: Spanned<$expr<'src>>,
+                name: Spanned<&'static str>,
+                value: Spanned<$expr>,
             },
             Assign {
-                name: Spanned<&'src str>,
-                value: Spanned<$expr<'src>>,
+                name: Spanned<&'static str>,
+                value: Spanned<$expr>,
             },
             Break,
             Continue,
-            Return(Spanned<$expr<'src>>),
+            Return(Spanned<$expr>),
         }
     };
 }
@@ -60,26 +60,26 @@ macro_rules! ast_statement {
 macro_rules! ast_expr {
     ($name:ident, $self_expr:ident) => {
         #[derive(Clone, Debug)]
-        pub enum $name<'src> {
+        pub enum $name {
             Error,
-            Variable(Spanned<&'src str>),
+            Variable(Spanned<&'static str>),
             Boolean(bool),
             Integer(crate::IntTy),
             Float(crate::FloatTy),
             String(String),
-            Unary(Spanned<UnaryOp>, Spanned<Box<$self_expr<'src>>>),
+            Unary(Spanned<UnaryOp>, Spanned<Box<$self_expr>>),
             Binary(
-                Spanned<Box<$self_expr<'src>>>,
+                Spanned<Box<$self_expr>>,
                 Spanned<BinaryOp>,
-                Spanned<Box<$self_expr<'src>>>,
+                Spanned<Box<$self_expr>>,
             ),
             Convert {
                 ty: Spanned<Type>,
-                expr: Spanned<Box<$self_expr<'src>>>,
+                expr: Spanned<Box<$self_expr>>,
             },
             Call {
-                func: Spanned<&'src str>,
-                args: Spanned<Vec<Spanned<$self_expr<'src>>>>,
+                func: Spanned<&'static str>,
+                args: Spanned<Vec<Spanned<$self_expr>>>,
             },
         }
     };
@@ -167,8 +167,8 @@ pub mod typed {
 
     #[allow(clippy::module_name_repetitions)]
     #[derive(Clone, Debug)]
-    pub struct TypedExpr<'src> {
-        pub expr: Expr<'src>,
+    pub struct TypedExpr {
+        pub expr: Expr,
         pub ty: Type,
     }
 

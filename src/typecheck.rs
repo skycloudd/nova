@@ -28,18 +28,18 @@ struct FunctionSignature {
     return_ty: Spanned<TypeId>,
 }
 
-struct Typechecker<'src, 'warning, 'error> {
+struct Typechecker<'warning, 'error> {
     engine: Engine,
-    functions: FxHashMap<&'src str, Spanned<FunctionSignature>>,
-    variables: Scopes<&'src str, TypeId>,
+    functions: FxHashMap<&'static str, Spanned<FunctionSignature>>,
+    variables: Scopes<&'static str, TypeId>,
 
-    current_function: Option<&'src str>,
+    current_function: Option<&'static str>,
 
     warnings: &'warning mut Vec<Warning>,
     errors: &'error mut Vec<Error>,
 }
 
-impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
+impl<'warning, 'error> Typechecker<'warning, 'error> {
     fn new(warnings: &'warning mut Vec<Warning>, errors: &'error mut Vec<Error>) -> Self {
         Self {
             engine: Engine::new(),
@@ -53,44 +53,41 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
         }
     }
 
-    fn typecheck_ast(
-        &mut self,
-        ast: Vec<Spanned<TopLevel<'src>>>,
-    ) -> Vec<Spanned<TypedTopLevel<'src>>> {
+    fn typecheck_ast(&mut self, ast: Vec<Spanned<TopLevel>>) -> Vec<Spanned<TypedTopLevel>> {
         for top_level in &ast {
-            let TopLevel::Function(function) = &top_level.0;
+            match &top_level.0 {
+                TopLevel::Function(function) => match self.functions.get(&function.0.name.0) {
+                    None => {
+                        let params = Spanned(
+                            function
+                                .0
+                                .params
+                                .0
+                                .iter()
+                                .filter(|(_, ty)| ty.0 != Type::Error)
+                                .map(|(_, ty)| Spanned(self.engine.insert_type(ty.clone()), ty.1))
+                                .collect(),
+                            function.0.params.1,
+                        );
 
-            match self.functions.get(&function.0.name.0) {
-                None => {
-                    let params = Spanned(
-                        function
-                            .0
-                            .params
-                            .0
-                            .iter()
-                            .filter(|(_, ty)| ty.0 != Type::Error)
-                            .map(|(_, ty)| Spanned(self.engine.insert_type(ty.clone()), ty.1))
-                            .collect(),
-                        function.0.params.1,
-                    );
+                        let return_ty = Spanned(
+                            self.engine.insert_type(function.0.return_ty.clone()),
+                            function.0.return_ty.1,
+                        );
 
-                    let return_ty = Spanned(
-                        self.engine.insert_type(function.0.return_ty.clone()),
-                        function.0.return_ty.1,
-                    );
-
-                    self.functions.insert(
-                        function.0.name.0,
-                        Spanned(FunctionSignature { params, return_ty }, function.1),
-                    );
-                }
-                Some(already_defined) => {
-                    self.errors.push(Error::FunctionAlreadyDefined {
-                        name: function.0.name.0.to_string(),
-                        span: function.1,
-                        already_defined_span: already_defined.1,
-                    });
-                }
+                        self.functions.insert(
+                            function.0.name.0,
+                            Spanned(FunctionSignature { params, return_ty }, function.1),
+                        );
+                    }
+                    Some(already_defined) => {
+                        self.errors.push(Error::FunctionAlreadyDefined {
+                            name: function.0.name.0.to_string(),
+                            span: function.1,
+                            already_defined_span: already_defined.1,
+                        });
+                    }
+                },
             }
         }
 
@@ -112,10 +109,7 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
         top_levels
     }
 
-    fn typecheck_function(
-        &mut self,
-        function: Spanned<Function<'src>>,
-    ) -> Spanned<TypedFunction<'src>> {
+    fn typecheck_function(&mut self, function: Spanned<Function>) -> Spanned<TypedFunction> {
         self.current_function = Some(function.0.name.0);
 
         if !is_snake_case(function.0.name.0) {
@@ -173,8 +167,8 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
 
     fn typecheck_statements(
         &mut self,
-        statements: Spanned<Vec<Spanned<Statement<'src>>>>,
-    ) -> Spanned<Vec<Spanned<TypedStatement<'src>>>> {
+        statements: Spanned<Vec<Spanned<Statement>>>,
+    ) -> Spanned<Vec<Spanned<TypedStatement>>> {
         Spanned(
             statements
                 .0
@@ -186,10 +180,7 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn typecheck_statement(
-        &mut self,
-        statement: Spanned<Statement<'src>>,
-    ) -> Spanned<TypedStatement<'src>> {
+    fn typecheck_statement(&mut self, statement: Spanned<Statement>) -> Spanned<TypedStatement> {
         Spanned(
             match statement.0 {
                 Statement::Error => TypedStatement::Error,
@@ -397,7 +388,7 @@ impl<'src, 'warning, 'error> Typechecker<'src, 'warning, 'error> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn typecheck_expression(&mut self, expr: Spanned<Expr<'src>>) -> Spanned<TypedExpr<'src>> {
+    fn typecheck_expression(&mut self, expr: Spanned<Expr>) -> Spanned<TypedExpr> {
         let checked_expr = Spanned(
             match expr.0 {
                 Expr::Error => TypedExpr {
@@ -949,7 +940,7 @@ pub enum Value {
 }
 
 impl Value {
-    fn recreate<'src>(self) -> TypedExpr<'src> {
+    fn recreate(self) -> TypedExpr {
         match self {
             Self::Boolean(bool) => TypedExpr {
                 expr: typed::Expr::Boolean(bool),

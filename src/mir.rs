@@ -1,7 +1,8 @@
 use crate::{
     ast::{
+        self,
         typed::{Expr, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
-        BinaryOp, Type, UnaryOp,
+        BinaryOp, UnaryOp,
     },
     scopes::Scopes,
     span::Spanned,
@@ -9,17 +10,27 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'src> {
-    Function(Spanned<Function<'src>>),
+pub enum TopLevel {
+    Function(Spanned<Function>),
 }
 
 #[derive(Debug)]
-pub struct Function<'src> {
+pub struct Function {
     pub id: Spanned<FuncId>,
-    pub name: Spanned<&'src str>,
+    pub name: Spanned<&'static str>,
     pub params: Spanned<Vec<(Spanned<VarId>, Spanned<Type>)>>,
     pub return_ty: Spanned<Type>,
     pub body: Spanned<Vec<Spanned<Statement>>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Type {
+    Error,
+    Boolean,
+    Integer,
+    Float,
+    String,
+    Pointer(Spanned<Box<Type>>),
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -92,19 +103,19 @@ pub enum Expression {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct VarId(pub usize);
 
-trait IdMap<'src> {
+trait IdMap {
     type Id;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&Self::Id>;
-    fn insert(&mut self, name: Spanned<&'src str>) -> Self::Id;
+    fn get(&self, name: &'static str) -> Option<&Self::Id>;
+    fn insert<'a>(&mut self, name: Spanned<&'static str>) -> Self::Id;
 }
 
-struct VarIdMap<'src> {
-    map: Scopes<&'src str, Spanned<VarId>>,
+struct VarIdMap {
+    map: Scopes<&'static str, Spanned<VarId>>,
     id_gen: IdGen,
 }
 
-impl VarIdMap<'_> {
+impl VarIdMap {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
@@ -113,26 +124,26 @@ impl VarIdMap<'_> {
     }
 }
 
-impl<'src> IdMap<'src> for VarIdMap<'src> {
+impl IdMap for VarIdMap {
     type Id = Spanned<VarId>;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<VarId>> {
+    fn get(&self, name: &'static str) -> Option<&Spanned<VarId>> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: Spanned<&'src str>) -> Spanned<VarId> {
+    fn insert(&mut self, name: Spanned<&'static str>) -> Spanned<VarId> {
         let id = Spanned(VarId(self.id_gen.next().unwrap()), name.1);
         self.map.insert(name.0, id);
         id
     }
 }
 
-struct FuncIdMap<'src> {
-    map: Scopes<&'src str, Spanned<FuncId>>,
+struct FuncIdMap {
+    map: Scopes<&'static str, Spanned<FuncId>>,
     id_gen: IdGen,
 }
 
-impl FuncIdMap<'_> {
+impl FuncIdMap {
     fn new() -> Self {
         Self {
             map: Scopes::new(),
@@ -141,14 +152,14 @@ impl FuncIdMap<'_> {
     }
 }
 
-impl<'src> IdMap<'src> for FuncIdMap<'src> {
+impl IdMap for FuncIdMap {
     type Id = Spanned<FuncId>;
 
-    fn get<'a>(&'a self, name: &'a str) -> Option<&Spanned<FuncId>> {
+    fn get(&self, name: &'static str) -> Option<&Spanned<FuncId>> {
         self.map.get(&name)
     }
 
-    fn insert(&mut self, name: Spanned<&'src str>) -> Spanned<FuncId> {
+    fn insert(&mut self, name: Spanned<&'static str>) -> Spanned<FuncId> {
         let id = Spanned(FuncId(self.id_gen.next().unwrap()), name.1);
         self.map.insert(name.0, id);
         id
@@ -159,12 +170,12 @@ pub fn build(ast: Vec<Spanned<TypedTopLevel>>) -> Vec<Spanned<TopLevel>> {
     MirBuilder::new().build(ast)
 }
 
-struct MirBuilder<'src> {
-    var_id_map: VarIdMap<'src>,
-    func_id_map: FuncIdMap<'src>,
+struct MirBuilder {
+    var_id_map: VarIdMap,
+    func_id_map: FuncIdMap,
 }
 
-impl<'src> MirBuilder<'src> {
+impl MirBuilder {
     fn new() -> Self {
         Self {
             var_id_map: VarIdMap::new(),
@@ -172,7 +183,7 @@ impl<'src> MirBuilder<'src> {
         }
     }
 
-    fn build(&mut self, ast: Vec<Spanned<TypedTopLevel<'src>>>) -> Vec<Spanned<TopLevel<'src>>> {
+    fn build(&mut self, ast: Vec<Spanned<TypedTopLevel>>) -> Vec<Spanned<TopLevel>> {
         for top_level in &ast {
             match &top_level.0 {
                 TypedTopLevel::Function(function) => {
@@ -190,10 +201,7 @@ impl<'src> MirBuilder<'src> {
             .collect()
     }
 
-    fn build_mir_top_level(
-        &mut self,
-        top_level: Spanned<TypedTopLevel<'src>>,
-    ) -> Spanned<TopLevel<'src>> {
+    fn build_mir_top_level(&mut self, top_level: Spanned<TypedTopLevel>) -> Spanned<TopLevel> {
         Spanned(
             match top_level.0 {
                 TypedTopLevel::Function(function) => {
@@ -204,10 +212,7 @@ impl<'src> MirBuilder<'src> {
         )
     }
 
-    fn build_mir_function(
-        &mut self,
-        function: Spanned<TypedFunction<'src>>,
-    ) -> Spanned<Function<'src>> {
+    fn build_mir_function(&mut self, function: Spanned<TypedFunction>) -> Spanned<Function> {
         Spanned(
             Function {
                 id: *self.func_id_map.get(function.0.name.0).unwrap(),
@@ -218,20 +223,43 @@ impl<'src> MirBuilder<'src> {
                         .params
                         .0
                         .iter()
-                        .map(|arg| (*self.var_id_map.get(arg.0 .0).unwrap(), arg.1.clone()))
+                        .map(|arg| {
+                            (
+                                *self.var_id_map.get(arg.0 .0).unwrap(),
+                                self.lower_ty(arg.1.clone()),
+                            )
+                        })
                         .collect(),
                     function.0.params.1,
                 ),
-                return_ty: function.0.return_ty,
+                return_ty: self.lower_ty(function.0.return_ty),
                 body: self.build_statements(function.0.body),
             },
             function.1,
         )
     }
 
+    fn lower_ty(&self, ty: Spanned<ast::Type>) -> Spanned<Type> {
+        Spanned(
+            match ty.0 {
+                ast::Type::Error => Type::Error,
+                ast::Type::Boolean => Type::Boolean,
+                ast::Type::Integer => Type::Integer,
+                ast::Type::Float => Type::Float,
+                ast::Type::String => Type::String,
+                ast::Type::Pointer(inner) => {
+                    let inner = self.lower_ty(Spanned(*inner.0, inner.1));
+
+                    Type::Pointer(Spanned(Box::new(inner.0), inner.1))
+                }
+            },
+            ty.1,
+        )
+    }
+
     fn build_statements(
         &mut self,
-        statements: Spanned<Vec<Spanned<TypedStatement<'src>>>>,
+        statements: Spanned<Vec<Spanned<TypedStatement>>>,
     ) -> Spanned<Vec<Spanned<Statement>>> {
         Spanned(
             statements
@@ -243,10 +271,7 @@ impl<'src> MirBuilder<'src> {
         )
     }
 
-    fn build_mir_statement(
-        &mut self,
-        statement: Spanned<TypedStatement<'src>>,
-    ) -> Spanned<Statement> {
+    fn build_mir_statement(&mut self, statement: Spanned<TypedStatement>) -> Spanned<Statement> {
         Spanned(
             match statement.0 {
                 TypedStatement::Error => Statement::Error,
@@ -304,7 +329,7 @@ impl<'src> MirBuilder<'src> {
         )
     }
 
-    fn build_mir_expr(&mut self, expr: Spanned<TypedExpr<'src>>) -> Spanned<TypedExpression> {
+    fn build_mir_expr(&mut self, expr: Spanned<TypedExpr>) -> Spanned<TypedExpression> {
         Spanned(
             TypedExpression {
                 expr: match expr.0.expr {
@@ -338,7 +363,7 @@ impl<'src> MirBuilder<'src> {
                         let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
 
                         Expression::Convert {
-                            ty,
+                            ty: self.lower_ty(ty),
                             expr: Spanned(Box::new(expr.0), expr.1),
                         }
                     }
@@ -353,7 +378,7 @@ impl<'src> MirBuilder<'src> {
                         ),
                     },
                 },
-                ty: expr.0.ty,
+                ty: self.lower_ty(Spanned(expr.0.ty, expr.1)).0,
             },
             expr.1,
         )

@@ -6,14 +6,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum TopLevel<'src> {
-    Function(Function<'src>),
+pub enum TopLevel {
+    Function(Function),
 }
 
 #[derive(Debug)]
-pub struct Function<'src> {
+pub struct Function {
     pub id: FuncId,
-    pub name: &'src str,
+    pub name: &'static str,
     pub params: Vec<(VarId, Type)>,
     pub return_ty: Type,
     pub body: Vec<BasicBlock>,
@@ -120,7 +120,7 @@ impl LoweringContext {
 }
 
 impl LoweringContext {
-    fn lower_function<'src>(&mut self, function: mir_no_span::Function<'src>) -> Function<'src> {
+    fn lower_function(&mut self, function: mir_no_span::Function) -> Function {
         let main_block = self.new_block();
         self.switch_to_block(main_block);
 
