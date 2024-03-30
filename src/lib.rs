@@ -11,6 +11,7 @@
 #![warn(clippy::print_stderr)]
 
 use crate::span::Spanned;
+use ast::Primitive;
 use camino::Utf8Path;
 use chumsky::prelude::*;
 use codespan_reporting::{
@@ -204,10 +205,11 @@ fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
     mir.iter().any(|top_level| match top_level.0 {
         mir::TopLevel::Function(Spanned(
             mir::Function {
+                id: _,
                 name: Spanned("main", _),
                 params: Spanned(ref params, _),
-                return_ty: Spanned(mir::Type::Integer, _),
-                ..
+                return_ty: Spanned(mir::Type::Primitive(Primitive::Integer), _),
+                body: _,
             },
             _,
         )) if params.is_empty() => true,
@@ -216,19 +218,19 @@ fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
 }
 
 struct TimingStats {
-    stats: Vec<(&'static str, std::time::Duration)>,
+    stats: Vec<(&'static str, core::time::Duration)>,
     flag: bool,
 }
 
 impl TimingStats {
-    fn new(flag: bool) -> Self {
+    const fn new(flag: bool) -> Self {
         Self {
             stats: vec![],
             flag,
         }
     }
 
-    fn push(&mut self, name: &'static str, duration: std::time::Duration) {
+    fn push(&mut self, name: &'static str, duration: core::time::Duration) {
         self.stats.push((name, duration));
     }
 

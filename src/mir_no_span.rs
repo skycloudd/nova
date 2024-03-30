@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryOp, UnaryOp},
+    ast::{BinaryOp, Primitive, UnaryOp},
     mir::{self, FuncId, VarId},
     span::Spanned,
     FloatTy, IntTy,
@@ -54,7 +54,6 @@ pub enum Expression {
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(String),
     Unary {
         op: UnaryOp,
         rhs: Box<TypedExpression>,
@@ -76,35 +75,36 @@ pub enum Expression {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
-    Integer,
-    Float,
-    Boolean,
-    String,
+    Primitive(Primitive),
     Pointer(Box<Type>),
 }
 
 impl Type {
-    pub fn sizeof(&self) -> usize {
+    pub const fn size_of(&self) -> usize {
         match self {
-            Type::Integer => 4,
-            Type::Float => 4,
-            Type::Boolean => 1,
-            Type::String => unimplemented!(),
-            Type::Pointer(_) => std::mem::size_of::<usize>(),
+            Self::Primitive(p) => match p {
+                Primitive::Integer => core::mem::size_of::<IntTy>(),
+                Primitive::Float => core::mem::size_of::<FloatTy>(),
+                Primitive::Boolean => core::mem::size_of::<bool>(),
+            },
+            Self::Pointer(_) => core::mem::size_of::<usize>(),
         }
+    }
+}
+
+impl From<Primitive> for Type {
+    fn from(p: Primitive) -> Self {
+        Self::Primitive(p)
     }
 }
 
 impl TryFrom<mir::Type> for Type {
     type Error = ();
 
-    fn try_from(ty: mir::Type) -> Result<Self, <Type as TryFrom<mir::Type>>::Error> {
+    fn try_from(ty: mir::Type) -> Result<Self, <Self as TryFrom<mir::Type>>::Error> {
         match ty {
             mir::Type::Error => Err(()),
-            mir::Type::Integer => Ok(Self::Integer),
-            mir::Type::Float => Ok(Self::Float),
-            mir::Type::Boolean => Ok(Self::Boolean),
-            mir::Type::String => Ok(Self::String),
+            mir::Type::Primitive(p) => Ok(Self::Primitive(p)),
             mir::Type::Pointer(inner) => Ok(Self::Pointer(Box::new((*inner.0).try_into()?))),
         }
     }
@@ -164,7 +164,7 @@ fn build_mir_statement(statement: Spanned<mir::Statement>) -> Statement {
         } => {
             let var_expr = TypedExpression {
                 expr: Expression::Variable(name.0),
-                ty: Type::Integer,
+                ty: Primitive::Integer.into(),
             };
 
             Statement::Block(vec![
@@ -184,7 +184,7 @@ fn build_mir_statement(statement: Spanned<mir::Statement>) -> Statement {
                                 },
                                 rhs: Box::new(build_mir_expr(end)),
                             },
-                            ty: Type::Boolean,
+                            ty: Primitive::Boolean.into(),
                         },
                         then_branch: build_statements(body),
                         else_branch: Some(vec![Statement::Break]),
@@ -197,10 +197,10 @@ fn build_mir_statement(statement: Spanned<mir::Statement>) -> Statement {
                                 op: BinaryOp::Plus,
                                 rhs: Box::new(TypedExpression {
                                     expr: Expression::Integer(1),
-                                    ty: Type::Integer,
+                                    ty: Primitive::Integer.into(),
                                 }),
                             },
-                            ty: Type::Integer,
+                            ty: Primitive::Integer.into(),
                         },
                     },
                 ]),
@@ -228,7 +228,6 @@ fn build_mir_expr(expr: Spanned<mir::TypedExpression>) -> TypedExpression {
             mir::Expression::Boolean(value) => Expression::Boolean(value),
             mir::Expression::Integer(value) => Expression::Integer(value),
             mir::Expression::Float(value) => Expression::Float(value),
-            mir::Expression::String(value) => Expression::String(value),
             mir::Expression::Unary { op, rhs } => Expression::Unary {
                 op: op.0,
                 rhs: Box::new(build_mir_expr(Spanned(*rhs.0, rhs.1))),

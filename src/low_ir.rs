@@ -60,7 +60,6 @@ pub enum Expression {
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(String),
     Unary {
         op: UnaryOp,
         value: Box<TypedExpression>,
@@ -314,7 +313,6 @@ impl LoweringContext {
                 mir_no_span::Expression::Boolean(bool) => Expression::Boolean(bool),
                 mir_no_span::Expression::Integer(int) => Expression::Integer(int),
                 mir_no_span::Expression::Float(float) => Expression::Float(float),
-                mir_no_span::Expression::String(string) => Expression::String(string),
                 mir_no_span::Expression::Unary { op, rhs } => Expression::Unary {
                     op,
                     value: Box::new(Self::lower_expression(*rhs)),

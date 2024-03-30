@@ -68,15 +68,14 @@ pub enum Op {
 impl core::fmt::Display for Token {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            // Token::Error => write!(f, "error"),
-            Token::Variable(v) => write!(f, "{v}"),
-            Token::Boolean(b) => write!(f, "{b}"),
-            Token::Integer(n) => write!(f, "{n}"),
-            Token::Float(n) => write!(f, "{n}"),
-            Token::String(s) => write!(f, "\"{s}\""),
-            Token::Kw(k) => write!(f, "{k}"),
-            Token::Ctrl(c) => write!(f, "{c}"),
-            Token::Op(o) => write!(f, "{o}"),
+            Self::Variable(v) => write!(f, "{v}"),
+            Self::Boolean(b) => write!(f, "{b}"),
+            Self::Integer(n) => write!(f, "{n}"),
+            Self::Float(n) => write!(f, "{n}"),
+            Self::String(s) => write!(f, "\"{s}\""),
+            Self::Kw(k) => write!(f, "{k}"),
+            Self::Ctrl(c) => write!(f, "{c}"),
+            Self::Op(o) => write!(f, "{o}"),
         }
     }
 }

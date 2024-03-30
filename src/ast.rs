@@ -66,7 +66,6 @@ macro_rules! ast_expr {
             Boolean(bool),
             Integer(crate::IntTy),
             Float(crate::FloatTy),
-            String(String),
             Unary(Spanned<UnaryOp>, Spanned<Box<$self_expr>>),
             Binary(
                 Spanned<Box<$self_expr>>,
@@ -146,11 +145,41 @@ impl core::fmt::Display for UnaryOp {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Error,
+    Primitive(Primitive),
+    Pointer(Spanned<Box<Type>>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Primitive {
     Boolean,
     Integer,
     Float,
-    String,
-    Pointer(Spanned<Box<Type>>),
+}
+
+impl From<Primitive> for Type {
+    fn from(p: Primitive) -> Self {
+        Self::Primitive(p)
+    }
+}
+
+impl core::fmt::Display for Type {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Error => write!(f, "error"),
+            Self::Primitive(p) => write!(f, "{p}"),
+            Self::Pointer(ty) => write!(f, "ptr<{}>", ty.0),
+        }
+    }
+}
+
+impl core::fmt::Display for Primitive {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Boolean => write!(f, "bool"),
+            Self::Integer => write!(f, "int"),
+            Self::Float => write!(f, "float"),
+        }
+    }
 }
 
 pub mod typed {
@@ -170,18 +199,5 @@ pub mod typed {
     pub struct TypedExpr {
         pub expr: Expr,
         pub ty: Type,
-    }
-
-    impl core::fmt::Display for Type {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            match self {
-                Self::Error => write!(f, "error"),
-                Self::Boolean => write!(f, "bool"),
-                Self::Integer => write!(f, "int"),
-                Self::Float => write!(f, "float"),
-                Self::String => write!(f, "str"),
-                Self::Pointer(ty) => write!(f, "ptr<{}>", ty.0),
-            }
-        }
     }
 }

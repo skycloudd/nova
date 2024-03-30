@@ -2,7 +2,7 @@ use crate::{
     ast::{
         self,
         typed::{Expr, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
-        BinaryOp, UnaryOp,
+        BinaryOp, Primitive, UnaryOp,
     },
     scopes::Scopes,
     span::Spanned,
@@ -26,11 +26,14 @@ pub struct Function {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Error,
-    Boolean,
-    Integer,
-    Float,
-    String,
+    Primitive(Primitive),
     Pointer(Spanned<Box<Type>>),
+}
+
+impl From<Primitive> for Type {
+    fn from(p: Primitive) -> Self {
+        Self::Primitive(p)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -80,7 +83,6 @@ pub enum Expression {
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(String),
     Unary {
         op: Spanned<UnaryOp>,
         rhs: Spanned<Box<TypedExpression>>,
@@ -107,7 +109,7 @@ trait IdMap {
     type Id;
 
     fn get(&self, name: &'static str) -> Option<&Self::Id>;
-    fn insert<'a>(&mut self, name: Spanned<&'static str>) -> Self::Id;
+    fn insert(&mut self, name: Spanned<&'static str>) -> Self::Id;
 }
 
 struct VarIdMap {
@@ -226,29 +228,30 @@ impl MirBuilder {
                         .map(|arg| {
                             (
                                 *self.var_id_map.get(arg.0 .0).unwrap(),
-                                self.lower_ty(arg.1.clone()),
+                                Self::lower_ty(arg.1.clone()),
                             )
                         })
                         .collect(),
                     function.0.params.1,
                 ),
-                return_ty: self.lower_ty(function.0.return_ty),
+                return_ty: Self::lower_ty(function.0.return_ty),
                 body: self.build_statements(function.0.body),
             },
             function.1,
         )
     }
 
-    fn lower_ty(&self, ty: Spanned<ast::Type>) -> Spanned<Type> {
+    fn lower_ty(ty: Spanned<ast::Type>) -> Spanned<Type> {
         Spanned(
             match ty.0 {
                 ast::Type::Error => Type::Error,
-                ast::Type::Boolean => Type::Boolean,
-                ast::Type::Integer => Type::Integer,
-                ast::Type::Float => Type::Float,
-                ast::Type::String => Type::String,
+                ast::Type::Primitive(primitive) => match primitive {
+                    Primitive::Boolean => Primitive::Boolean.into(),
+                    Primitive::Integer => Primitive::Integer.into(),
+                    Primitive::Float => Primitive::Float.into(),
+                },
                 ast::Type::Pointer(inner) => {
-                    let inner = self.lower_ty(Spanned(*inner.0, inner.1));
+                    let inner = Self::lower_ty(Spanned(*inner.0, inner.1));
 
                     Type::Pointer(Spanned(Box::new(inner.0), inner.1))
                 }
@@ -340,7 +343,6 @@ impl MirBuilder {
                     Expr::Boolean(value) => Expression::Boolean(value),
                     Expr::Integer(value) => Expression::Integer(value),
                     Expr::Float(value) => Expression::Float(value),
-                    Expr::String(value) => Expression::String(value),
                     Expr::Unary(op, rhs) => {
                         let rhs = self.build_mir_expr(Spanned(*rhs.0, rhs.1));
 
@@ -363,7 +365,7 @@ impl MirBuilder {
                         let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
 
                         Expression::Convert {
-                            ty: self.lower_ty(ty),
+                            ty: Self::lower_ty(ty),
                             expr: Spanned(Box::new(expr.0), expr.1),
                         }
                     }
@@ -378,7 +380,7 @@ impl MirBuilder {
                         ),
                     },
                 },
-                ty: self.lower_ty(Spanned(expr.0.ty, expr.1)).0,
+                ty: Self::lower_ty(Spanned(expr.0.ty, expr.1)).0,
             },
             expr.1,
         )

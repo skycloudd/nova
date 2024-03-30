@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryOp, Expr, Function, Statement, TopLevel, Type, UnaryOp},
+    ast::{BinaryOp, Expr, Function, Primitive, Statement, TopLevel, Type, UnaryOp},
     lexer::{Ctrl, Kw, Op, Token},
     span::{Span, Spanned},
 };
@@ -245,35 +245,24 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
     recursive(|expression| {
         let variable = ident()
             .map_with(|variable, e| Spanned(Expr::Variable(variable), e.span()))
-            .labelled("variable")
             .boxed();
 
         let boolean = select! {
             Token::Boolean(b) => b
         }
         .map_with(|boolean, e| Spanned(Expr::Boolean(boolean), e.span()))
-        .labelled("boolean")
         .boxed();
 
         let integer = select! {
             Token::Integer(n) => n
         }
         .map_with(|integer, e| Spanned(Expr::Integer(integer), e.span()))
-        .labelled("integer")
         .boxed();
 
         let float = select! {
             Token::Float(n) => n
         }
         .map_with(|float, e| Spanned(Expr::Float(float), e.span()))
-        .labelled("float")
-        .boxed();
-
-        let string = select! {
-            Token::String(s) => s
-        }
-        .map_with(|string, e| Spanned(Expr::String(string), e.span()))
-        .labelled("string")
         .boxed();
 
         let parenthesized_expr = expression
@@ -291,7 +280,6 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                 ],
                 |span| Spanned(Expr::Error, span),
             )))
-            .labelled("parenthesized expression")
             .boxed();
 
         let convert = just(Token::Ctrl(Ctrl::At))
@@ -309,7 +297,6 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                     e.span(),
                 )
             })
-            .labelled("convert expression")
             .boxed();
 
         let call = ident()
@@ -335,7 +322,6 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                     ))),
             )
             .map_with(|(func, args), e| Spanned(Expr::Call { func, args }, e.span()))
-            .labelled("function call")
             .boxed();
 
         let atom = choice((
@@ -344,11 +330,9 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             boolean,
             integer,
             float,
-            string,
             parenthesized_expr,
             convert,
         ))
-        .labelled("atom")
         .boxed();
 
         let unary_op = choice((
@@ -357,8 +341,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             just(Token::Op(Op::Ref)).to(UnaryOp::Ref),
             just(Token::Op(Op::Star)).to(UnaryOp::Deref),
         ))
-        .map_with(|t, e| Spanned(t, e.span()))
-        .labelled("unary operator");
+        .map_with(|t, e| Spanned(t, e.span()));
 
         let unary = unary_op
             .repeated()
@@ -367,15 +350,13 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
 
                 Spanned(Expr::Unary(op, Spanned(Box::new(expr.0), expr.1)), span)
             })
-            .labelled("unary expression")
             .boxed();
 
         let factor_op = choice((
             just(Token::Op(Op::Star)).to(BinaryOp::Multiply),
             just(Token::Op(Op::Slash)).to(BinaryOp::Divide),
         ))
-        .map_with(|t, e| Spanned(t, e.span()))
-        .labelled("factor operator");
+        .map_with(|t, e| Spanned(t, e.span()));
 
         let factor = unary
             .clone()
@@ -391,15 +372,13 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                     span,
                 )
             })
-            .labelled("factor expression")
             .boxed();
 
         let sum_op = choice((
             just(Token::Op(Op::Plus)).to(BinaryOp::Plus),
             just(Token::Op(Op::Minus)).to(BinaryOp::Minus),
         ))
-        .map_with(|t, e| Spanned(t, e.span()))
-        .labelled("sum operator");
+        .map_with(|t, e| Spanned(t, e.span()));
 
         let sum = factor
             .clone()
@@ -415,7 +394,6 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                     span,
                 )
             })
-            .labelled("sum expression")
             .boxed();
 
         let relational_op = choice((
@@ -424,8 +402,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             just(Token::Op(Op::GreaterThan)).to(BinaryOp::GreaterThan),
             just(Token::Op(Op::LessThan)).to(BinaryOp::LessThan),
         ))
-        .map_with(|t, e| Spanned(t, e.span()))
-        .labelled("relational operator");
+        .map_with(|t, e| Spanned(t, e.span()));
 
         let relational = sum
             .clone()
@@ -441,15 +418,13 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                     span,
                 )
             })
-            .labelled("relational expression")
             .boxed();
 
         let equality_op = choice((
             just(Token::Op(Op::Equals)).to(BinaryOp::Equals),
             just(Token::Op(Op::NotEquals)).to(BinaryOp::NotEquals),
         ))
-        .map_with(|t, e| Spanned(t, e.span()))
-        .labelled("equality operator");
+        .map_with(|t, e| Spanned(t, e.span()));
 
         relational
             .clone()
@@ -465,10 +440,8 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                     span,
                 )
             })
-            .labelled("equality expression")
             .boxed()
     })
-    .labelled("expression")
     .boxed()
 }
 
@@ -477,7 +450,6 @@ fn ident<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<&'static str>, 
         Token::Variable(name) => name
     }
     .map_with(|name, e| Spanned(name, e.span()))
-    .labelled("identifier")
     .boxed()
 }
 
@@ -492,17 +464,16 @@ fn type_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Type>, Pa
         ))
         .map(|ty: Spanned<Type>| Type::Pointer(Spanned(Box::new(ty.0), ty.1)));
 
-        choice((
-            select! {
-                Token::Variable("bool") => Type::Boolean,
-                Token::Variable("int") => Type::Integer,
-                Token::Variable("float") => Type::Float,
-                Token::Variable("str") => Type::String,
-            },
-            ptr,
-        ))
-        .map_with(|ty, e| Spanned(ty, e.span()))
-        .labelled("type")
-        .boxed()
+        let primitive = select! {
+            Token::Variable("bool") => Primitive::Boolean,
+            Token::Variable("int") => Primitive::Integer,
+            Token::Variable("float") => Primitive::Float,
+        }
+        .map(Type::Primitive)
+        .boxed();
+
+        choice((ptr, primitive))
+            .map_with(|ty, e| Spanned(ty, e.span()))
+            .boxed()
     })
 }

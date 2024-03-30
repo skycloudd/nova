@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryOp, UnaryOp},
+    ast::{BinaryOp, Primitive, UnaryOp},
     low_ir::{
         BasicBlock, BasicBlockId, Expression, Function, Instruction, Terminator, TopLevel,
         TypedExpression,
@@ -264,6 +264,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn translate_expr(&mut self, expr: TypedExpression) -> Value {
         trace!("translate expr: {:?}", expr);
 
@@ -276,21 +277,15 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
             Expression::Boolean(bool) => self.builder.ins().iconst(BOOL_TYPE, i64::from(bool)),
             Expression::Integer(int) => self.builder.ins().iconst(INT_TYPE, i64::from(int)),
             Expression::Float(float) => self.builder.ins().f32const(float),
-            Expression::String(_string) => unimplemented!(
-                "strings will be implemented in stdlib when pointers are implemented"
-            ),
             Expression::Unary { op, value } => {
                 let value_ty = value.ty.clone();
                 let value = self.translate_expr(*value);
 
                 match (op, value_ty) {
-                    (UnaryOp::Negate, Type::Integer) => self.builder.ins().ineg(value),
-                    (UnaryOp::Negate, Type::Float) => self.builder.ins().fneg(value),
-                    (UnaryOp::Not, Type::Boolean) => self.builder.ins().bnot(value),
                     (UnaryOp::Ref, any) => {
                         let stackslot = self.builder.create_sized_stack_slot(StackSlotData::new(
                             StackSlotKind::ExplicitSlot,
-                            any.sizeof() as u32,
+                            u32::try_from(any.size_of()).unwrap(),
                         ));
 
                         let ptr = self.builder.ins().stack_addr(POINTER_TYPE, stackslot, 0);
@@ -301,6 +296,15 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
 
                         ptr
                     }
+
+                    (op, Type::Primitive(value_ty)) => match (op, value_ty) {
+                        (UnaryOp::Negate, Primitive::Integer) => self.builder.ins().ineg(value),
+                        (UnaryOp::Negate, Primitive::Float) => self.builder.ins().fneg(value),
+                        (UnaryOp::Not, Primitive::Boolean) => self.builder.ins().bnot(value),
+
+                        _ => unreachable!(),
+                    },
+
                     (UnaryOp::Deref, Type::Pointer(inner)) => {
                         let ptr =
                             self.builder
@@ -309,6 +313,7 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
 
                         ptr
                     }
+
                     _ => unreachable!(),
                 }
             }
@@ -320,55 +325,70 @@ impl<'a, 'b> FunctionTranslator<'a, 'b> {
                 let rhs = self.translate_expr(*rhs);
 
                 match (lhs_ty, rhs_ty) {
-                    (Type::Integer, Type::Integer) => match op {
-                        BinaryOp::Equals => self.builder.ins().icmp(IntCC::Equal, lhs, rhs),
-                        BinaryOp::NotEquals => self.builder.ins().icmp(IntCC::NotEqual, lhs, rhs),
-                        BinaryOp::Plus => self.builder.ins().iadd(lhs, rhs),
-                        BinaryOp::Minus => self.builder.ins().isub(lhs, rhs),
-                        BinaryOp::Multiply => self.builder.ins().imul(lhs, rhs),
-                        BinaryOp::Divide => self.builder.ins().sdiv(lhs, rhs),
-                        BinaryOp::GreaterThanEquals => {
-                            self.builder
-                                .ins()
-                                .icmp(IntCC::SignedGreaterThanOrEqual, lhs, rhs)
-                        }
-                        BinaryOp::LessThanEquals => {
-                            self.builder
-                                .ins()
-                                .icmp(IntCC::SignedLessThanOrEqual, lhs, rhs)
-                        }
-                        BinaryOp::GreaterThan => {
-                            self.builder.ins().icmp(IntCC::SignedGreaterThan, lhs, rhs)
-                        }
-                        BinaryOp::LessThan => {
-                            self.builder.ins().icmp(IntCC::SignedLessThan, lhs, rhs)
-                        }
-                    },
-                    (Type::Float, Type::Float) => match op {
-                        BinaryOp::Equals => self.builder.ins().fcmp(FloatCC::Equal, lhs, rhs),
-                        BinaryOp::NotEquals => self.builder.ins().fcmp(FloatCC::NotEqual, lhs, rhs),
-                        BinaryOp::Plus => self.builder.ins().fadd(lhs, rhs),
-                        BinaryOp::Minus => self.builder.ins().fsub(lhs, rhs),
-                        BinaryOp::Multiply => self.builder.ins().fmul(lhs, rhs),
-                        BinaryOp::Divide => self.builder.ins().fdiv(lhs, rhs),
-                        BinaryOp::GreaterThanEquals => {
-                            self.builder
-                                .ins()
-                                .fcmp(FloatCC::GreaterThanOrEqual, lhs, rhs)
-                        }
-                        BinaryOp::LessThanEquals => {
-                            self.builder.ins().fcmp(FloatCC::LessThanOrEqual, lhs, rhs)
-                        }
-                        BinaryOp::GreaterThan => {
-                            self.builder.ins().fcmp(FloatCC::GreaterThan, lhs, rhs)
-                        }
-                        BinaryOp::LessThan => self.builder.ins().fcmp(FloatCC::LessThan, lhs, rhs),
-                    },
-                    (Type::Boolean, Type::Boolean) => match op {
-                        BinaryOp::Equals => self.builder.ins().icmp(IntCC::Equal, lhs, rhs),
-                        BinaryOp::NotEquals => self.builder.ins().icmp(IntCC::NotEqual, lhs, rhs),
+                    (Type::Primitive(lhs_ty), Type::Primitive(rhs_ty)) => match (lhs_ty, rhs_ty) {
+                        (Primitive::Boolean, Primitive::Boolean) => match op {
+                            BinaryOp::Equals => self.builder.ins().icmp(IntCC::Equal, lhs, rhs),
+                            BinaryOp::NotEquals => {
+                                self.builder.ins().icmp(IntCC::NotEqual, lhs, rhs)
+                            }
+                            _ => unreachable!(),
+                        },
+
+                        (Primitive::Integer, Primitive::Integer) => match op {
+                            BinaryOp::Equals => self.builder.ins().icmp(IntCC::Equal, lhs, rhs),
+                            BinaryOp::NotEquals => {
+                                self.builder.ins().icmp(IntCC::NotEqual, lhs, rhs)
+                            }
+                            BinaryOp::Plus => self.builder.ins().iadd(lhs, rhs),
+                            BinaryOp::Minus => self.builder.ins().isub(lhs, rhs),
+                            BinaryOp::Multiply => self.builder.ins().imul(lhs, rhs),
+                            BinaryOp::Divide => self.builder.ins().sdiv(lhs, rhs),
+                            BinaryOp::GreaterThanEquals => {
+                                self.builder
+                                    .ins()
+                                    .icmp(IntCC::SignedGreaterThanOrEqual, lhs, rhs)
+                            }
+                            BinaryOp::LessThanEquals => {
+                                self.builder
+                                    .ins()
+                                    .icmp(IntCC::SignedLessThanOrEqual, lhs, rhs)
+                            }
+                            BinaryOp::GreaterThan => {
+                                self.builder.ins().icmp(IntCC::SignedGreaterThan, lhs, rhs)
+                            }
+                            BinaryOp::LessThan => {
+                                self.builder.ins().icmp(IntCC::SignedLessThan, lhs, rhs)
+                            }
+                        },
+
+                        (Primitive::Float, Primitive::Float) => match op {
+                            BinaryOp::Equals => self.builder.ins().fcmp(FloatCC::Equal, lhs, rhs),
+                            BinaryOp::NotEquals => {
+                                self.builder.ins().fcmp(FloatCC::NotEqual, lhs, rhs)
+                            }
+                            BinaryOp::Plus => self.builder.ins().fadd(lhs, rhs),
+                            BinaryOp::Minus => self.builder.ins().fsub(lhs, rhs),
+                            BinaryOp::Multiply => self.builder.ins().fmul(lhs, rhs),
+                            BinaryOp::Divide => self.builder.ins().fdiv(lhs, rhs),
+                            BinaryOp::GreaterThanEquals => {
+                                self.builder
+                                    .ins()
+                                    .fcmp(FloatCC::GreaterThanOrEqual, lhs, rhs)
+                            }
+                            BinaryOp::LessThanEquals => {
+                                self.builder.ins().fcmp(FloatCC::LessThanOrEqual, lhs, rhs)
+                            }
+                            BinaryOp::GreaterThan => {
+                                self.builder.ins().fcmp(FloatCC::GreaterThan, lhs, rhs)
+                            }
+                            BinaryOp::LessThan => {
+                                self.builder.ins().fcmp(FloatCC::LessThan, lhs, rhs)
+                            }
+                        },
+
                         _ => unreachable!(),
                     },
+
                     _ => unreachable!(),
                 }
             }
@@ -411,12 +431,11 @@ const POINTER_TYPE: IrType = types::R64;
 impl From<Type> for IrType {
     fn from(value: Type) -> Self {
         match value {
-            Type::Integer => INT_TYPE,
-            Type::Float => FLOAT_TYPE,
-            Type::Boolean => BOOL_TYPE,
-            Type::String => unimplemented!(
-                "strings will be implemented in stdlib when pointers are implemented"
-            ),
+            Type::Primitive(p) => match p {
+                Primitive::Integer => INT_TYPE,
+                Primitive::Float => FLOAT_TYPE,
+                Primitive::Boolean => BOOL_TYPE,
+            },
             Type::Pointer(_inner) => POINTER_TYPE, // todo: make this dynamically either 32 or 64 bits
         }
     }

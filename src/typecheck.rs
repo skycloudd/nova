@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         typed::{self, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
-        BinaryOp, Expr, Function, Statement, TopLevel, Type, UnaryOp,
+        BinaryOp, Expr, Function, Primitive, Statement, TopLevel, Type, UnaryOp,
     },
     error::{Error, Warning},
     scopes::{ClosestStrKey, Scopes},
@@ -185,7 +185,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             match statement.0 {
                 Statement::Error => TypedStatement::Error,
                 Statement::Expr(expr) => {
-                    let expr = self.typecheck_expression(expr.clone());
+                    let expr = self.typecheck_expression(expr);
 
                     TypedStatement::Expr(expr)
                 }
@@ -212,7 +212,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     then_branch,
                     else_branch,
                 } => {
-                    let condition = self.typecheck_expression(condition.clone());
+                    let condition = self.typecheck_expression(condition);
 
                     let condition_ty = self
                         .engine
@@ -256,13 +256,13 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     inclusive,
                     body,
                 } => {
-                    let start = self.typecheck_expression(start.clone());
+                    let start = self.typecheck_expression(start);
 
                     let start_ty = self
                         .engine
                         .insert_type(Spanned(start.0.ty.clone(), start.1));
 
-                    let end = self.typecheck_expression(end.clone());
+                    let end = self.typecheck_expression(end);
 
                     let end_ty = self.engine.insert_type(Spanned(end.0.ty.clone(), end.1));
 
@@ -287,7 +287,9 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                         });
                     }
 
-                    let name_ty = self.engine.insert_type(Spanned(Type::Integer, name.1));
+                    let name_ty = self
+                        .engine
+                        .insert_type(Spanned(Primitive::Integer.into(), name.1));
                     self.variables.insert(name.0, name_ty);
 
                     let body = self.typecheck_statements(body);
@@ -303,7 +305,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     }
                 }
                 Statement::Let { name, value } => {
-                    let value = self.typecheck_expression(value.clone());
+                    let value = self.typecheck_expression(value);
 
                     let value_ty = self
                         .engine
@@ -321,7 +323,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     TypedStatement::Let { name, value }
                 }
                 Statement::Assign { name, value } => {
-                    let value = self.typecheck_expression(value.clone());
+                    let value = self.typecheck_expression(value);
 
                     let value_ty = self
                         .engine
@@ -349,7 +351,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                 Statement::Break => TypedStatement::Break,
                 Statement::Continue => TypedStatement::Continue,
                 Statement::Return(expr) => {
-                    let expr = self.typecheck_expression(expr.clone());
+                    let expr = self.typecheck_expression(expr);
 
                     let return_ty = self
                         .functions
@@ -427,19 +429,15 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                 }
                 Expr::Boolean(boolean) => TypedExpr {
                     expr: typed::Expr::Boolean(boolean),
-                    ty: Type::Boolean,
+                    ty: Primitive::Boolean.into(),
                 },
                 Expr::Integer(integer) => TypedExpr {
                     expr: typed::Expr::Integer(integer),
-                    ty: Type::Integer,
+                    ty: Primitive::Integer.into(),
                 },
                 Expr::Float(float) => TypedExpr {
                     expr: typed::Expr::Float(float),
-                    ty: Type::Float,
-                },
-                Expr::String(string) => TypedExpr {
-                    expr: typed::Expr::String(string),
-                    ty: Type::String,
+                    ty: Primitive::Float.into(),
                 },
                 Expr::Binary(lhs, op, rhs) => {
                     let lhs = self.typecheck_expression(Spanned(*lhs.0, lhs.1));
@@ -455,40 +453,43 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                             Divide, Equals, GreaterThan, GreaterThanEquals, LessThan,
                             LessThanEquals, Minus, Multiply, NotEquals, Plus,
                         };
-                        use Type::{Boolean, Float, Integer};
+                        use Primitive::{Boolean, Float, Integer};
 
                         #[allow(clippy::match_same_arms)]
-                        match ((&lhs.0.ty), (&rhs.0.ty), (op.0)) {
-                            (Boolean, Boolean, Equals) | (Boolean, Boolean, NotEquals) => {
-                                Ok(Boolean)
-                            }
-
-                            (Integer, Integer, Equals)
-                            | (Integer, Integer, NotEquals)
-                            | (Integer, Integer, GreaterThanEquals)
-                            | (Integer, Integer, LessThanEquals)
-                            | (Integer, Integer, GreaterThan)
-                            | (Integer, Integer, LessThan) => Ok(Boolean),
-
-                            (Integer, Integer, Plus)
-                            | (Integer, Integer, Minus)
-                            | (Integer, Integer, Multiply)
-                            | (Integer, Integer, Divide) => Ok(Integer),
-
-                            (Float, Float, Equals)
-                            | (Float, Float, NotEquals)
-                            | (Float, Float, GreaterThanEquals)
-                            | (Float, Float, LessThanEquals)
-                            | (Float, Float, GreaterThan)
-                            | (Float, Float, LessThan) => Ok(Boolean),
-
-                            (Float, Float, Plus)
-                            | (Float, Float, Minus)
-                            | (Float, Float, Multiply)
-                            | (Float, Float, Divide) => Ok(Float),
-
+                        match (&lhs.0.ty, &rhs.0.ty, op.0) {
                             (Type::Error, _, _) => Ok(Type::Error),
                             (_, Type::Error, _) => Ok(Type::Error),
+
+                            (Type::Primitive(lhs), Type::Primitive(rhs), op) => {
+                                match (lhs, rhs, op) {
+                                    (Boolean, Boolean, Equals | NotEquals) => Ok(Boolean.into()),
+
+                                    (
+                                        Integer,
+                                        Integer,
+                                        Equals | NotEquals | GreaterThanEquals | LessThanEquals
+                                        | GreaterThan | LessThan,
+                                    ) => Ok(Boolean.into()),
+
+                                    (Integer, Integer, Plus | Minus | Multiply | Divide) => {
+                                        Ok(Integer.into())
+                                    }
+
+                                    (
+                                        Float,
+                                        Float,
+                                        Equals | NotEquals | GreaterThanEquals | LessThanEquals
+                                        | GreaterThan | LessThan,
+                                    ) => Ok(Boolean.into()),
+
+                                    (Float, Float, Plus | Minus | Multiply | Divide) => {
+                                        Ok(Float.into())
+                                    }
+
+                                    _ => Err(()),
+                                }
+                            }
+
                             _ => Err(()),
                         }
                         .map_err(|()| Error::InvalidBinaryOperation {
@@ -534,22 +535,30 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
 
                     let ty = match (&expr.0.ty, op.0) {
-                        (Type::Integer, UnaryOp::Negate) => Ok(Type::Integer),
-                        (Type::Float, UnaryOp::Negate) => Ok(Type::Float),
-                        (Type::Boolean, UnaryOp::Not) => Ok(Type::Boolean),
-                        (Type::Pointer(inner), UnaryOp::Deref) => Ok((*inner.0).clone()),
                         (Type::Error, _) => Ok(Type::Error),
+
                         (any, UnaryOp::Ref) => {
                             Ok(Type::Pointer(Spanned(Box::new(any.clone()), expr.1)))
                         }
-                        _ => Err(Error::InvalidUnaryOperation {
-                            ty: expr.0.ty.clone(),
-                            ty_span: expr.1,
-                            op: op.0,
-                            op_span: op.1,
-                            full_span: expr.1,
-                        }),
-                    };
+
+                        (Type::Primitive(lhs), op) => match (lhs, op) {
+                            (Primitive::Boolean, UnaryOp::Not) => Ok(Primitive::Boolean.into()),
+                            (Primitive::Integer, UnaryOp::Negate) => Ok(Primitive::Integer.into()),
+                            (Primitive::Float, UnaryOp::Negate) => Ok(Primitive::Float.into()),
+                            _ => Err(()),
+                        },
+
+                        (Type::Pointer(any), UnaryOp::Deref) => Ok(*any.0.clone()),
+
+                        _ => Err(()),
+                    }
+                    .map_err(|()| Error::InvalidUnaryOperation {
+                        ty: expr.0.ty.clone(),
+                        ty_span: expr.1,
+                        op: op.0,
+                        op_span: op.1,
+                        full_span: expr.1,
+                    });
 
                     let ty = match ty {
                         Ok(ty) => ty,
@@ -679,7 +688,6 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             typed::Expr::Boolean(bool) => Some(Value::Boolean(bool)),
             typed::Expr::Integer(int) => Some(Value::Integer(int)),
             typed::Expr::Float(float) => Some(Value::Float(float)),
-            typed::Expr::String(string) => Some(Value::String(string)),
             typed::Expr::Unary(op, rhs) => {
                 let rhs = self.evaluate_expression(Spanned(*rhs.0, rhs.1))?;
 
@@ -695,11 +703,11 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                             )
                         }
                         Value::Float(_float) => None,
-                        _ => unreachable!(),
+                        Value::Boolean(_) => unreachable!(),
                     },
                     UnaryOp::Not => match rhs {
                         Value::Boolean(bool) => Some(Value::Boolean(!bool)),
-                        _ => unreachable!(),
+                        Value::Integer(_) | Value::Float(_) => unreachable!(),
                     },
                     UnaryOp::Ref => None,
                     UnaryOp::Deref => None,
@@ -717,6 +725,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                         BinaryOp::NotEquals => Some(Value::Boolean(lhs != rhs)),
                         _ => unreachable!(),
                     },
+
                     (Value::Integer(lhs), Value::Integer(rhs)) => match op.0 {
                         BinaryOp::Equals => Some(Value::Boolean(lhs == rhs)),
                         BinaryOp::NotEquals => Some(Value::Boolean(lhs != rhs)),
@@ -768,8 +777,9 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                         BinaryOp::GreaterThan => Some(Value::Boolean(lhs > rhs)),
                         BinaryOp::LessThan => Some(Value::Boolean(lhs < rhs)),
                     },
+
                     (Value::Float(_lhs), Value::Float(_rhs)) => None,
-                    (Value::String(_lhs), Value::String(_rhs)) => unreachable!(),
+
                     _ => unreachable!(),
                 }
             }
@@ -874,10 +884,9 @@ impl Engine {
             TypeInfo::Unknown => Err(Box::new(Error::CantInferType { span: var.1 })),
             TypeInfo::Ref(id) => Ok(self.reconstruct(*id)?.0),
             TypeInfo::Error => Ok(Type::Error),
-            TypeInfo::Boolean => Ok(Type::Boolean),
-            TypeInfo::Integer => Ok(Type::Integer),
-            TypeInfo::Float => Ok(Type::Float),
-            TypeInfo::String => Ok(Type::String),
+            TypeInfo::Boolean => Ok(Primitive::Boolean.into()),
+            TypeInfo::Integer => Ok(Primitive::Integer.into()),
+            TypeInfo::Float => Ok(Primitive::Float.into()),
             TypeInfo::Pointer(inner) => {
                 let inner = self.reconstruct(*inner)?;
 
@@ -890,10 +899,11 @@ impl Engine {
     fn type_to_typeinfo(&mut self, ty: Type) -> TypeInfo {
         match ty {
             Type::Error => TypeInfo::Error,
-            Type::Boolean => TypeInfo::Boolean,
-            Type::Integer => TypeInfo::Integer,
-            Type::Float => TypeInfo::Float,
-            Type::String => TypeInfo::String,
+            Type::Primitive(p) => match p {
+                Primitive::Boolean => TypeInfo::Boolean,
+                Primitive::Integer => TypeInfo::Integer,
+                Primitive::Float => TypeInfo::Float,
+            },
             Type::Pointer(inner) => TypeInfo::Pointer(self.insert_type(Spanned(*inner.0, inner.1))),
         }
     }
@@ -902,10 +912,9 @@ impl Engine {
         match info {
             TypeInfo::Unknown | TypeInfo::Error => Type::Error,
             TypeInfo::Ref(id) => self.reconstruct(*id).unwrap().0,
-            TypeInfo::Boolean => Type::Boolean,
-            TypeInfo::Integer => Type::Integer,
-            TypeInfo::Float => Type::Float,
-            TypeInfo::String => Type::String,
+            TypeInfo::Boolean => Primitive::Boolean.into(),
+            TypeInfo::Integer => Primitive::Integer.into(),
+            TypeInfo::Float => Primitive::Float.into(),
             TypeInfo::Pointer(inner) => {
                 let inner = self.reconstruct(*inner).unwrap();
 
@@ -927,7 +936,6 @@ pub enum TypeInfo {
     Boolean,
     Integer,
     Float,
-    String,
     Pointer(TypeId),
 }
 
@@ -936,7 +944,6 @@ pub enum Value {
     Boolean(bool),
     Integer(IntTy),
     Float(FloatTy),
-    String(String),
 }
 
 impl Value {
@@ -944,19 +951,15 @@ impl Value {
         match self {
             Self::Boolean(bool) => TypedExpr {
                 expr: typed::Expr::Boolean(bool),
-                ty: Type::Boolean,
+                ty: Primitive::Boolean.into(),
             },
             Self::Integer(int) => TypedExpr {
                 expr: typed::Expr::Integer(int),
-                ty: Type::Integer,
+                ty: Primitive::Integer.into(),
             },
             Self::Float(float) => TypedExpr {
                 expr: typed::Expr::Float(float),
-                ty: Type::Float,
-            },
-            Self::String(string) => TypedExpr {
-                expr: typed::Expr::String(string),
-                ty: Type::String,
+                ty: Primitive::Float.into(),
             },
         }
     }

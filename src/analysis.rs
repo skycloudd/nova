@@ -271,8 +271,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
             | Expression::Variable(_)
             | Expression::Boolean(_)
             | Expression::Integer(_)
-            | Expression::Float(_)
-            | Expression::String(_) => {}
+            | Expression::Float(_) => {}
             Expression::Unary { op: _, rhs } => {
                 self.analyse_expression(&Spanned(*rhs.0.clone(), rhs.1));
             }
@@ -337,8 +336,7 @@ fn expression_is_trivially_pure(expr: &Expression) -> bool {
         Expression::Variable(_)
         | Expression::Boolean(_)
         | Expression::Integer(_)
-        | Expression::Float(_)
-        | Expression::String(_) => true,
+        | Expression::Float(_) => true,
         Expression::Unary { op: _, rhs } => expression_is_trivially_pure(&rhs.0.expr),
         Expression::Binary { lhs, op: _, rhs } => {
             expression_is_trivially_pure(&lhs.0.expr) && expression_is_trivially_pure(&rhs.0.expr)
