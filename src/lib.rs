@@ -22,6 +22,7 @@ use core::fmt::Display;
 use cranelift_object::ObjectProduct;
 use error::{convert, Diag, Error, ErrorSpan, Warning};
 use log::{error, info};
+use mir::Mir;
 use span::{Ctx, Span};
 
 mod analysis;
@@ -81,7 +82,7 @@ pub fn run<'file>(
 
     let (ast, parse_errors) = timing.time("parsing", || {
         tokens.as_ref().map_or_else(
-            || (None, vec![]),
+            || Default::default(),
             |tokens| {
                 let eof = input.chars().count().saturating_sub(1);
                 let end_of_input = Span::new(file_ctx, eof..eof);
@@ -96,7 +97,7 @@ pub fn run<'file>(
     errors.extend(map_errors(parse_errors));
 
     let (typed_ast, typecheck_warnings, typecheck_errs) = timing.time("typechecking", || {
-        ast.map_or_else(|| (vec![], vec![], vec![]), typecheck::typecheck)
+        ast.map_or_else(|| Default::default(), typecheck::typecheck)
     });
 
     warnings.extend(typecheck_warnings);
@@ -201,8 +202,8 @@ impl Iterator for IdGen {
 
 #[allow(clippy::match_like_matches_macro)]
 #[allow(clippy::match_wildcard_for_single_variants)]
-fn has_correct_main(mir: &[Spanned<mir::TopLevel>]) -> bool {
-    mir.iter().any(|top_level| match top_level.0 {
+fn has_correct_main(mir: &Mir) -> bool {
+    mir.top_levels.iter().any(|top_level| match top_level.0 {
         mir::TopLevel::Function(Spanned(
             mir::Function {
                 id: _,

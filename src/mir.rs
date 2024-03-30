@@ -1,13 +1,18 @@
 use crate::{
     ast::{
         self,
-        typed::{Expr, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
+        typed::{Expr, TypedAst, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
         BinaryOp, Primitive, UnaryOp,
     },
     scopes::Scopes,
     span::Spanned,
     FloatTy, IdGen, IntTy,
 };
+
+#[derive(Debug)]
+pub struct Mir {
+    pub top_levels: Vec<Spanned<TopLevel>>,
+}
 
 #[derive(Debug)]
 pub enum TopLevel {
@@ -168,7 +173,7 @@ impl IdMap for FuncIdMap {
     }
 }
 
-pub fn build(ast: Vec<Spanned<TypedTopLevel>>) -> Vec<Spanned<TopLevel>> {
+pub fn build(ast: TypedAst) -> Mir {
     MirBuilder::new().build(ast)
 }
 
@@ -185,8 +190,8 @@ impl MirBuilder {
         }
     }
 
-    fn build(&mut self, ast: Vec<Spanned<TypedTopLevel>>) -> Vec<Spanned<TopLevel>> {
-        for top_level in &ast {
+    fn build(&mut self, ast: TypedAst) -> Mir {
+        for top_level in &ast.top_levels {
             match &top_level.0 {
                 TypedTopLevel::Function(function) => {
                     self.func_id_map.insert(function.0.name);
@@ -198,9 +203,13 @@ impl MirBuilder {
             }
         }
 
-        ast.into_iter()
+        let top_levels = ast
+            .top_levels
+            .into_iter()
             .map(|top_level| self.build_mir_top_level(top_level))
-            .collect()
+            .collect();
+
+        Mir { top_levels }
     }
 
     fn build_mir_top_level(&mut self, top_level: Spanned<TypedTopLevel>) -> Spanned<TopLevel> {

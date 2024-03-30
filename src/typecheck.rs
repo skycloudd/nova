@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        typed::{self, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
-        BinaryOp, Expr, Function, Primitive, Statement, TopLevel, Type, UnaryOp,
+        typed::{self, TypedAst, TypedExpr, TypedFunction, TypedStatement, TypedTopLevel},
+        Ast, BinaryOp, Expr, Function, Primitive, Statement, TopLevel, Type, UnaryOp,
     },
     error::{Error, Warning},
     scopes::{ClosestStrKey, Scopes},
@@ -11,9 +11,7 @@ use crate::{
 use rustc_hash::FxHashMap;
 use snake_case::is_snake_case;
 
-pub fn typecheck(
-    ast: Vec<Spanned<TopLevel>>,
-) -> (Vec<Spanned<TypedTopLevel>>, Vec<Warning>, Vec<Error>) {
+pub fn typecheck(ast: Ast) -> (TypedAst, Vec<Warning>, Vec<Error>) {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
 
@@ -53,8 +51,8 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
         }
     }
 
-    fn typecheck_ast(&mut self, ast: Vec<Spanned<TopLevel>>) -> Vec<Spanned<TypedTopLevel>> {
-        for top_level in &ast {
+    fn typecheck_ast(&mut self, ast: Ast) -> TypedAst {
+        for top_level in &ast.top_levels {
             match &top_level.0 {
                 TopLevel::Function(function) => match self.functions.get(&function.0.name.0) {
                     None => {
@@ -91,9 +89,9 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             }
         }
 
-        let mut top_levels = Vec::with_capacity(ast.len());
+        let mut top_levels = Vec::with_capacity(ast.top_levels.len());
 
-        for top_level in ast {
+        for top_level in ast.top_levels {
             let top_level = Spanned(
                 match top_level.0 {
                     TopLevel::Function(function) => {
@@ -106,7 +104,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             top_levels.push(top_level);
         }
 
-        top_levels
+        TypedAst { top_levels }
     }
 
     fn typecheck_function(&mut self, function: Spanned<Function>) -> Spanned<TypedFunction> {

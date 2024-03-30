@@ -1,7 +1,7 @@
 use crate::{
     ast::{BinaryOp, Primitive, UnaryOp},
     low_ir::{
-        BasicBlock, BasicBlockId, Expression, Function, Instruction, Terminator, TopLevel,
+        BasicBlock, BasicBlockId, Expression, Function, Instruction, LowIr, Terminator, TopLevel,
         TypedExpression,
     },
     mir::{FuncId, VarId},
@@ -17,7 +17,7 @@ use cranelift_object::{ObjectBuilder, ObjectModule, ObjectProduct};
 use log::trace;
 use rustc_hash::FxHashMap;
 
-pub fn codegen(low_ir: Vec<TopLevel>) -> ObjectProduct {
+pub fn codegen(low_ir: LowIr) -> ObjectProduct {
     let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
         panic!("host machine is not supported: {msg}");
     });
@@ -51,10 +51,10 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    fn codegen(&mut self, low_ir: Vec<TopLevel>) {
+    fn codegen(&mut self, low_ir: LowIr) {
         let mut functions = FxHashMap::default();
 
-        for top_level in &low_ir {
+        for top_level in &low_ir.top_levels {
             match top_level {
                 TopLevel::Function(function) => {
                     let mut sig = self.module.make_signature();
@@ -83,7 +83,7 @@ impl<'a> Codegen<'a> {
             }
         }
 
-        for top_level in low_ir {
+        for top_level in low_ir.top_levels {
             match top_level {
                 TopLevel::Function(function) => {
                     self.codegen_function(function, &functions);

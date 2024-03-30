@@ -1,5 +1,14 @@
 use crate::span::Spanned;
 
+macro_rules! ast {
+    ($name:ident, $top_level:ident) => {
+        #[derive(Debug, Default)]
+        pub struct $name {
+            pub top_levels: Vec<Spanned<$top_level>>,
+        }
+    };
+}
+
 macro_rules! top_level {
     ($name:ident, $func:ident) => {
         #[derive(Debug)]
@@ -83,6 +92,8 @@ macro_rules! ast_expr {
         }
     };
 }
+
+ast!(Ast, TopLevel);
 
 top_level!(TopLevel, Function);
 
@@ -185,6 +196,8 @@ impl core::fmt::Display for Primitive {
 pub mod typed {
     use super::{BinaryOp, Type, UnaryOp};
     use crate::span::Spanned;
+
+    ast!(TypedAst, TypedTopLevel);
 
     top_level!(TypedTopLevel, TypedFunction);
 

@@ -1,10 +1,10 @@
 use crate::{
     error::{Error, Warning},
-    mir::{Expression, Function, Statement, TopLevel, TypedExpression},
+    mir::{Expression, Function, Mir, Statement, TopLevel, TypedExpression},
     span::Spanned,
 };
 
-pub fn analyse(mir: &[Spanned<TopLevel>]) -> (Vec<Warning>, Vec<Error>) {
+pub fn analyse(mir: &Mir) -> (Vec<Warning>, Vec<Error>) {
     let mut warnings = vec![];
     let mut errors = vec![];
 
@@ -34,8 +34,8 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
         }
     }
 
-    fn analyse(&mut self, mir: &[Spanned<TopLevel>]) {
-        for top_level in mir {
+    fn analyse(&mut self, mir: &Mir) {
+        for top_level in &mir.top_levels {
             self.analyse_top_level(top_level);
         }
     }

@@ -1,9 +1,14 @@
 use crate::{
     ast::{BinaryOp, Primitive, UnaryOp},
-    mir::{self, FuncId, VarId},
+    mir::{self, FuncId, Mir, VarId},
     span::Spanned,
     FloatTy, IntTy,
 };
+
+#[derive(Debug)]
+pub struct MirNoSpan {
+    pub top_levels: Vec<TopLevel>,
+}
 
 #[derive(Debug)]
 pub enum TopLevel {
@@ -110,8 +115,14 @@ impl TryFrom<mir::Type> for Type {
     }
 }
 
-pub fn build(ast: Vec<Spanned<mir::TopLevel>>) -> Vec<TopLevel> {
-    ast.into_iter().map(build_mir_top_level).collect()
+pub fn build(ast: Mir) -> MirNoSpan {
+    let top_levels = ast
+        .top_levels
+        .into_iter()
+        .map(build_mir_top_level)
+        .collect();
+
+    MirNoSpan { top_levels }
 }
 
 fn build_mir_top_level(top_level: Spanned<mir::TopLevel>) -> TopLevel {

@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryOp, Expr, Function, Primitive, Statement, TopLevel, Type, UnaryOp},
+    ast::{Ast, BinaryOp, Expr, Function, Primitive, Statement, TopLevel, Type, UnaryOp},
     lexer::{Ctrl, Kw, Op, Token},
     span::{Span, Spanned},
 };
@@ -7,15 +7,14 @@ use chumsky::{input::SpannedInput, prelude::*};
 
 type ParserInput<'tok> = SpannedInput<Token, Span, &'tok [(Token, Span)]>;
 
-type ParserOutput = Vec<Spanned<TopLevel>>;
-
 type ParserError<'tok> = extra::Err<Rich<'tok, Token, Span>>;
 
-pub fn parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, ParserOutput, ParserError<'tok>> {
+pub fn parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Ast, ParserError<'tok>> {
     toplevel_parser()
         .repeated()
         .collect()
         .then_ignore(end())
+        .map(|top_levels| Ast { top_levels })
         .boxed()
 }
 

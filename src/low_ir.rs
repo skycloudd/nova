@@ -1,9 +1,14 @@
 use crate::{
     ast::{BinaryOp, UnaryOp},
     mir::{FuncId, VarId},
-    mir_no_span::{self, Type},
+    mir_no_span::{self, MirNoSpan, Type},
     FloatTy, IntTy,
 };
+
+#[derive(Debug)]
+pub struct LowIr {
+    pub top_levels: Vec<TopLevel>,
+}
 
 #[derive(Debug)]
 pub enum TopLevel {
@@ -79,14 +84,20 @@ pub enum Expression {
     },
 }
 
-pub fn lower(ast: Vec<mir_no_span::TopLevel>) -> Vec<TopLevel> {
-    ast.into_iter()
+pub fn lower(ast: MirNoSpan) -> LowIr {
+    let top_levels = ast
+        .top_levels
+        .into_iter()
         .map(|top_level| match top_level {
             mir_no_span::TopLevel::Function(function) => {
-                TopLevel::Function(LoweringContext::default().lower_function(function))
+                let function = LoweringContext::default().lower_function(function);
+
+                TopLevel::Function(function)
             }
         })
-        .collect()
+        .collect();
+
+    LowIr { top_levels }
 }
 
 #[derive(Debug, Default)]
