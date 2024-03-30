@@ -84,19 +84,6 @@ pub enum Type {
     Pointer(Box<Type>),
 }
 
-impl Type {
-    pub const fn size_of(&self) -> usize {
-        match self {
-            Self::Primitive(p) => match p {
-                Primitive::Integer => core::mem::size_of::<IntTy>(),
-                Primitive::Float => core::mem::size_of::<FloatTy>(),
-                Primitive::Boolean => core::mem::size_of::<bool>(),
-            },
-            Self::Pointer(_) => core::mem::size_of::<usize>(),
-        }
-    }
-}
-
 impl From<Primitive> for Type {
     fn from(p: Primitive) -> Self {
         Self::Primitive(p)

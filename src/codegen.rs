@@ -428,6 +428,19 @@ const FLOAT_TYPE: IrType = types::F32;
 const BOOL_TYPE: IrType = types::I8;
 const POINTER_TYPE: IrType = types::R64;
 
+impl Type {
+    pub const fn size_of(&self) -> usize {
+        match self {
+            Self::Primitive(p) => match p {
+                Primitive::Integer => 4,
+                Primitive::Float => 4,
+                Primitive::Boolean => 1,
+            },
+            Self::Pointer(_) => 64,
+        }
+    }
+}
+
 impl From<Type> for IrType {
     fn from(value: Type) -> Self {
         match value {
@@ -436,7 +449,7 @@ impl From<Type> for IrType {
                 Primitive::Float => FLOAT_TYPE,
                 Primitive::Boolean => BOOL_TYPE,
             },
-            Type::Pointer(_inner) => POINTER_TYPE, // todo: make this dynamically either 32 or 64 bits
+            Type::Pointer(_inner) => POINTER_TYPE,
         }
     }
 }
