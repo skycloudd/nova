@@ -25,12 +25,14 @@ cc -o $executable $obj_file
 
 set +e
 
-./$executable
+echo "$SCRIPT_SUCCESS running \`$executable\`"
+
+$executable
 
 exit_code=$?
 
 if [ $exit_code -ne 0 ]; then
-    echo "$SCRIPT_FAILURE \`./$executable\` exited with code $exit_code"
+    echo "$SCRIPT_FAILURE \`$executable\` exited with code $exit_code"
 fi
 
 if [ "$2" = "--clean" ]; then
