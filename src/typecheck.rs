@@ -56,17 +56,13 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             match &top_level.0 {
                 TopLevel::Function(function) => match self.functions.get(&function.0.name.0) {
                     None => {
-                        let params = Spanned(
-                            function
-                                .0
-                                .params
-                                .0
+                        let params = function.0.params.as_ref().map(|params| {
+                            params
                                 .iter()
                                 .filter(|(_, ty)| ty.0 != Type::Error)
                                 .map(|(_, ty)| Spanned(self.engine.insert_type(ty.clone()), ty.1))
-                                .collect(),
-                            function.0.params.1,
-                        );
+                                .collect()
+                        });
 
                         let return_ty = Spanned(
                             self.engine.insert_type(function.0.return_ty.clone()),
@@ -92,14 +88,11 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
         let mut top_levels = Vec::with_capacity(ast.top_levels.len());
 
         for top_level in ast.top_levels {
-            let top_level = Spanned(
-                match top_level.0 {
-                    TopLevel::Function(function) => {
-                        TypedTopLevel::Function(self.typecheck_function(function))
-                    }
-                },
-                top_level.1,
-            );
+            let top_level = top_level.map(|top_level| match top_level {
+                TopLevel::Function(function) => {
+                    TypedTopLevel::Function(self.typecheck_function(function))
+                }
+            });
 
             top_levels.push(top_level);
         }
@@ -137,16 +130,11 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             self.variables.insert(name.0, ty.0);
         }
 
-        let body = Spanned(
-            function
-                .0
-                .body
-                .0
-                .into_iter()
+        let body = function.0.body.map(|body| {
+            body.into_iter()
                 .map(|stmt| self.typecheck_statement(stmt))
-                .collect(),
-            function.0.body.1,
-        );
+                .collect()
+        });
 
         self.pop_scope();
 
@@ -167,224 +155,221 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
         &mut self,
         statements: Spanned<Vec<Spanned<Statement>>>,
     ) -> Spanned<Vec<Spanned<TypedStatement>>> {
-        Spanned(
+        statements.map(|statements| {
             statements
-                .0
                 .into_iter()
                 .map(|stmt| self.typecheck_statement(stmt))
-                .collect(),
-            statements.1,
-        )
+                .collect()
+        })
     }
 
     #[allow(clippy::too_many_lines)]
     fn typecheck_statement(&mut self, statement: Spanned<Statement>) -> Spanned<TypedStatement> {
-        Spanned(
-            match statement.0 {
-                Statement::Error => TypedStatement::Error,
-                Statement::Expr(expr) => {
-                    let expr = self.typecheck_expression(expr);
+        statement.map(|statement| match statement {
+            Statement::Error => TypedStatement::Error,
+            Statement::Expr(expr) => {
+                let expr = self.typecheck_expression(expr);
 
-                    TypedStatement::Expr(expr)
-                }
-                Statement::Block(statements) => {
-                    self.push_scope();
+                TypedStatement::Expr(expr)
+            }
+            Statement::Block(statements) => {
+                self.push_scope();
 
-                    let statements = self.typecheck_statements(statements);
+                let statements = self.typecheck_statements(statements);
 
-                    self.pop_scope();
+                self.pop_scope();
 
-                    TypedStatement::Block(statements)
-                }
-                Statement::Loop(statements) => {
-                    self.push_scope();
+                TypedStatement::Block(statements)
+            }
+            Statement::Loop(statements) => {
+                self.push_scope();
 
-                    let statements = self.typecheck_statements(statements);
+                let statements = self.typecheck_statements(statements);
 
-                    self.pop_scope();
+                self.pop_scope();
 
-                    TypedStatement::Loop(statements)
-                }
-                Statement::If {
+                TypedStatement::Loop(statements)
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let condition = self.typecheck_expression(condition);
+
+                let condition_ty = self
+                    .engine
+                    .insert_type(Spanned(condition.0.ty.clone(), condition.1));
+
+                self.engine
+                    .expect(condition_ty, &TypeInfo::Boolean)
+                    .unwrap_or_else(|err| {
+                        self.errors.push(*err);
+                    });
+
+                self.push_scope();
+
+                let then_branch = self.typecheck_statements(then_branch);
+
+                self.pop_scope();
+
+                let else_branch = else_branch.map_or_else(
+                    || None,
+                    |else_branch| {
+                        self.push_scope();
+
+                        let else_branch = self.typecheck_statements(else_branch);
+
+                        self.pop_scope();
+
+                        Some(else_branch)
+                    },
+                );
+
+                TypedStatement::If {
                     condition,
                     then_branch,
                     else_branch,
-                } => {
-                    let condition = self.typecheck_expression(condition);
-
-                    let condition_ty = self
-                        .engine
-                        .insert_type(Spanned(condition.0.ty.clone(), condition.1));
-
-                    self.engine
-                        .expect(condition_ty, &TypeInfo::Boolean)
-                        .unwrap_or_else(|err| {
-                            self.errors.push(*err);
-                        });
-
-                    self.push_scope();
-
-                    let then_branch = self.typecheck_statements(then_branch);
-
-                    self.pop_scope();
-
-                    let else_branch = else_branch.map_or_else(
-                        || None,
-                        |else_branch| {
-                            self.push_scope();
-
-                            let else_branch = self.typecheck_statements(else_branch);
-
-                            self.pop_scope();
-
-                            Some(else_branch)
-                        },
-                    );
-
-                    TypedStatement::If {
-                        condition,
-                        then_branch,
-                        else_branch,
-                    }
                 }
-                Statement::For {
+            }
+            Statement::For {
+                name,
+                start,
+                end,
+                inclusive,
+                body,
+            } => {
+                let start = self.typecheck_expression(start);
+
+                let start_ty = self
+                    .engine
+                    .insert_type(Spanned(start.0.ty.clone(), start.1));
+
+                let end = self.typecheck_expression(end);
+
+                let end_ty = self.engine.insert_type(Spanned(end.0.ty.clone(), end.1));
+
+                self.engine
+                    .expect(start_ty, &TypeInfo::Integer)
+                    .unwrap_or_else(|err| {
+                        self.errors.push(*err);
+                    });
+
+                self.engine
+                    .expect(end_ty, &TypeInfo::Integer)
+                    .unwrap_or_else(|err| {
+                        self.errors.push(*err);
+                    });
+
+                self.push_scope();
+
+                if !is_snake_case(name.0) {
+                    self.warnings.push(Warning::BadName {
+                        name: name.0.to_string(),
+                        span: name.1,
+                    });
+                }
+
+                let name_ty = self
+                    .engine
+                    .insert_type(Spanned(Primitive::Integer.into(), name.1));
+                self.variables.insert(name.0, name_ty);
+
+                let body = self.typecheck_statements(body);
+
+                self.pop_scope();
+
+                TypedStatement::For {
                     name,
                     start,
                     end,
                     inclusive,
                     body,
-                } => {
-                    let start = self.typecheck_expression(start);
-
-                    let start_ty = self
-                        .engine
-                        .insert_type(Spanned(start.0.ty.clone(), start.1));
-
-                    let end = self.typecheck_expression(end);
-
-                    let end_ty = self.engine.insert_type(Spanned(end.0.ty.clone(), end.1));
-
-                    self.engine
-                        .expect(start_ty, &TypeInfo::Integer)
-                        .unwrap_or_else(|err| {
-                            self.errors.push(*err);
-                        });
-
-                    self.engine
-                        .expect(end_ty, &TypeInfo::Integer)
-                        .unwrap_or_else(|err| {
-                            self.errors.push(*err);
-                        });
-
-                    self.push_scope();
-
-                    if !is_snake_case(name.0) {
-                        self.warnings.push(Warning::BadName {
-                            name: name.0.to_string(),
-                            span: name.1,
-                        });
-                    }
-
-                    let name_ty = self
-                        .engine
-                        .insert_type(Spanned(Primitive::Integer.into(), name.1));
-                    self.variables.insert(name.0, name_ty);
-
-                    let body = self.typecheck_statements(body);
-
-                    self.pop_scope();
-
-                    TypedStatement::For {
-                        name,
-                        start,
-                        end,
-                        inclusive,
-                        body,
-                    }
                 }
-                Statement::Let { name, value } => {
-                    let value = self.typecheck_expression(value);
+            }
+            Statement::Let { name, value } => {
+                let value = self.typecheck_expression(value);
 
-                    let value_ty = self
-                        .engine
-                        .insert_type(Spanned(value.0.ty.clone(), value.1));
+                let value_ty = self
+                    .engine
+                    .insert_type(Spanned(value.0.ty.clone(), value.1));
 
-                    if !is_snake_case(name.0) {
-                        self.warnings.push(Warning::BadName {
-                            name: name.0.to_string(),
-                            span: name.1,
-                        });
-                    }
-
-                    self.variables.insert(name.0, value_ty);
-
-                    TypedStatement::Let { name, value }
+                if !is_snake_case(name.0) {
+                    self.warnings.push(Warning::BadName {
+                        name: name.0.to_string(),
+                        span: name.1,
+                    });
                 }
-                Statement::Assign { name, value } => {
-                    let value = self.typecheck_expression(value);
 
-                    let value_ty = self
-                        .engine
-                        .insert_type(Spanned(value.0.ty.clone(), value.1));
+                self.variables.insert(name.0, value_ty);
 
-                    let Some(name_ty) = self.variables.get(&name.0) else {
-                        self.errors.push(Error::UndefinedVariable {
-                            name: name.0.to_string(),
-                            span: name.1,
-                            closest: self
-                                .variables
-                                .closest_str_key(name.0)
-                                .map(|(name, dist)| (name.to_string(), dist)),
-                        });
+                TypedStatement::Let { name, value }
+            }
+            Statement::Assign { name, value } => {
+                let value = self.typecheck_expression(value);
 
-                        return Spanned(TypedStatement::Error, statement.1);
-                    };
+                let value_ty = self
+                    .engine
+                    .insert_type(Spanned(value.0.ty.clone(), value.1));
 
-                    self.engine.unify(*name_ty, value_ty).unwrap_or_else(|err| {
-                        self.errors.push(*err);
+                let name_ty = if let Some(ty) = self.variables.get(&name.0) {
+                    *ty
+                } else {
+                    self.errors.push(Error::UndefinedVariable {
+                        name: name.0.to_string(),
+                        span: name.1,
+                        closest: self
+                            .variables
+                            .closest_str_key(name.0)
+                            .map(|(name, dist)| (name.to_string(), dist)),
                     });
 
-                    TypedStatement::Assign { name, value }
-                }
-                Statement::Break => TypedStatement::Break,
-                Statement::Continue => TypedStatement::Continue,
-                Statement::Return(expr) => {
-                    let expr = self.typecheck_expression(expr);
+                    self.engine.insert_type(Spanned(Type::Error, name.1))
+                };
 
-                    let return_ty = self
-                        .functions
-                        .get(self.current_function.unwrap())
-                        .unwrap()
-                        .0
-                        .return_ty;
+                self.engine.unify(name_ty, value_ty).unwrap_or_else(|err| {
+                    self.errors.push(*err);
+                });
 
-                    let expr_ty = self.engine.insert_type(Spanned(expr.0.ty.clone(), expr.1));
+                TypedStatement::Assign { name, value }
+            }
+            Statement::Break => TypedStatement::Break,
+            Statement::Continue => TypedStatement::Continue,
+            Statement::Return(expr) => {
+                let expr = self.typecheck_expression(expr);
 
-                    self.engine
-                        .unify(return_ty.0, expr_ty)
-                        .unwrap_or_else(|err| {
-                            if let Error::TypeMismatch {
+                let return_ty = self
+                    .functions
+                    .get(self.current_function.unwrap())
+                    .unwrap()
+                    .0
+                    .return_ty;
+
+                let expr_ty = self.engine.insert_type(Spanned(expr.0.ty.clone(), expr.1));
+
+                self.engine
+                    .unify(return_ty.0, expr_ty)
+                    .unwrap_or_else(|err| {
+                        if let Error::TypeMismatch {
+                            expected,
+                            found,
+                            span,
+                        } = *err
+                        {
+                            self.errors.push(Error::ReturnTypeMismatch {
                                 expected,
                                 found,
-                                span,
-                            } = *err
-                            {
-                                self.errors.push(Error::ReturnTypeMismatch {
-                                    expected,
-                                    found,
-                                    expected_span: return_ty.1,
-                                    found_span: span,
-                                });
-                            } else {
-                                self.errors.push(*err);
-                            }
-                        });
+                                expected_span: return_ty.1,
+                                found_span: span,
+                            });
+                        } else {
+                            self.errors.push(*err);
+                        }
+                    });
 
-                    TypedStatement::Return(expr)
-                }
-            },
-            statement.1,
-        )
+                TypedStatement::Return(expr)
+            }
+        })
     }
 
     #[allow(clippy::too_many_lines)]
@@ -821,9 +806,9 @@ impl Engine {
     }
 
     fn insert_type(&mut self, ty: Spanned<Type>) -> TypeId {
-        let typeinfo = self.type_to_typeinfo(ty.0);
+        let ty = ty.map(|ty| self.type_to_typeinfo(ty));
 
-        self.insert(Spanned(typeinfo, ty.1))
+        self.insert(ty)
     }
 
     fn unify(&mut self, a: TypeId, b: TypeId) -> Result<(), Box<Error>> {

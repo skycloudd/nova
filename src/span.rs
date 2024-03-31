@@ -44,6 +44,10 @@ impl chumsky::span::Span for Span {
 pub struct Spanned<T>(pub T, pub Span);
 
 impl<T> Spanned<T> {
+    pub const fn as_ref(&self) -> Spanned<&T> {
+        Spanned(&self.0, self.1)
+    }
+
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<U> {
         Spanned(f(self.0), self.1)
     }
@@ -60,17 +64,5 @@ impl<T> Spanned<T> {
 impl<T> Spanned<Box<T>> {
     pub fn into_inner(self) -> Spanned<T> {
         Spanned(*self.0, self.1)
-    }
-}
-
-impl<T> AsRef<T> for Spanned<T> {
-    fn as_ref(&self) -> &T {
-        &self.0
-    }
-}
-
-impl<T> AsMut<T> for Spanned<T> {
-    fn as_mut(&mut self) -> &mut T {
-        &mut self.0
     }
 }

@@ -357,13 +357,11 @@ impl MirBuilder {
                 }
                 Expr::Call { func, args } => Expression::Call {
                     func: *self.func_id_map.get(func.0).unwrap(),
-                    args: Spanned(
-                        args.0
-                            .into_iter()
+                    args: args.map(|args| {
+                        args.into_iter()
                             .map(|arg| self.build_mir_expr(arg))
-                            .collect(),
-                        args.1,
-                    ),
+                            .collect()
+                    }),
                 },
             },
             ty: Self::lower_ty(Spanned(expr.ty, span)).0,
