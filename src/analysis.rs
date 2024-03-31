@@ -273,11 +273,11 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
             | Expression::Integer(_)
             | Expression::Float(_) => {}
             Expression::Unary { op: _, rhs } => {
-                self.analyse_expression(&Spanned(*rhs.0.clone(), rhs.1));
+                self.analyse_expression(&rhs.clone().into_inner());
             }
             Expression::Binary { lhs, op: _, rhs } => {
-                self.analyse_expression(&Spanned(*lhs.0.clone(), lhs.1));
-                self.analyse_expression(&Spanned(*rhs.0.clone(), rhs.1));
+                self.analyse_expression(&lhs.clone().into_inner());
+                self.analyse_expression(&rhs.clone().into_inner());
             }
             Expression::Convert { ty, expr } => {
                 if ty.0 == expr.0.ty {
@@ -290,7 +290,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
                     });
                 }
 
-                self.analyse_expression(&Spanned(*expr.0.clone(), expr.1));
+                self.analyse_expression(&expr.clone().into_inner());
             }
             Expression::Call { func: _, args } => {
                 for arg in &args.0 {

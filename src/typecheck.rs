@@ -438,11 +438,11 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     ty: Primitive::Float.into(),
                 },
                 Expr::Binary(lhs, op, rhs) => {
-                    let lhs = self.typecheck_expression(Spanned(*lhs.0, lhs.1));
+                    let lhs = self.typecheck_expression(lhs.into_inner());
 
                     let lhs_ty = self.engine.insert_type(Spanned(lhs.0.ty.clone(), lhs.1));
 
-                    let rhs = self.typecheck_expression(Spanned(*rhs.0, rhs.1));
+                    let rhs = self.typecheck_expression(rhs.into_inner());
 
                     let rhs_ty = self.engine.insert_type(Spanned(rhs.0.ty.clone(), rhs.1));
 
@@ -521,22 +521,18 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     }
 
                     TypedExpr {
-                        expr: typed::Expr::Binary(
-                            Spanned(Box::new(lhs.0), lhs.1),
-                            op,
-                            Spanned(Box::new(rhs.0), rhs.1),
-                        ),
+                        expr: typed::Expr::Binary(lhs.into_box(), op, rhs.into_box()),
                         ty,
                     }
                 }
                 Expr::Unary(op, expr) => {
-                    let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
+                    let expr = self.typecheck_expression(expr.into_inner());
 
                     let ty = match (&expr.0.ty, op.0) {
                         (Type::Error, _) => Ok(Type::Error),
 
                         (any, UnaryOp::Ref) => {
-                            Ok(Type::Pointer(Spanned(Box::new(any.clone()), expr.1)))
+                            Ok(Type::Pointer(Spanned(any.clone(), expr.1).into_box()))
                         }
 
                         (Type::Primitive(lhs), op) => match (lhs, op) {
@@ -567,12 +563,12 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     };
 
                     TypedExpr {
-                        expr: typed::Expr::Unary(op, Spanned(Box::new(expr.0), expr.1)),
+                        expr: typed::Expr::Unary(op, expr.into_box()),
                         ty,
                     }
                 }
                 Expr::Convert { ty, expr } => {
-                    let expr = self.typecheck_expression(Spanned(*expr.0, expr.1));
+                    let expr = self.typecheck_expression(expr.into_inner());
 
                     #[allow(clippy::match_same_arms)]
                     match (&expr.0.ty, &ty.0) {
@@ -601,7 +597,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                         ty: ty.0.clone(),
                         expr: typed::Expr::Convert {
                             ty,
-                            expr: Spanned(Box::new(expr.0), expr.1),
+                            expr: expr.into_box(),
                         },
                     }
                 }
@@ -687,7 +683,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             typed::Expr::Integer(int) => Some(Value::Integer(int)),
             typed::Expr::Float(float) => Some(Value::Float(float)),
             typed::Expr::Unary(op, rhs) => {
-                let rhs = self.evaluate_expression(Spanned(*rhs.0, rhs.1))?;
+                let rhs = self.evaluate_expression(rhs.into_inner())?;
 
                 match op.0 {
                     UnaryOp::Negate => match rhs {
@@ -714,8 +710,8 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             typed::Expr::Binary(lhs, op, rhs) => {
                 assert_eq!(lhs.0.ty, rhs.0.ty);
 
-                let lhs_value = self.evaluate_expression(Spanned(*lhs.0, lhs.1))?;
-                let rhs_value = self.evaluate_expression(Spanned(*rhs.0, rhs.1))?;
+                let lhs_value = self.evaluate_expression(lhs.into_inner())?;
+                let rhs_value = self.evaluate_expression(rhs.into_inner())?;
 
                 match (lhs_value, rhs_value) {
                     (Value::Boolean(lhs), Value::Boolean(rhs)) => match op.0 {
@@ -783,7 +779,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
             }
             typed::Expr::Convert { ty, expr } => {
                 let expr_ty = expr.0.ty.clone();
-                let expr = self.evaluate_expression(Spanned(*expr.0, expr.1))?;
+                let expr = self.evaluate_expression(expr.into_inner())?;
 
                 match (ty.0, expr_ty) {
                     (from, to) if from == to => Some(expr),
@@ -888,7 +884,7 @@ impl Engine {
             TypeInfo::Pointer(inner) => {
                 let inner = self.reconstruct(*inner)?;
 
-                Ok(Type::Pointer(Spanned(Box::new(inner.0), inner.1)))
+                Ok(Type::Pointer(inner.into_box()))
             }
         }
         .map(|ty| Spanned(ty, var.1))
@@ -902,7 +898,7 @@ impl Engine {
                 Primitive::Integer => TypeInfo::Integer,
                 Primitive::Float => TypeInfo::Float,
             },
-            Type::Pointer(inner) => TypeInfo::Pointer(self.insert_type(Spanned(*inner.0, inner.1))),
+            Type::Pointer(inner) => TypeInfo::Pointer(self.insert_type(inner.into_inner())),
         }
     }
 
@@ -916,7 +912,7 @@ impl Engine {
             TypeInfo::Pointer(inner) => {
                 let inner = self.reconstruct(*inner).unwrap();
 
-                Type::Pointer(Spanned(Box::new(inner.0), inner.1))
+                Type::Pointer(inner.into_box())
             }
         }
     }

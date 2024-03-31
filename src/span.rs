@@ -43,6 +43,18 @@ impl chumsky::span::Span for Span {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Spanned<T>(pub T, pub Span);
 
+impl<T> Spanned<T> {
+    pub fn into_box(self) -> Spanned<Box<T>> {
+        Spanned(Box::new(self.0), self.1)
+    }
+}
+
+impl<T> Spanned<Box<T>> {
+    pub fn into_inner(self) -> Spanned<T> {
+        Spanned(*self.0, self.1)
+    }
+}
+
 impl<T> AsRef<T> for Spanned<T> {
     fn as_ref(&self) -> &T {
         &self.0

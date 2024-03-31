@@ -228,16 +228,16 @@ fn build_mir_expr(expr: Spanned<mir::TypedExpression>) -> TypedExpression {
             mir::Expression::Float(value) => Expression::Float(value),
             mir::Expression::Unary { op, rhs } => Expression::Unary {
                 op: op.0,
-                rhs: Box::new(build_mir_expr(Spanned(*rhs.0, rhs.1))),
+                rhs: Box::new(build_mir_expr(rhs.into_inner())),
             },
             mir::Expression::Binary { lhs, op, rhs } => Expression::Binary {
-                lhs: Box::new(build_mir_expr(Spanned(*lhs.0, lhs.1))),
+                lhs: Box::new(build_mir_expr(lhs.into_inner())),
                 op: op.0,
-                rhs: Box::new(build_mir_expr(Spanned(*rhs.0, rhs.1))),
+                rhs: Box::new(build_mir_expr(rhs.into_inner())),
             },
             mir::Expression::Convert { ty, expr } => Expression::Convert {
                 ty: ty.0.try_into().unwrap(),
-                expr: Box::new(build_mir_expr(Spanned(*expr.0, expr.1))),
+                expr: Box::new(build_mir_expr(expr.into_inner())),
             },
             mir::Expression::Call { func, args } => Expression::Call {
                 func: func.0,

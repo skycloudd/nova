@@ -260,9 +260,9 @@ impl MirBuilder {
                     Primitive::Float => Primitive::Float.into(),
                 },
                 ast::Type::Pointer(inner) => {
-                    let inner = Self::lower_ty(Spanned(*inner.0, inner.1));
+                    let inner = Self::lower_ty(inner.into_inner());
 
-                    Type::Pointer(Spanned(Box::new(inner.0), inner.1))
+                    Type::Pointer(inner.into_box())
                 }
             },
             ty.1,
@@ -353,29 +353,29 @@ impl MirBuilder {
                     Expr::Integer(value) => Expression::Integer(value),
                     Expr::Float(value) => Expression::Float(value),
                     Expr::Unary(op, rhs) => {
-                        let rhs = self.build_mir_expr(Spanned(*rhs.0, rhs.1));
+                        let rhs = self.build_mir_expr(rhs.into_inner());
 
                         Expression::Unary {
                             op,
-                            rhs: Spanned(Box::new(rhs.0), expr.1),
+                            rhs: rhs.into_box(),
                         }
                     }
                     Expr::Binary(lhs, op, rhs) => {
-                        let lhs = self.build_mir_expr(Spanned(*lhs.0, lhs.1));
-                        let rhs = self.build_mir_expr(Spanned(*rhs.0, rhs.1));
+                        let lhs = self.build_mir_expr(lhs.into_inner());
+                        let rhs = self.build_mir_expr(rhs.into_inner());
 
                         Expression::Binary {
-                            lhs: Spanned(Box::new(lhs.0), expr.1),
+                            lhs: lhs.into_box(),
                             op,
-                            rhs: Spanned(Box::new(rhs.0), expr.1),
+                            rhs: rhs.into_box(),
                         }
                     }
                     Expr::Convert { ty, expr } => {
-                        let expr = self.build_mir_expr(Spanned(*expr.0, expr.1));
+                        let expr = self.build_mir_expr(expr.into_inner());
 
                         Expression::Convert {
                             ty: Self::lower_ty(ty),
-                            expr: Spanned(Box::new(expr.0), expr.1),
+                            expr: expr.into_box(),
                         }
                     }
                     Expr::Call { func, args } => Expression::Call {
