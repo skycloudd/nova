@@ -81,23 +81,20 @@ pub fn run<'file>(
     errors.extend(map_errors(lex_errors));
 
     let (ast, parse_errors) = timing.time("parsing", || {
-        tokens.as_ref().map_or_else(
-            || Default::default(),
-            |tokens| {
-                let eof = input.chars().count().saturating_sub(1);
-                let end_of_input = Span::new(file_ctx, eof..eof);
+        tokens.as_ref().map_or_else(Default::default, |tokens| {
+            let eof = input.chars().count().saturating_sub(1);
+            let end_of_input = Span::new(file_ctx, eof..eof);
 
-                parser::parser()
-                    .parse(tokens.spanned(end_of_input))
-                    .into_output_errors()
-            },
-        )
+            parser::parser()
+                .parse(tokens.spanned(end_of_input))
+                .into_output_errors()
+        })
     });
 
     errors.extend(map_errors(parse_errors));
 
     let (typed_ast, typecheck_warnings, typecheck_errs) = timing.time("typechecking", || {
-        ast.map_or_else(|| Default::default(), typecheck::typecheck)
+        ast.map_or_else(Default::default, typecheck::typecheck)
     });
 
     warnings.extend(typecheck_warnings);

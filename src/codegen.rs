@@ -432,11 +432,10 @@ impl Type {
     pub const fn size_of(&self) -> usize {
         match self {
             Self::Primitive(p) => match p {
-                Primitive::Integer => 4,
-                Primitive::Float => 4,
+                Primitive::Integer | Primitive::Float => 4,
                 Primitive::Boolean => 1,
             },
-            Self::Pointer(_) => 64,
+            Self::Pointer(_) => 8,
         }
     }
 }
