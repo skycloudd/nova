@@ -44,8 +44,16 @@ impl chumsky::span::Span for Span {
 pub struct Spanned<T>(pub T, pub Span);
 
 impl<T> Spanned<T> {
-    pub fn into_box(self) -> Spanned<Box<T>> {
-        Spanned(Box::new(self.0), self.1)
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<U> {
+        Spanned(f(self.0), self.1)
+    }
+
+    pub fn map_with_span<U>(self, f: impl FnOnce(T, Span) -> U) -> Spanned<U> {
+        Spanned(f(self.0, self.1), self.1)
+    }
+
+    pub fn boxed(self) -> Spanned<Box<T>> {
+        self.map(Box::new)
     }
 }
 

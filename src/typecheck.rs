@@ -521,7 +521,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     }
 
                     TypedExpr {
-                        expr: typed::Expr::Binary(lhs.into_box(), op, rhs.into_box()),
+                        expr: typed::Expr::Binary(lhs.boxed(), op, rhs.boxed()),
                         ty,
                     }
                 }
@@ -532,7 +532,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                         (Type::Error, _) => Ok(Type::Error),
 
                         (any, UnaryOp::Ref) => {
-                            Ok(Type::Pointer(Spanned(any.clone(), expr.1).into_box()))
+                            Ok(Type::Pointer(Spanned(any.clone(), expr.1).boxed()))
                         }
 
                         (Type::Primitive(lhs), op) => match (lhs, op) {
@@ -563,7 +563,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                     };
 
                     TypedExpr {
-                        expr: typed::Expr::Unary(op, expr.into_box()),
+                        expr: typed::Expr::Unary(op, expr.boxed()),
                         ty,
                     }
                 }
@@ -597,7 +597,7 @@ impl<'warning, 'error> Typechecker<'warning, 'error> {
                         ty: ty.0.clone(),
                         expr: typed::Expr::Convert {
                             ty,
-                            expr: expr.into_box(),
+                            expr: expr.boxed(),
                         },
                     }
                 }
@@ -884,7 +884,7 @@ impl Engine {
             TypeInfo::Pointer(inner) => {
                 let inner = self.reconstruct(*inner)?;
 
-                Ok(Type::Pointer(inner.into_box()))
+                Ok(Type::Pointer(inner.boxed()))
             }
         }
         .map(|ty| Spanned(ty, var.1))
@@ -912,7 +912,7 @@ impl Engine {
             TypeInfo::Pointer(inner) => {
                 let inner = self.reconstruct(*inner).unwrap();
 
-                Type::Pointer(inner.into_box())
+                Type::Pointer(inner.boxed())
             }
         }
     }

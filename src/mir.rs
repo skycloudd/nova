@@ -213,185 +213,160 @@ impl MirBuilder {
     }
 
     fn build_mir_top_level(&mut self, top_level: Spanned<TypedTopLevel>) -> Spanned<TopLevel> {
-        Spanned(
-            match top_level.0 {
-                TypedTopLevel::Function(function) => {
-                    TopLevel::Function(self.build_mir_function(function))
-                }
-            },
-            top_level.1,
-        )
+        top_level.map(|top_level| match top_level {
+            TypedTopLevel::Function(function) => {
+                TopLevel::Function(self.build_mir_function(function))
+            }
+        })
     }
 
     fn build_mir_function(&mut self, function: Spanned<TypedFunction>) -> Spanned<Function> {
-        Spanned(
-            Function {
-                id: *self.func_id_map.get(function.0.name.0).unwrap(),
-                name: function.0.name,
-                params: Spanned(
-                    function
-                        .0
-                        .params
-                        .0
-                        .iter()
-                        .map(|arg| {
-                            (
-                                *self.var_id_map.get(arg.0 .0).unwrap(),
-                                Self::lower_ty(arg.1.clone()),
-                            )
-                        })
-                        .collect(),
-                    function.0.params.1,
-                ),
-                return_ty: Self::lower_ty(function.0.return_ty),
-                body: self.build_statements(function.0.body),
-            },
-            function.1,
-        )
+        function.map(|function| Function {
+            id: *self.func_id_map.get(function.name.0).unwrap(),
+            name: function.name,
+            params: function.params.map(|params| {
+                params
+                    .into_iter()
+                    .map(|param| {
+                        (
+                            *self.var_id_map.get(param.0 .0).unwrap(),
+                            Self::lower_ty(param.1),
+                        )
+                    })
+                    .collect()
+            }),
+            return_ty: Self::lower_ty(function.return_ty),
+            body: self.build_statements(function.body),
+        })
     }
 
     fn lower_ty(ty: Spanned<ast::Type>) -> Spanned<Type> {
-        Spanned(
-            match ty.0 {
-                ast::Type::Error => Type::Error,
-                ast::Type::Primitive(primitive) => match primitive {
-                    Primitive::Boolean => Primitive::Boolean.into(),
-                    Primitive::Integer => Primitive::Integer.into(),
-                    Primitive::Float => Primitive::Float.into(),
-                },
-                ast::Type::Pointer(inner) => {
-                    let inner = Self::lower_ty(inner.into_inner());
-
-                    Type::Pointer(inner.into_box())
-                }
+        ty.map(|ty| match ty {
+            ast::Type::Error => Type::Error,
+            ast::Type::Primitive(primitive) => match primitive {
+                Primitive::Boolean => Primitive::Boolean.into(),
+                Primitive::Integer => Primitive::Integer.into(),
+                Primitive::Float => Primitive::Float.into(),
             },
-            ty.1,
-        )
+            ast::Type::Pointer(inner) => {
+                let inner = Self::lower_ty(inner.into_inner());
+
+                Type::Pointer(inner.boxed())
+            }
+        })
     }
 
     fn build_statements(
         &mut self,
         statements: Spanned<Vec<Spanned<TypedStatement>>>,
     ) -> Spanned<Vec<Spanned<Statement>>> {
-        Spanned(
+        statements.map(|statements| {
             statements
-                .0
                 .into_iter()
                 .map(|stmt| self.build_mir_statement(stmt))
-                .collect(),
-            statements.1,
-        )
+                .collect()
+        })
     }
 
     fn build_mir_statement(&mut self, statement: Spanned<TypedStatement>) -> Spanned<Statement> {
-        Spanned(
-            match statement.0 {
-                TypedStatement::Error => Statement::Error,
-                TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(expr)),
-                TypedStatement::Block(statements) => {
-                    Statement::Block(self.build_statements(statements))
-                }
-                TypedStatement::Loop(statements) => {
-                    Statement::Loop(self.build_statements(statements))
-                }
-                TypedStatement::If {
-                    condition,
-                    then_branch,
-                    else_branch,
-                } => Statement::If {
-                    condition: self.build_mir_expr(condition),
-                    then_branch: self.build_statements(then_branch),
-                    else_branch: else_branch.map(|stmts| self.build_statements(stmts)),
-                },
-                TypedStatement::For {
+        statement.map(|statement| match statement {
+            TypedStatement::Error => Statement::Error,
+            TypedStatement::Expr(expr) => Statement::Expr(self.build_mir_expr(expr)),
+            TypedStatement::Block(statements) => {
+                Statement::Block(self.build_statements(statements))
+            }
+            TypedStatement::Loop(statements) => Statement::Loop(self.build_statements(statements)),
+            TypedStatement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => Statement::If {
+                condition: self.build_mir_expr(condition),
+                then_branch: self.build_statements(then_branch),
+                else_branch: else_branch.map(|stmts| self.build_statements(stmts)),
+            },
+            TypedStatement::For {
+                name,
+                start,
+                end,
+                inclusive,
+                body,
+            } => {
+                let start = self.build_mir_expr(start);
+                let end = self.build_mir_expr(end);
+                let name = self.var_id_map.insert(name);
+                let body = self.build_statements(body);
+
+                Statement::For {
                     name,
                     start,
                     end,
                     inclusive,
                     body,
-                } => {
-                    let start = self.build_mir_expr(start);
-                    let end = self.build_mir_expr(end);
-                    let name = self.var_id_map.insert(name);
-                    let body = self.build_statements(body);
-
-                    Statement::For {
-                        name,
-                        start,
-                        end,
-                        inclusive,
-                        body,
-                    }
                 }
-                TypedStatement::Let { name, value } => {
-                    let value = self.build_mir_expr(value);
-                    let name = self.var_id_map.insert(name);
+            }
+            TypedStatement::Let { name, value } => {
+                let value = self.build_mir_expr(value);
+                let name = self.var_id_map.insert(name);
 
-                    Statement::Let { name, value }
-                }
-                TypedStatement::Assign { name, value } => Statement::Assign {
-                    name: *self.var_id_map.get(name.0).unwrap(),
-                    value: self.build_mir_expr(value),
-                },
-                TypedStatement::Break => Statement::Break,
-                TypedStatement::Continue => Statement::Continue,
-                TypedStatement::Return(expr) => Statement::Return(self.build_mir_expr(expr)),
+                Statement::Let { name, value }
+            }
+            TypedStatement::Assign { name, value } => Statement::Assign {
+                name: *self.var_id_map.get(name.0).unwrap(),
+                value: self.build_mir_expr(value),
             },
-            statement.1,
-        )
+            TypedStatement::Break => Statement::Break,
+            TypedStatement::Continue => Statement::Continue,
+            TypedStatement::Return(expr) => Statement::Return(self.build_mir_expr(expr)),
+        })
     }
 
     fn build_mir_expr(&mut self, expr: Spanned<TypedExpr>) -> Spanned<TypedExpression> {
-        Spanned(
-            TypedExpression {
-                expr: match expr.0.expr {
-                    Expr::Error => Expression::Error,
-                    Expr::Variable(name) => {
-                        Expression::Variable(*self.var_id_map.get(name.0).unwrap())
-                    }
-                    Expr::Boolean(value) => Expression::Boolean(value),
-                    Expr::Integer(value) => Expression::Integer(value),
-                    Expr::Float(value) => Expression::Float(value),
-                    Expr::Unary(op, rhs) => {
-                        let rhs = self.build_mir_expr(rhs.into_inner());
+        expr.map_with_span(|expr, span| TypedExpression {
+            expr: match expr.expr {
+                Expr::Error => Expression::Error,
+                Expr::Variable(name) => Expression::Variable(*self.var_id_map.get(name.0).unwrap()),
+                Expr::Boolean(value) => Expression::Boolean(value),
+                Expr::Integer(value) => Expression::Integer(value),
+                Expr::Float(value) => Expression::Float(value),
+                Expr::Unary(op, rhs) => {
+                    let rhs = self.build_mir_expr(rhs.into_inner());
 
-                        Expression::Unary {
-                            op,
-                            rhs: rhs.into_box(),
-                        }
+                    Expression::Unary {
+                        op,
+                        rhs: rhs.boxed(),
                     }
-                    Expr::Binary(lhs, op, rhs) => {
-                        let lhs = self.build_mir_expr(lhs.into_inner());
-                        let rhs = self.build_mir_expr(rhs.into_inner());
+                }
+                Expr::Binary(lhs, op, rhs) => {
+                    let lhs = self.build_mir_expr(lhs.into_inner());
+                    let rhs = self.build_mir_expr(rhs.into_inner());
 
-                        Expression::Binary {
-                            lhs: lhs.into_box(),
-                            op,
-                            rhs: rhs.into_box(),
-                        }
+                    Expression::Binary {
+                        lhs: lhs.boxed(),
+                        op,
+                        rhs: rhs.boxed(),
                     }
-                    Expr::Convert { ty, expr } => {
-                        let expr = self.build_mir_expr(expr.into_inner());
+                }
+                Expr::Convert { ty, expr } => {
+                    let expr = self.build_mir_expr(expr.into_inner());
 
-                        Expression::Convert {
-                            ty: Self::lower_ty(ty),
-                            expr: expr.into_box(),
-                        }
+                    Expression::Convert {
+                        ty: Self::lower_ty(ty),
+                        expr: expr.boxed(),
                     }
-                    Expr::Call { func, args } => Expression::Call {
-                        func: *self.func_id_map.get(func.0).unwrap(),
-                        args: Spanned(
-                            args.0
-                                .into_iter()
-                                .map(|arg| self.build_mir_expr(arg))
-                                .collect(),
-                            args.1,
-                        ),
-                    },
+                }
+                Expr::Call { func, args } => Expression::Call {
+                    func: *self.func_id_map.get(func.0).unwrap(),
+                    args: Spanned(
+                        args.0
+                            .into_iter()
+                            .map(|arg| self.build_mir_expr(arg))
+                            .collect(),
+                        args.1,
+                    ),
                 },
-                ty: Self::lower_ty(Spanned(expr.0.ty, expr.1)).0,
             },
-            expr.1,
-        )
+            ty: Self::lower_ty(Spanned(expr.ty, span)).0,
+        })
     }
 }

@@ -291,7 +291,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
                 Spanned(
                     Expr::Convert {
                         ty,
-                        expr: expr.into_box(),
+                        expr: expr.boxed(),
                     },
                     e.span(),
                 )
@@ -347,7 +347,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             .foldr(atom, |op, expr| {
                 let span = Span::union(op.1, expr.1);
 
-                Spanned(Expr::Unary(op, expr.into_box()), span)
+                Spanned(Expr::Unary(op, expr.boxed()), span)
             })
             .boxed();
 
@@ -362,7 +362,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             .foldl(factor_op.then(unary).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(lhs.into_box(), op, rhs.into_box()), span)
+                Spanned(Expr::Binary(lhs.boxed(), op, rhs.boxed()), span)
             })
             .boxed();
 
@@ -377,7 +377,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             .foldl(sum_op.then(factor).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(lhs.into_box(), op, rhs.into_box()), span)
+                Spanned(Expr::Binary(lhs.boxed(), op, rhs.boxed()), span)
             })
             .boxed();
 
@@ -394,7 +394,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             .foldl(relational_op.then(sum).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(lhs.into_box(), op, rhs.into_box()), span)
+                Spanned(Expr::Binary(lhs.boxed(), op, rhs.boxed()), span)
             })
             .boxed();
 
@@ -409,7 +409,7 @@ fn expr_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Expr>, Pa
             .foldl(equality_op.then(relational).repeated(), |lhs, (op, rhs)| {
                 let span = Span::union(lhs.1, rhs.1);
 
-                Spanned(Expr::Binary(lhs.into_box(), op, rhs.into_box()), span)
+                Spanned(Expr::Binary(lhs.boxed(), op, rhs.boxed()), span)
             })
             .boxed()
     })
@@ -433,7 +433,7 @@ fn type_parser<'tok>() -> impl Parser<'tok, ParserInput<'tok>, Spanned<Type>, Pa
             just(Token::Op(Op::LessThan)),
             just(Token::Op(Op::GreaterThan)),
         ))
-        .map(|ty: Spanned<Type>| Type::Pointer(ty.into_box()));
+        .map(|ty: Spanned<Type>| Type::Pointer(ty.boxed()));
 
         let primitive = select! {
             Token::Variable("bool") => Primitive::Boolean,
