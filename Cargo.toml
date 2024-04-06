@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 camino = "1.1.6"
-chumsky = "1.0.0-alpha.6"
+chumsky = "1.0.0-alpha.7"
 clap = { version = "4.5.4", features = ["derive"] }
 codespan-reporting = "0.11.1"
-cranelift = "0.106.0"
-cranelift-module = "0.106.0"
-cranelift-native = "0.106.0"
-cranelift-object = "0.106.0"
+cranelift = "0.106.1"
+cranelift-module = "0.106.1"
+cranelift-native = "0.106.1"
+cranelift-object = "0.106.1"
 heck = "0.5.0"
 levenshtein = "1.0.5"
 log = "0.4.21"
