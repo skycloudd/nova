@@ -158,9 +158,7 @@ impl<'warning, 'error> Analysis<'warning, 'error> {
             } => {
                 self.analyse_expression(condition);
 
-                if let ExpressionTruthness::Known(known) =
-                    check_expression_thruthness(&condition.0.expr)
-                {
+                if let Some(known) = check_expression_thruthness(&condition.0.expr) {
                     self.warnings.push(Warning::Lint {
                         span: condition.1,
                         message: format!("this `if` condition is always {known}"),
@@ -346,15 +344,9 @@ fn expression_is_trivially_pure(expr: &Expression) -> bool {
     }
 }
 
-#[derive(Debug)]
-enum ExpressionTruthness {
-    Known(bool),
-    Unknown,
-}
-
-const fn check_expression_thruthness(expr: &Expression) -> ExpressionTruthness {
+const fn check_expression_thruthness(expr: &Expression) -> Option<bool> {
     match expr {
-        Expression::Boolean(bool) => ExpressionTruthness::Known(*bool),
-        _ => ExpressionTruthness::Unknown,
+        Expression::Boolean(bool) => Some(*bool),
+        _ => None,
     }
 }
