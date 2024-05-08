@@ -67,7 +67,7 @@ pub fn run<'file>(
 
     let file_ctx = Ctx(file_id);
 
-    let mut timing = TimingStats::new(print_timing);
+    let timing = TimingStats::new(print_timing);
 
     let mut warnings = vec![];
     let mut errors = vec![];
@@ -111,7 +111,7 @@ pub fn run<'file>(
         errors.push(Error::MissingMainFunction);
     }
 
-    let res = if errors.is_empty() {
+    if errors.is_empty() {
         let mir = timing.time("removing spans", || mir_no_span::build(mir));
 
         let low_ir = timing.time("building LIR", || low_ir::lower(mir));
@@ -128,11 +128,7 @@ pub fn run<'file>(
         error!("compilation failed");
 
         CompileResult::Failure { warnings, errors }
-    };
-
-    timing.print();
-
-    res
+    }
 }
 
 pub fn report(diagnostic: &impl Diag) -> Diagnostic<usize> {
@@ -216,23 +212,15 @@ fn has_correct_main(mir: &Mir) -> bool {
 }
 
 struct TimingStats {
-    stats: Vec<(&'static str, core::time::Duration)>,
     flag: bool,
 }
 
 impl TimingStats {
     const fn new(flag: bool) -> Self {
-        Self {
-            stats: vec![],
-            flag,
-        }
+        Self { flag }
     }
 
-    fn push(&mut self, name: &'static str, duration: core::time::Duration) {
-        self.stats.push((name, duration));
-    }
-
-    fn time<F, T>(&mut self, name: &'static str, f: F) -> T
+    fn time<F, T>(&self, name: &'static str, f: F) -> T
     where
         F: FnOnce() -> T,
     {
@@ -240,18 +228,10 @@ impl TimingStats {
         let res = f();
         let duration = start.elapsed();
 
-        self.push(name, duration);
-
-        res
-    }
-
-    fn print(&self) {
-        if !self.flag {
-            return;
-        }
-
-        for (name, duration) in &self.stats {
+        if self.flag {
             info!("{:<15}: {:>8.2?}", name, duration);
         }
+
+        res
     }
 }
