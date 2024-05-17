@@ -4,7 +4,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-SCRIPT_NAME=$(basename $0)
+SCRIPT_NAME=$(basename "$0")
 SCRIPT_SUCCESS="${GREEN}[$SCRIPT_NAME]${NC}"
 SCRIPT_FAILURE="${RED}[$SCRIPT_NAME]${NC}"
 
@@ -20,8 +20,8 @@ executable=${input%.nv}
 set -e
 
 echo "$SCRIPT_SUCCESS compiling \`$input\` to \`$obj_file\` and running \`$executable\`"
-cargo run -- $input -t -o $obj_file 
-cc -o $executable $obj_file
+cargo run -- "$input" -t -o "$obj_file"
+cc -o "$executable" "$obj_file"
 
 set +e
 
@@ -38,7 +38,7 @@ fi
 if [ "$2" = "--clean" ]; then
     echo "$SCRIPT_SUCCESS cleaning up \`$obj_file\` and \`$executable\`"
 
-    rm $obj_file $executable
+    rm "$obj_file" "$executable"
 fi
 
 exit $exit_code
